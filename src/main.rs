@@ -15,8 +15,11 @@ mod message;
 mod db;
 mod items;
 
+use rocket::fairing::AdHoc;
 use std::collections::HashMap;
 use std::sync::Mutex;
+
+const REDIS_ADDRESS: &'static str = "redis://localhost:6379";
 
 fn rocket() -> rocket::Rocket {
     rocket::ignite()
@@ -29,6 +32,11 @@ fn rocket() -> rocket::Rocket {
         .catch(errors![system::not_found, system::bad_request])
         .manage(db::pool())
         .manage(Mutex::new(HashMap::<message::ID, String>::new()))
+        .attach(AdHoc::on_attach(|rocket| {
+            println!("Adding redis DSN to managed state...");
+            let redis_dsn = rocket.config().get_str("redis").unwrap_or(REDIS_ADDRESS);
+            Ok(rocket.manage(redis_dsn))
+        }))
 }
 
 fn main() {
