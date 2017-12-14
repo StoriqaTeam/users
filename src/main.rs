@@ -12,7 +12,7 @@ extern crate serde_derive;
 
 mod system;
 mod message;
-mod db;
+mod cache;
 mod items;
 
 use rocket::fairing::AdHoc;
@@ -34,8 +34,8 @@ fn rocket() -> rocket::Rocket {
             let config = rocket.config().clone();
             let redis_dsn = config.get_str("redis_dsn").unwrap_or("");
             let redis_db = config.get_str("redis_db").unwrap_or("");
-            let redis_cfg = db::RedisConfig(redis_dsn.to_string(), redis_db.to_string());
-            Ok(rocket.manage(db::pool(redis_cfg)))
+            let redis_cfg = cache::RedisConfig(redis_dsn.to_string(), redis_db.to_string());
+            Ok(rocket.manage(cache::pool(redis_cfg)))
         }))
 }
 

@@ -1,5 +1,5 @@
 use rocket::http::RawStr;
-use db::RedisConnection;
+use cache::RedisConnection;
 use r2d2;
 use r2d2_redis::RedisConnectionManager;
 use std::ops::Deref;
