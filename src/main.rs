@@ -31,10 +31,14 @@ fn rocket() -> rocket::Rocket {
         .catch(error_handlers)
         .manage(Mutex::new(HashMap::<message::ID, String>::new()))
         .attach(AdHoc::on_attach(|rocket| {
-            let config = rocket.config().clone();
-            let redis_dsn = config.get_str("redis_dsn").unwrap_or("");
-            let redis_db = config.get_str("redis_db").unwrap_or("");
-            let redis_cfg = cache::RedisConfig(redis_dsn.to_string(), redis_db.to_string());
+            let redis_cfg = {
+                let redis_dsn = rocket.config().get_str("redis_dsn").unwrap_or("");
+                let redis_db = rocket.config().get_str("redis_db").unwrap_or("");
+                cache::RedisConfig(redis_dsn.to_string(), redis_db.to_string())
+            };
+
+            println!("Redis DSN: {}, database: {}", redis_cfg.0, redis_cfg.1);
+
             Ok(rocket.manage(cache::pool(redis_cfg)))
         }))
 }
