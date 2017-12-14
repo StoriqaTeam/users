@@ -5,12 +5,13 @@ use rocket::State;
 use r2d2;
 use r2d2_redis::RedisConnectionManager;
 
-const REDIS_ADDRESS: &'static str = "redis://localhost:6379";
+pub struct RedisConfig(pub String, pub String);
 
 // Pool initiation.
 // Call it starting an app and store a pul as a rocket managed state.
-pub fn pool() -> Pool {
-    let manager = RedisConnectionManager::new(REDIS_ADDRESS).expect("connection manager");
+pub fn pool(cfg: RedisConfig) -> Pool {
+    let redis_dsn = cfg.0.as_ref();
+    let manager = RedisConnectionManager::new(redis_dsn).expect("connection manager");
 
     r2d2::Pool::new(manager).expect("db pool")
 }

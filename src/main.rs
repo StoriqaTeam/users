@@ -19,23 +19,23 @@ use rocket::fairing::AdHoc;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-const REDIS_ADDRESS: &'static str = "redis://localhost:6379";
-
 fn rocket() -> rocket::Rocket {
+    let redis_routes = routes![items::create, items::index];
+    let message_routes = routes![message::new, message::update, message::get];
+    let error_handlers = errors![system::not_found, system::bad_request];
+
     rocket::ignite()
         .mount("/", routes![system::healthcheck])
-        .mount("/items", routes![items::create, items::index])
-        .mount(
-            "/message",
-            routes![message::new, message::update, message::get],
-        )
-        .catch(errors![system::not_found, system::bad_request])
-        .manage(db::pool())
+        .mount("/items", redis_routes)
+        .mount("/message", message_routes)
+        .catch(error_handlers)
         .manage(Mutex::new(HashMap::<message::ID, String>::new()))
         .attach(AdHoc::on_attach(|rocket| {
-            println!("Adding redis DSN to managed state...");
-            let redis_dsn = rocket.config().get_str("redis").unwrap_or(REDIS_ADDRESS);
-            Ok(rocket.manage(redis_dsn))
+            let config = rocket.config().clone();
+            let redis_dsn = config.get_str("redis_dsn").unwrap_or("");
+            let redis_db = config.get_str("redis_db").unwrap_or("");
+            let redis_cfg = db::RedisConfig(redis_dsn.to_string(), redis_db.to_string());
+            Ok(rocket.manage(db::pool(redis_cfg)))
         }))
 }
 

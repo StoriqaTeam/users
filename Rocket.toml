@@ -1,13 +1,15 @@
 [development]
-address = "localhost"
-port    = 3000
-workers = 1
-log     = "normal"
-redis   = "redis://localhost:6379"
+address   = "localhost"
+port      = 3000
+workers   = 1
+log       = "normal"
+redis_dsn = "redis://localhost:6379"
+redis_db  = "items"
 
 [staging]
-address = "0.0.0.0"
-port    = 80
-log     = "normal"
-workers = 8
-redis   = "redis://0.0.0.0:6379"
+address   = "0.0.0.0"
+port      = 80
+log       = "normal"
+workers   = 8
+redis_dsn = "redis://0.0.0.0:6379"
+redis_db  = "items"
