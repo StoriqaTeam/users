@@ -37,8 +37,6 @@ fn rocket() -> rocket::Rocket {
                 cache::RedisConfig(redis_dsn.to_string(), redis_db.to_string())
             };
 
-            println!("Redis DSN: {}, database: {}", redis_cfg.0, redis_cfg.1);
-
             Ok(rocket.manage(cache::pool(redis_cfg)))
         }))
 }
