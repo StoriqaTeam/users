@@ -15,6 +15,7 @@ mod message;
 mod cache;
 mod items;
 
+use cache::pool::RedisPool;
 use rocket::fairing::AdHoc;
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -41,7 +42,7 @@ fn rocket() -> rocket::Rocket {
                 }
             };
 
-            Ok(rocket.manage(cache::pool(redis_cfg)))
+            Ok(rocket.manage(RedisPool::new(redis_cfg)))
         }))
 }
 

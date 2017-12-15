@@ -1,11 +1,9 @@
 use rocket::http::RawStr;
-use cache::RedisConnection;
+use cache::connection::RedisConnection;
 use r2d2;
 use r2d2_redis::RedisConnectionManager;
 use std::ops::Deref;
 use redis::Commands;
-
-const DB_KEY: &'static str = "items";
 
 impl Deref for RedisConnection {
     type Target = r2d2::PooledConnection<RedisConnectionManager>;
