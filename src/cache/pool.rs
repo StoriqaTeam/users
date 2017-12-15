@@ -1,5 +1,6 @@
 use r2d2;
 use r2d2_redis::RedisConnectionManager;
+
 use cache::RedisConf;
 
 // An alias to the type for a pool of redis connections.
