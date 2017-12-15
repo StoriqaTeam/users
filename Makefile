@@ -5,6 +5,6 @@ clean:
 	@cargo clean
 
 run:
-	./target/release/users
+	@RUST_LOG=info ./target/release/users
 
 .PHONY: build clean run

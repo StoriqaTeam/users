@@ -50,7 +50,7 @@ pub fn establish_connection() -> PgConnection {
     PgConnection::establish(&database_url).expect(&format!("Error connecting to {}", database_url))
 }
 
-pub fn handler(req: &mut Request) -> IronResult<Response> {
+pub fn index_handler(req: &mut Request) -> IronResult<Response> {
     let connection = establish_connection();
     let results = posts
         .filter(published.eq(true))
@@ -71,7 +71,7 @@ fn main() {
     let bind = format!("{}:{}", addr, port);
 
     let mut router = Router::new();
-    router.get("/", handler, "index");
+    router.get("/", index_handler, "index");
 
     let (logger_before, logger_after) = Logger::new(None);
     let mut chain = Chain::new(router);
