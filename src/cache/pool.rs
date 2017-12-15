@@ -8,7 +8,7 @@ type Pool = r2d2::Pool<RedisConnectionManager>;
 
 pub struct RedisPool {
     pub pool: Pool,
-    pub cfg: RedisConf,
+    pub db: String,
 }
 
 impl RedisPool {
@@ -18,7 +18,11 @@ impl RedisPool {
 
         RedisPool {
             pool: pool,
-            cfg: cfg,
+            db: cfg.db,
         }
+    }
+
+    pub fn get_db(&self) -> &str {
+        &self.db
     }
 }
