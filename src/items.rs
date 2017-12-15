@@ -11,7 +11,7 @@ impl Deref for RedisConnection {
     type Target = r2d2::PooledConnection<RedisConnectionManager>;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.client
     }
 }
 
@@ -22,9 +22,8 @@ impl Deref for RedisConnection {
 // OK
 //
 #[post("/<item>")]
-fn create(item: &RawStr, connection: RedisConnection) -> String {
-    let _: () = connection.lpush(DB_KEY, item.as_str()).unwrap();
-
+fn create(item: &RawStr, conn: RedisConnection) -> String {
+    let _: () = conn.lpush(conn.cfg.db, item.as_str()).unwrap();
     format!("OK")
 }
 
@@ -33,8 +32,8 @@ fn create(item: &RawStr, connection: RedisConnection) -> String {
 // second, first
 //
 #[get("/")]
-fn index(connection: RedisConnection) -> String {
-    let items: Vec<String> = connection.lrange(DB_KEY, 0, -1).unwrap();
+fn index(conn: RedisConnection) -> String {
+    let items: Vec<String> = conn.lrange(conn.cfg.db, 0, -1).unwrap();
 
     items.join(", ")
 }

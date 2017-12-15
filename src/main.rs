@@ -34,7 +34,11 @@ fn rocket() -> rocket::Rocket {
             let redis_cfg = {
                 let redis_dsn = rocket.config().get_str("redis_dsn").unwrap_or("");
                 let redis_db = rocket.config().get_str("redis_db").unwrap_or("");
-                cache::RedisConfig(redis_dsn.to_string(), redis_db.to_string())
+
+                cache::RedisConf {
+                    dsn: redis_dsn.to_string(),
+                    db: redis_db.to_string(),
+                }
             };
 
             Ok(rocket.manage(cache::pool(redis_cfg)))
