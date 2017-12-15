@@ -1,17 +1,6 @@
 use rocket::http::RawStr;
 use cache::connection::RedisConnection;
-use r2d2;
-use r2d2_redis::RedisConnectionManager;
-use std::ops::Deref;
 use redis::Commands;
-
-impl Deref for RedisConnection {
-    type Target = r2d2::PooledConnection<RedisConnectionManager>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.client
-    }
-}
 
 //
 // $ curl -X POST http://localhost:8000/first
@@ -21,7 +10,7 @@ impl Deref for RedisConnection {
 //
 #[post("/<item>")]
 fn create(item: &RawStr, conn: RedisConnection) -> String {
-    let _: () = conn.lpush(conn.cfg.db, item.as_str()).unwrap();
+    let _: () = conn.client.lpush(conn.cfg.db, item.as_str()).unwrap();
     format!("OK")
 }
 
@@ -31,7 +20,7 @@ fn create(item: &RawStr, conn: RedisConnection) -> String {
 //
 #[get("/")]
 fn index(conn: RedisConnection) -> String {
-    let items: Vec<String> = conn.lrange(conn.cfg.db, 0, -1).unwrap();
+    let items: Vec<String> = conn.client.lrange(conn.cfg.db, 0, -1).unwrap();
 
     items.join(", ")
 }
