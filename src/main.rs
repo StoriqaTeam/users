@@ -9,27 +9,22 @@ extern crate iron;
 extern crate log;
 extern crate logger;
 extern crate router;
-
+extern crate serde;
 #[macro_use]
 extern crate serde_derive;
-
-extern crate serde;
 extern crate serde_json;
 
 use diesel::prelude::*;
 use diesel::pg::PgConnection;
 use dotenv::dotenv;
 use std::env;
-use iron::prelude::*;
 use iron::{AfterMiddleware, Chain, Iron, IronResult, Request, Response};
+use iron::status;
+use router::Router;
 use logger::Logger;
 
 pub mod models;
 pub mod schema;
-
-use iron::prelude::*;
-use iron::status;
-use router::Router;
 
 use models::*;
 use schema::posts::dsl::*;
@@ -51,6 +46,8 @@ pub fn establish_connection() -> PgConnection {
 }
 
 pub fn index_handler(req: &mut Request) -> IronResult<Response> {
+    info!("Headers: {}", req.headers);
+
     let connection = establish_connection();
     let results = posts
         .filter(published.eq(true))
