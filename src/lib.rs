@@ -1,4 +1,4 @@
-extern crate dotenv;
+extern crate config;
 extern crate futures;
 extern crate hyper;
 extern crate regex;
@@ -19,11 +19,10 @@ pub mod router;
 pub mod http_utils;
 pub mod schema;
 pub mod models;
+pub mod settings;
 
-use std::env;
 use std::sync::Arc;
 
-use dotenv::dotenv;
 use futures::future;
 use futures::Future;
 use hyper::{Get, Post, Put, Delete};
@@ -35,6 +34,7 @@ use r2d2_diesel::ConnectionManager;
 use http_utils::*;
 use models::*;
 use schema::users::dsl::*;
+use settings::Settings;
 
 type ThePool = r2d2::Pool<ConnectionManager<PgConnection>>;
 type TheConnection = r2d2::PooledConnection<ConnectionManager<PgConnection>>;
@@ -179,29 +179,21 @@ impl Service for WebService {
     }
 }
 
-pub fn start_server() {
-    dotenv().ok();
+pub fn start_server(settings: Settings) {
+    // Prepare logger
     env_logger::init().unwrap();
 
-    // Parse HTTP params
-    let address = env::var("HTTP_ADDR").expect("HTTP_ADDR must be set");
-    let port = env::var("HTTP_PORT").expect("HTTP_PORT must be set");
-    let bind = format!("{}:{}", address, port);
-
-    let addr = match bind.parse() {
-        Result::Ok(val) => val,
-        Result::Err(err) => panic!("Error: {}", err),
-    };
-
     // Prepare server
-    let mut server = Http::new().bind(&addr, || {
+    let addr = settings.http.bind.parse().expect("Bind address must be set in configuration");
+    let mut server = Http::new().bind(&addr, move || {
         // Prepare database pool
-        let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+        let database_url: String = settings.database.dsn.parse().expect("Database DSN must be set in configuration");
         let manager = ConnectionManager::<PgConnection>::new(database_url);
         let r2d2_pool = r2d2::Pool::builder()
             .build(manager)
             .expect("Failed to create connection pool");
 
+        // Prepare service
         let service = WebService {
             router: Arc::new(router::create_router()),
             pool: Arc::new(r2d2_pool),
