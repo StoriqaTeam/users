@@ -7,4 +7,7 @@ clean:
 run:
 	@RUST_LOG=info ./target/release/users
 
-.PHONY: build clean run
+docker:
+	@docker-compose -f docker/docker-compose.yml run users
+
+.PHONY: build clean run docker
