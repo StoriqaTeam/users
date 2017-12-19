@@ -13,6 +13,9 @@ extern crate env_logger;
 extern crate diesel;
 extern crate r2d2;
 extern crate r2d2_diesel;
+#[macro_use]
+extern crate validator_derive;
+extern crate validator;
 
 pub mod error;
 pub mod router;
@@ -78,6 +81,7 @@ impl Service for WebService {
                         .and_then(move |body| {
                             let result = (serde_json::from_slice::<NewUser>(&body.as_bytes()) as Result<NewUser, serde_json::error::Error>)
                                 .and_then(|new_user| {
+                                    // Insert user
                                     let user = diesel::insert_into(users)
                                         .values(&new_user)
                                         .get_result::<User>(&*conn)
@@ -105,6 +109,7 @@ impl Service for WebService {
                         .and_then(move |body| {
                             let result = (serde_json::from_slice::<UpdateUser>(&body.as_bytes()) as Result<UpdateUser, serde_json::error::Error>)
                                 .and_then(|new_user| {
+                                    // Update user
                                     let user = diesel::update(users.find(user_id))
                                         .set(email.eq(new_user.email))
                                         .get_result::<User>(&*conn)
