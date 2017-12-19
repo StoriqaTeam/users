@@ -23,7 +23,7 @@ use std::sync::Arc;
 
 use dotenv::dotenv;
 use futures::future;
-use futures::{Future, Stream};
+use futures::Future;
 use hyper::{Get, Post, Put, Delete};
 use hyper::server::{Http, Service, Request, Response};
 use diesel::prelude::*;
@@ -56,51 +56,56 @@ impl Service for WebService {
             (&Post, Some(router::Route::UsersNew)) => {
                 info!("Handling request POST /users");
 
-                Box::new(req.body()
-                    .fold(Vec::new(), |mut acc, chunk| {
-                        acc.extend_from_slice(&*chunk);
-                        futures::future::ok::<_, Self::Error>(acc)
-                    })
-                    .and_then(|v| {
-                        let new_user: NewUser = serde_json::from_slice::<NewUser>(&v).unwrap();
+                Box::new(
+                    read_body(req)
+                        .and_then(move |body| {
+                            let result = (serde_json::from_slice::<NewUser>(&body.as_bytes()) as Result<NewUser, serde_json::error::Error>)
+                                .and_then(|new_user| {
+                                    let connection = establish_connection();
 
-                        let connection = establish_connection();
+                                    let user = diesel::insert_into(users)
+                                        .values(&new_user)
+                                        .get_result::<User>(&connection)
+                                        .expect("Error saving new user");
 
-                        let user = diesel::insert_into(users)
-                            .values(&new_user)
-                            .get_result::<User>(&connection)
-                            .expect("Error saving new user");
 
-                        Ok::<_, Self::Error>(user)
-                    }).and_then(|user| {
-                        let response = serde_json::to_string(&user).unwrap();
-                        future::ok(response_with_body(response))
-                    }))
+                                    let response = serde_json::to_string(&user).unwrap();
+                                    Ok::<_, serde_json::Error>(response)
+                                });
+
+                            match result {
+                                Ok(data) => future::ok(response_with_body(data)),
+                                Err(err) => future::ok(response_with_error(error::Error::Json(err)))
+                            }
+                        })
+                )
             },
             // PUT /users/1
             (&Put, Some(router::Route::Users(user_id))) => {
                 info!("Handling request PUT /users/{}", user_id);
 
-                Box::new(req.body()
-                    .fold(Vec::new(), |mut acc, chunk| {
-                        acc.extend_from_slice(&*chunk);
-                        futures::future::ok::<_, Self::Error>(acc)
-                    })
-                    .and_then(move|v| {
-                        let new_user: UpdateUser = serde_json::from_slice::<UpdateUser>(&v).unwrap();
+                Box::new(
+                    read_body(req)
+                        .and_then(move |body| {
+                            let result = (serde_json::from_slice::<UpdateUser>(&body.as_bytes()) as Result<UpdateUser, serde_json::error::Error>)
+                                .and_then(|new_user| {
+                                    let connection = establish_connection();
 
-                        let connection = establish_connection();
+                                    let user = diesel::update(users.find(user_id))
+                                        .set(email.eq(new_user.email))
+                                        .get_result::<User>(&connection)
+                                        .expect("Error updating user");
 
-                        let user = diesel::update(users.find(user_id))
-                            .set(email.eq(new_user.email))
-                            .get_result::<User>(&connection)
-                            .expect("Error saving new user");
+                                    let response = serde_json::to_string(&user).unwrap();
+                                    Ok::<_, serde_json::Error>(response)
+                                });
 
-                        Ok::<_, Self::Error>(user)
-                    }).and_then(|user| {
-                    let response = serde_json::to_string(&user).unwrap();
-                    future::ok(response_with_body(response))
-                }))
+                            match result {
+                                Ok(data) => future::ok(response_with_body(data)),
+                                Err(err) => future::ok(response_with_error(error::Error::Json(err)))
+                            }
+                        })
+                )
             },
             // GET /users/<user_id>
             (&Get, Some(router::Route::Users(user_id))) => {
