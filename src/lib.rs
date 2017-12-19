@@ -11,6 +11,8 @@ extern crate log;
 extern crate env_logger;
 #[macro_use]
 extern crate diesel;
+extern crate r2d2;
+extern crate r2d2_diesel;
 
 pub mod error;
 pub mod router;
@@ -28,13 +30,27 @@ use hyper::{Get, Post, Put, Delete};
 use hyper::server::{Http, Service, Request, Response};
 use diesel::prelude::*;
 use diesel::pg::PgConnection;
+use r2d2_diesel::ConnectionManager;
 
 use http_utils::*;
 use models::*;
 use schema::users::dsl::*;
 
+type ThePool = r2d2::Pool<ConnectionManager<PgConnection>>;
+type TheConnection = r2d2::PooledConnection<ConnectionManager<PgConnection>>;
+
 struct WebService {
-    router: Arc<router::Router>
+    router: Arc<router::Router>,
+    pool: Arc<ThePool>
+}
+
+impl WebService {
+    fn get_connection(&self) -> TheConnection {
+        match self.pool.get() {
+            Ok(connection) => connection,
+            Err(e) => panic!("Error obtaining connection from pool: {}", e)
+        }
+    }
 }
 
 impl Service for WebService {
@@ -55,19 +71,17 @@ impl Service for WebService {
             // POST /users
             (&Post, Some(router::Route::Users)) => {
                 info!("Handling request POST /users");
+                let conn = self.get_connection();
 
                 Box::new(
                     read_body(req)
                         .and_then(move |body| {
                             let result = (serde_json::from_slice::<NewUser>(&body.as_bytes()) as Result<NewUser, serde_json::error::Error>)
                                 .and_then(|new_user| {
-                                    let connection = establish_connection();
-
                                     let user = diesel::insert_into(users)
                                         .values(&new_user)
-                                        .get_result::<User>(&connection)
+                                        .get_result::<User>(&*conn)
                                         .expect("Error saving new user");
-
 
                                     let response = serde_json::to_string(&user).unwrap();
                                     Ok::<_, serde_json::Error>(response)
@@ -84,16 +98,16 @@ impl Service for WebService {
             (&Put, Some(router::Route::User(user_id))) => {
                 info!("Handling request PUT /users/{}", user_id);
 
+                let conn = self.get_connection();
+
                 Box::new(
                     read_body(req)
                         .and_then(move |body| {
                             let result = (serde_json::from_slice::<UpdateUser>(&body.as_bytes()) as Result<UpdateUser, serde_json::error::Error>)
                                 .and_then(|new_user| {
-                                    let connection = establish_connection();
-
                                     let user = diesel::update(users.find(user_id))
                                         .set(email.eq(new_user.email))
-                                        .get_result::<User>(&connection)
+                                        .get_result::<User>(&*conn)
                                         .expect("Error updating user");
 
                                     let response = serde_json::to_string(&user).unwrap();
@@ -111,11 +125,11 @@ impl Service for WebService {
             (&Get, Some(router::Route::User(user_id))) => {
                 info!("Handling request GET /users/{}", user_id);
 
-                let connection = establish_connection();
+                let conn = self.get_connection();
 
                 let user = users
                     .find(user_id)
-                    .get_result::<User>(&connection)
+                    .get_result::<User>(&*conn)
                     .expect("Error loading user");
 
                 let response = serde_json::to_string(&user).unwrap();
@@ -132,14 +146,14 @@ impl Service for WebService {
                 let from = query_params.get("from").and_then(|v| v.parse::<i32>().ok()).expect("From value");
                 let count = query_params.get("count").and_then(|v| v.parse::<i64>().ok()).expect("Count value");
 
-                let connection = establish_connection();
+                let conn = self.get_connection();
 
                 let results = users
                     .filter(is_active.eq(true))
                     .filter(id.gt(from))
                     .order(id)
                     .limit(count)
-                    .load::<User>(&connection)
+                    .load::<User>(&*conn)
                     .expect("Error loading users");
 
                 let response = serde_json::to_string(&results).unwrap();
@@ -149,11 +163,11 @@ impl Service for WebService {
             (&Delete, Some(router::Route::User(user_id))) => {
                 info!("Handling request DELETE /users/{}", user_id);
 
-                let connection = establish_connection();
+                let conn = self.get_connection();
 
                 diesel::update(users.find(user_id))
                     .set(is_active.eq(false))
-                    .get_result::<User>(&connection)
+                    .get_result::<User>(&*conn)
                     .expect("Error loading user");
 
                 let response = serde_json::to_string(&status_ok()).unwrap();
@@ -165,15 +179,11 @@ impl Service for WebService {
     }
 }
 
-pub fn establish_connection() -> PgConnection {
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    PgConnection::establish(&database_url).expect(&format!("Error connecting to {}", database_url))
-}
-
 pub fn start_server() {
     dotenv().ok();
     env_logger::init().unwrap();
 
+    // Parse HTTP params
     let address = env::var("HTTP_ADDR").expect("HTTP_ADDR must be set");
     let port = env::var("HTTP_PORT").expect("HTTP_PORT must be set");
     let bind = format!("{}:{}", address, port);
@@ -183,15 +193,26 @@ pub fn start_server() {
         Result::Err(err) => panic!("Error: {}", err),
     };
 
+    // Prepare server
     let mut server = Http::new().bind(&addr, || {
+        // Prepare database pool
+        let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+        let manager = ConnectionManager::<PgConnection>::new(database_url);
+        let r2d2_pool = r2d2::Pool::builder()
+            .build(manager)
+            .expect("Failed to create connection pool");
+
         let service = WebService {
-            router: Arc::new(router::create_router())
+            router: Arc::new(router::create_router()),
+            pool: Arc::new(r2d2_pool),
         };
+
         Ok(service)
     }).unwrap();
 
     server.no_proto();
 
+    // Start
     info!("Listening on http://{}", server.local_addr().unwrap());
     server.run().unwrap();
 }
