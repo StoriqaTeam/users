@@ -1,5 +1,6 @@
 use hyper::{StatusCode};
-use hyper::header::ContentLength;
+use hyper::mime;
+use hyper::header::{ContentLength, ContentType};
 use hyper::server::{Request, Response};
 use hyper::error::Error;
 
@@ -8,6 +9,16 @@ use futures::{future, Stream};
 
 use hyper;
 use error;
+
+#[derive(Serialize, Debug)]
+pub struct Status {
+    pub status: String
+}
+
+pub fn status_ok() -> Status {
+    Status { status: String::from("OK") }
+}
+
 
 pub fn read_body(request: Request) -> Box<Future<Item=String, Error=hyper::Error>> {
     Box::new(
@@ -28,6 +39,8 @@ pub fn read_body(request: Request) -> Box<Future<Item=String, Error=hyper::Error
 pub fn response_with_body(body: String) -> Response {
     Response::new()
         .with_header(ContentLength(body.len() as u64))
+        .with_header(ContentType(mime::APPLICATION_JSON))
+        .with_status(StatusCode::Ok)
         .with_body(body)
 }
 
@@ -41,3 +54,4 @@ pub fn response_with_error(error: error::Error) -> Response {
 pub fn response_not_found() -> Response {
     response_with_body("Not found".to_string()).with_status(StatusCode::NotFound)
 }
+

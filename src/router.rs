@@ -10,9 +10,10 @@ pub struct Router {
 /// List of all routes with params for the app
 #[derive(Clone)]
 pub enum Route {
-    Root,
-    Graphql,
-    Users(i32) // this is for demo purposes, not needed for graphql
+    Healthcheck,
+    UsersNew,
+    Users(i32),
+    UsersList(i64, i64),
 }
 
 impl Router {
@@ -80,12 +81,25 @@ impl Router {
 
 pub fn create_router() -> Router {
     let mut router = Router::new();
-    router.add_route(r"^/$", Route::Root);
-    router.add_route(r"^/graphql$", Route::Graphql);
+
+    // Healthcheck
+    router.add_route(r"^/healthcheck$", Route::Healthcheck);
+
+    // Users Routes
+    router.add_route(r"^/users$", Route::UsersNew);
+
     router.add_route_with_params(r"^/users/(\d+)$", |params| {
         params.get(0)
             .and_then(|string_id| string_id.parse::<i32>().ok())
             .map(|user_id| Route::Users(user_id))
     });
+
+    router.add_route_with_params(r"^/users/(\d+)/(\d+)$", |params| {
+        let from = params.get(0).and_then(|string_id| string_id.parse::<i64>().ok());
+        let count = params.get(1).and_then(|string_id| string_id.parse::<i64>().ok());
+
+        Some(Route::UsersList(from.unwrap(), count.unwrap()))
+    });
+
     router
 }

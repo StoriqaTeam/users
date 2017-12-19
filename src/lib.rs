@@ -23,11 +23,13 @@ use std::sync::Arc;
 
 use dotenv::dotenv;
 use futures::future;
-use hyper::Get;
+use futures::{Future, Stream};
+use hyper::{Get, Post, Put, Delete};
 use hyper::server::{Http, Service, Request, Response};
 use diesel::prelude::*;
 use diesel::pg::PgConnection;
 
+use http_utils::*;
 use models::*;
 use schema::users::dsl::*;
 
@@ -43,22 +45,110 @@ impl Service for WebService {
 
     fn call(&self, req: Request) -> Self::Future {
         match (req.method(), self.router.test(req.path())) {
-            (&Get, Some(router::Route::Root)) => {
+            // GET /healthcheck
+            (&Get, Some(router::Route::Healthcheck)) => {
+                info!("Handling request GET /healthcheck");
+
+                let response = serde_json::to_string(&status_ok()).unwrap();
+                Box::new(future::ok(response_with_body(response)))
+            },
+            // POST /users
+            (&Post, Some(router::Route::UsersNew)) => {
+                info!("Handling request POST /users");
+
+                Box::new(req.body()
+                    .fold(Vec::new(), |mut acc, chunk| {
+                        acc.extend_from_slice(&*chunk);
+                        futures::future::ok::<_, Self::Error>(acc)
+                    })
+                    .and_then(|v| {
+                        let new_user: NewUser = serde_json::from_slice::<NewUser>(&v).unwrap();
+
+                        let connection = establish_connection();
+
+                        let user = diesel::insert_into(users)
+                            .values(&new_user)
+                            .get_result::<User>(&connection)
+                            .expect("Error saving new user");
+
+                        Ok::<_, Self::Error>(user)
+                    }).and_then(|user| {
+                        let response = serde_json::to_string(&user).unwrap();
+                        future::ok(response_with_body(response))
+                    }))
+            },
+            // PUT /users/1
+            (&Put, Some(router::Route::Users(user_id))) => {
+                info!("Handling request PUT /users/{}", user_id);
+
+                Box::new(req.body()
+                    .fold(Vec::new(), |mut acc, chunk| {
+                        acc.extend_from_slice(&*chunk);
+                        futures::future::ok::<_, Self::Error>(acc)
+                    })
+                    .and_then(move|v| {
+                        let new_user: UpdateUser = serde_json::from_slice::<UpdateUser>(&v).unwrap();
+
+                        let connection = establish_connection();
+
+                        let user = diesel::update(users.find(user_id))
+                            .set(email.eq(new_user.email))
+                            .get_result::<User>(&connection)
+                            .expect("Error saving new user");
+
+                        Ok::<_, Self::Error>(user)
+                    }).and_then(|user| {
+                    let response = serde_json::to_string(&user).unwrap();
+                    future::ok(response_with_body(response))
+                }))
+            },
+            // GET /users/<user_id>
+            (&Get, Some(router::Route::Users(user_id))) => {
+                info!("Handling request GET /users/{}", user_id);
+
+                let connection = establish_connection();
+
+                let user = users
+                    .find(user_id)
+                    .get_result::<User>(&connection)
+                    .expect("Error loading user");
+
+                let response = serde_json::to_string(&user).unwrap();
+                Box::new(future::ok(response_with_body(response)))
+            },
+            // GET /users/<from>/<count>
+            (&Get, Some(router::Route::UsersList(from, count))) => {
+                info!("Handling request GET /users/{}/{}", from, count);
+
                 let connection = establish_connection();
 
                 let results = users
                     .filter(is_active.eq(true))
-                    .limit(5)
+                    .order(id)
+                    .limit(count)
+                    .offset(from)
                     .load::<User>(&connection)
                     .expect("Error loading users");
 
-                let serialized = serde_json::to_string(&results).unwrap();
-                Box::new(future::ok(http_utils::response_with_body(serialized)))
+                let response = serde_json::to_string(&results).unwrap();
+                Box::new(future::ok(response_with_body(response)))
             },
-            (&Get, Some(router::Route::Users(user_id))) =>
-                Box::new(future::ok(http_utils::response_with_body(user_id.to_string()))),
+            // DELETE /users/<user_id>
+            (&Delete, Some(router::Route::Users(user_id))) => {
+                info!("Handling request DELETE /users/{}", user_id);
 
-            _ => Box::new(future::ok(http_utils::response_not_found()))
+                let connection = establish_connection();
+
+                diesel::update(users.find(user_id))
+                    .set(is_active.eq(false))
+                    .get_result::<User>(&connection)
+                    .expect("Error loading user");
+
+                let response = serde_json::to_string(&status_ok()).unwrap();
+                Box::new(future::ok(response_with_body(response)))
+            },
+            // Fallback
+            _ => Box::new(future::ok(response_not_found()))
         }
     }
 }
@@ -90,6 +180,6 @@ pub fn start_server() {
 
     server.no_proto();
 
-    info!("Listening on http://{}.", server.local_addr().unwrap());
+    info!("Listening on http://{}", server.local_addr().unwrap());
     server.run().unwrap();
 }
