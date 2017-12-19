@@ -6,7 +6,8 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.rust
     container_name: users
-    command: cargo run
+    environment:
+      - RUST_LOG=info
     volumes:
       - ..:/app
       - stq_cargo_cache:/usr/local/cargo
