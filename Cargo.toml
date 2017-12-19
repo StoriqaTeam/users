@@ -1,0 +1,20 @@
+[package]
+name = "users"
+version = "0.1.0"
+
+[lib]
+name = "library"
+path = "src/lib.rs"
+
+[dependencies]
+dotenv = "0.10.1"
+log = "0.3.8"
+env_logger = "0.4.3"
+hyper = "0.11.9"
+futures = "0.1.17"
+regex = "0.2"
+serde = "1.0"
+serde_derive = "1.0"
+serde_json = "1.0"
+diesel = { version = "1.0.0-beta1", features = ["postgres"] }
+diesel_infer_schema = { version = "1.0.0-beta1", features = ["postgres"] }
