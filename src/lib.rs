@@ -53,7 +53,7 @@ impl Service for WebService {
                 Box::new(future::ok(response_with_body(response)))
             },
             // POST /users
-            (&Post, Some(router::Route::UsersNew)) => {
+            (&Post, Some(router::Route::Users)) => {
                 info!("Handling request POST /users");
 
                 Box::new(
@@ -81,7 +81,7 @@ impl Service for WebService {
                 )
             },
             // PUT /users/1
-            (&Put, Some(router::Route::Users(user_id))) => {
+            (&Put, Some(router::Route::User(user_id))) => {
                 info!("Handling request PUT /users/{}", user_id);
 
                 Box::new(
@@ -108,7 +108,7 @@ impl Service for WebService {
                 )
             },
             // GET /users/<user_id>
-            (&Get, Some(router::Route::Users(user_id))) => {
+            (&Get, Some(router::Route::User(user_id))) => {
                 info!("Handling request GET /users/{}", user_id);
 
                 let connection = establish_connection();
@@ -121,17 +121,24 @@ impl Service for WebService {
                 let response = serde_json::to_string(&user).unwrap();
                 Box::new(future::ok(response_with_body(response)))
             },
-            // GET /users/<from>/<count>
-            (&Get, Some(router::Route::UsersList(from, count))) => {
-                info!("Handling request GET /users/{}/{}", from, count);
+            // GET /users
+            (&Get, Some(router::Route::Users)) => {
+                info!("Handling request GET /users");
+
+                let query = req.uri().query().unwrap();
+                info!("Query: {}", query);
+
+                let query_params = query_params(query);
+                let from = query_params.get("from").and_then(|v| v.parse::<i32>().ok()).expect("From value");
+                let count = query_params.get("count").and_then(|v| v.parse::<i64>().ok()).expect("Count value");
 
                 let connection = establish_connection();
 
                 let results = users
                     .filter(is_active.eq(true))
+                    .filter(id.gt(from))
                     .order(id)
                     .limit(count)
-                    .offset(from)
                     .load::<User>(&connection)
                     .expect("Error loading users");
 
@@ -139,7 +146,7 @@ impl Service for WebService {
                 Box::new(future::ok(response_with_body(response)))
             },
             // DELETE /users/<user_id>
-            (&Delete, Some(router::Route::Users(user_id))) => {
+            (&Delete, Some(router::Route::User(user_id))) => {
                 info!("Handling request DELETE /users/{}", user_id);
 
                 let connection = establish_connection();
