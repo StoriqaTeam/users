@@ -10,4 +10,4 @@ run:
 docker:
 	@docker-compose -f docker/docker-compose.yml run users
 
-.PHONY: build clean run
+.PHONY: build clean run docker
