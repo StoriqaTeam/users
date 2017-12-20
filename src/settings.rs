@@ -2,19 +2,9 @@ use std::env;
 use config::{Config, ConfigError, Environment, File};
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct Http {
-    pub bind: String,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-pub struct Database {
-    pub dsn: String,
-}
-
-#[derive(Debug, Deserialize, Clone)]
 pub struct Settings {
-    pub http: Http,
-    pub database: Database,
+    pub address: String,
+    pub database: String,
 }
 
 impl Settings {
@@ -28,6 +18,7 @@ impl Settings {
 
         // Add in settings from the environment (with a prefix of STQ_USERS)
         s.merge(Environment::with_prefix("STQ_USERS"))?;
+
         s.try_into()
     }
 }

@@ -13,9 +13,6 @@ extern crate env_logger;
 extern crate diesel;
 extern crate r2d2;
 extern crate r2d2_diesel;
-#[macro_use]
-extern crate validator_derive;
-extern crate validator;
 
 pub mod error;
 pub mod router;
@@ -189,10 +186,10 @@ pub fn start_server(settings: Settings) {
     env_logger::init().unwrap();
 
     // Prepare server
-    let addr = settings.http.bind.parse().expect("Bind address must be set in configuration");
-    let mut server = Http::new().bind(&addr, move || {
+    let address = settings.address.parse().expect("Address must be set in configuration");
+    let mut server = Http::new().bind(&address, move || {
         // Prepare database pool
-        let database_url: String = settings.database.dsn.parse().expect("Database DSN must be set in configuration");
+        let database_url: String = settings.database.parse().expect("Database URL must be set in configuration");
         let manager = ConnectionManager::<PgConnection>::new(database_url);
         let r2d2_pool = r2d2::Pool::builder()
             .build(manager)

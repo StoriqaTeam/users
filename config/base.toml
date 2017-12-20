@@ -1,5 +1,2 @@
-[http]
-bind="0.0.0.0:8000"
-
-[database]
-dsn="postgresql://users@localhost/users"
+address = "0.0.0.0:8000"
+database = "postgresql://users@localhost/users"

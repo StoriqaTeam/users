@@ -11,12 +11,13 @@ services:
       - 5432:5432
   # Users
   users:
-    image: rust
+    image: users
     build:
       context: .
-    command: ["sh", "-c", "diesel setup; RUST_LOG=info users"]  
+    command: ["sh", "-c", "diesel setup; users"]  
     environment:
-      # TODO: Remove in favor of config.rs override
+      - RUST_LOG=info
+      - RUN_MODE=docker
       - DATABASE_URL=postgresql://users:users@postgres/users
     ports:
       - 8000:8000
