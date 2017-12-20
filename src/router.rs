@@ -11,9 +11,8 @@ pub struct Router {
 #[derive(Clone)]
 pub enum Route {
     Healthcheck,
-    UsersNew,
-    Users(i32),
-    UsersList(i64, i64),
+    Users,
+    User(i32),
 }
 
 impl Router {
@@ -86,19 +85,12 @@ pub fn create_router() -> Router {
     router.add_route(r"^/healthcheck$", Route::Healthcheck);
 
     // Users Routes
-    router.add_route(r"^/users$", Route::UsersNew);
+    router.add_route(r"^/users$", Route::Users);
 
     router.add_route_with_params(r"^/users/(\d+)$", |params| {
         params.get(0)
             .and_then(|string_id| string_id.parse::<i32>().ok())
-            .map(|user_id| Route::Users(user_id))
-    });
-
-    router.add_route_with_params(r"^/users/(\d+)/(\d+)$", |params| {
-        let from = params.get(0).and_then(|string_id| string_id.parse::<i64>().ok());
-        let count = params.get(1).and_then(|string_id| string_id.parse::<i64>().ok());
-
-        Some(Route::UsersList(from.unwrap(), count.unwrap()))
+            .map(|user_id| Route::User(user_id))
     });
 
     router

@@ -7,6 +7,8 @@ use hyper::error::Error;
 use futures::future::{Future};
 use futures::{future, Stream};
 
+use std::collections::HashMap;
+
 use hyper;
 use error;
 
@@ -19,6 +21,17 @@ pub fn status_ok() -> Status {
     Status { status: String::from("OK") }
 }
 
+pub fn query_params(query: &str) -> HashMap<&str, &str> {
+    let mut params = HashMap::new();
+    let pairs: Vec<&str> = query.split("&").collect();
+
+    for pair in pairs {
+        let split: Vec<&str> = pair.split("=").collect();
+        params.insert(split[0], split[1]);
+    }
+
+    params
+}
 
 pub fn read_body(request: Request) -> Box<Future<Item=String, Error=hyper::Error>> {
     Box::new(
