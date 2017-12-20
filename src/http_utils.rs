@@ -58,8 +58,20 @@ pub fn response_with_body(body: String) -> Response {
 
 pub fn response_with_error(error: error::Error) -> Response {
     use error::Error::*;
+
     match error {
-        Json(err) => response_with_body(err.to_string()).with_status(StatusCode::UnprocessableEntity)
+        Default(err) => {
+            error!("Status: {}, Response: {}", StatusCode::BadRequest, err.to_string());
+            response_with_body(err.to_string()).with_status(StatusCode::BadRequest)
+        },
+        Json(err) => {
+            error!("Status: {}, Response: {}", StatusCode::UnprocessableEntity, err.to_string());
+            response_with_body(err.to_string()).with_status(StatusCode::UnprocessableEntity)
+        },
+        Database(err) => {
+            error!("Status: {}, Response: {}", StatusCode::InternalServerError, err.to_string());
+            response_with_body(err.to_string()).with_status(StatusCode::InternalServerError)
+        },
     }
 }
 

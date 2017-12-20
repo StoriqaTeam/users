@@ -39,6 +39,8 @@ use settings::Settings;
 type ThePool = r2d2::Pool<ConnectionManager<PgConnection>>;
 type TheConnection = r2d2::PooledConnection<ConnectionManager<PgConnection>>;
 
+const MAX_USER_COUNT: i64 = 50;
+
 struct WebService {
     router: Arc<router::Router>,
     pool: Arc<ThePool>
@@ -50,6 +52,15 @@ impl WebService {
             Ok(connection) => connection,
             Err(e) => panic!("Error obtaining connection from pool: {}", e)
         }
+    }
+
+    fn error(&self, error: error::Error) -> <WebService as Service>::Future {
+        Box::new(future::ok(response_with_error(error)))
+    }
+
+    fn json_error(&self, message: &str) -> <WebService as Service>::Future {
+        let error = error::Error::new(message);
+        Box::new(future::ok(response_with_error(error)))
     }
 }
 
@@ -73,6 +84,17 @@ impl Service for WebService {
                 info!("Handling request POST /users");
                 let conn = self.get_connection();
 
+                read_body(req).map(move |body| {
+                    let result = serde_json::from_slice::<NewUser>(&body.as_bytes());
+//                    let new_user = match result {
+//                        Ok(user) => user,
+//                        Err(_) => {}
+//                    };
+
+                    response_with_body(data)
+                })
+
+                /*
                 Box::new(
                     read_body(req)
                         .and_then(move |body| {
@@ -94,6 +116,7 @@ impl Service for WebService {
                             }
                         })
                 )
+                */
             },
             // PUT /users/1
             (&Put, Some(router::Route::User(user_id))) => {
@@ -127,27 +150,49 @@ impl Service for WebService {
             (&Get, Some(router::Route::User(user_id))) => {
                 info!("Handling request GET /users/{}", user_id);
 
+                // Get user from database
                 let conn = self.get_connection();
+                let result = users.find(user_id).get_result::<User>(&*conn);
 
-                let user = users
-                    .find(user_id)
-                    .get_result::<User>(&*conn)
-                    .expect("Error loading user");
+                let result = match result {
+                    Ok(user) => user,
+                    Err(_) => return self.json_error("User not found")
+                };
 
-                let response = serde_json::to_string(&user).unwrap();
+                let response = match serde_json::to_string(&result) {
+                    Ok(response) => response,
+                    Err(err) => return self.error(error::Error::Json(err))
+                };
+
                 Box::new(future::ok(response_with_body(response)))
             },
             // GET /users
             (&Get, Some(router::Route::Users)) => {
                 info!("Handling request GET /users");
 
-                let query = req.uri().query().unwrap();
+                // Validate query string
+                let query = match req.uri().query() {
+                    Some(value) => value,
+                    None => return self.json_error("No query parameters provided")
+                };
+
                 info!("Query: {}", query);
-
                 let query_params = query_params(query);
-                let from = query_params.get("from").and_then(|v| v.parse::<i32>().ok()).expect("From value");
-                let count = query_params.get("count").and_then(|v| v.parse::<i64>().ok()).expect("Count value");
 
+                // Validate query parameters
+                let from = match query_params.get("from").and_then(|v| v.parse::<i32>().ok()) {
+                    Some(value) if value > 0 => value,
+                    Some(_) => return self.json_error("`from` value should be greater than zero"),
+                    None => return self.json_error("Invalid `from` value provided")
+                };
+
+                let count = match query_params.get("count").and_then(|v| v.parse::<i64>().ok()) {
+                    Some(value) if value < MAX_USER_COUNT => value,
+                    Some(_) => return self.json_error("Too much users requested, try less `count` value"),
+                    None => return self.json_error("Invalid `count` value provided")
+                };
+
+                // Get users from database
                 let conn = self.get_connection();
 
                 let results = users
@@ -155,22 +200,41 @@ impl Service for WebService {
                     .filter(id.gt(from))
                     .order(id)
                     .limit(count)
-                    .load::<User>(&*conn)
-                    .expect("Error loading users");
+                    .load::<User>(&*conn);
 
-                let response = serde_json::to_string(&results).unwrap();
+                let result = match results {
+                    Ok(list) => list,
+                    Err(err) => return self.error(error::Error::Database(err))
+                };
+
+                let response = match serde_json::to_string(&result) {
+                    Ok(response) => response,
+                    Err(err) => return self.error(error::Error::Json(err))
+                };
+
                 Box::new(future::ok(response_with_body(response)))
             },
             // DELETE /users/<user_id>
             (&Delete, Some(router::Route::User(user_id))) => {
                 info!("Handling request DELETE /users/{}", user_id);
 
+                // Check if user exists
                 let conn = self.get_connection();
+                let source = users.find(user_id);
+                match source.load::<User>(&*conn) {
+                    Ok(_) => {},
+                    Err(err) => return self.error(error::Error::Database(err))
+                }
 
-                diesel::update(users.find(user_id))
+                // Update
+                let updated = diesel::update(source)
                     .set(is_active.eq(false))
-                    .get_result::<User>(&*conn)
-                    .expect("Error loading user");
+                    .get_result::<User>(&*conn);
+
+                match updated {
+                    Ok(_) => {},
+                    Err(err) => return self.error(error::Error::Database(err))
+                };
 
                 let response = serde_json::to_string(&status_ok()).unwrap();
                 Box::new(future::ok(response_with_body(response)))
