@@ -8,6 +8,7 @@ use futures::future::{Future};
 use futures::{future, Stream};
 
 use std::collections::HashMap;
+use std::iter::FromIterator;
 
 use hyper;
 use error;
@@ -22,15 +23,13 @@ pub fn status_ok() -> Status {
 }
 
 pub fn query_params(query: &str) -> HashMap<&str, &str> {
-    let mut params = HashMap::new();
-    let pairs: Vec<&str> = query.split("&").collect();
-
-    for pair in pairs {
-        let split: Vec<&str> = pair.split("=").collect();
-        params.insert(split[0], split[1]);
-    }
-
-    params
+    HashMap::from_iter(
+        query.split("&")
+            .map(|pair| {
+                let mut params = pair.split("=");
+                (params.next().unwrap(), params.next().unwrap_or(""))
+            })
+    )
 }
 
 pub fn read_body(request: Request) -> Box<Future<Item=String, Error=hyper::Error>> {
