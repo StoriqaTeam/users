@@ -1,0 +1,24 @@
+version: '3'
+services:
+  # Postgres
+  postgres:
+    image: postgres:10
+    environment:
+      - POSTGRES_USER=users
+      - POSTGRES_DB=users
+      - POSTGRES_PASSWORD=users
+    ports:
+      - 5432:5432
+  # Users
+  users:
+    image: rust
+    build:
+      context: .
+    command: ["sh", "-c", "diesel setup; RUST_LOG=info users"]  
+    environment:
+      # TODO: Remove in favor of config.rs override
+      - DATABASE_URL=postgresql://users:users@postgres/users
+    ports:
+      - 8000:8000
+    depends_on:
+      - postgres
