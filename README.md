@@ -1,6 +1,6 @@
 # users
 
-Microservice for managing authentication and user profiles
+Microservice for managing authentication and user profiles.
 
 ## Running
 
