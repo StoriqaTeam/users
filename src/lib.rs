@@ -150,20 +150,20 @@ impl Service for WebService {
             (&Get, Some(router::Route::Users)) => {
                 let conn = self.get_connection();
                 let result: Result<String, ApiError> = req.uri().query()
-                    .ok_or(ApiError::BadRequest)
+                    .ok_or(ApiError::BadRequest("Missing query parameters: `from`, `count`".to_string()))
                     .and_then(|query| Ok(query_params(query)))
                     .and_then(|params| {
                         Ok((params.clone(), params.get("from").and_then(|v| v.parse::<i32>().ok())
-                            .ok_or(ApiError::BadRequest)))
+                            .ok_or(ApiError::BadRequest("Invalid value provided for `from`".to_string()))))
                     })
                     .and_then(|(params, from)| {
                         Ok((from, params.get("count").and_then(|v| v.parse::<i64>().ok())
-                            .ok_or(ApiError::BadRequest)))
+                            .ok_or(ApiError::BadRequest("Invalid value provided for `count`".to_string()))))
                     })
                     .and_then(|(from, count)| {
                         match (from, count) {
                             (Ok(x), Ok(y)) if x > 0 && y < MAX_USER_COUNT => Ok((x, y)),
-                            (_, _) => Err(ApiError::BadRequest),
+                            (_, _) => Err(ApiError::BadRequest("Invalid values provided for `from` or `count`".to_string())),
                         }
                     })
                     .and_then(|(from, count)| {

@@ -2,26 +2,11 @@ use serde_json;
 use diesel;
 use hyper::StatusCode;
 
-/*
-pub enum Error {
-    Default(JsonError),
-    Json(serde_json::error::Error),
-    Database(diesel::result::Error)
-}
-
-impl Error {
-    pub fn new(message: &str) -> Error {
-        let json_error = JsonError { error: message.into() };
-        Error::Default(json_error)
-    }
-}
-*/
-
 // Error
 #[derive(Debug)]
 pub enum Error {
     NotFound,
-    BadRequest,
+    BadRequest(String),
     UnprocessableEntity,
     InternalServerError,
 }
@@ -32,7 +17,7 @@ impl Error {
 
         match self {
             &NotFound => StatusCode::NotFound,
-            &BadRequest => StatusCode::BadRequest,
+            &BadRequest(_) => StatusCode::BadRequest,
             &UnprocessableEntity => StatusCode::UnprocessableEntity,
             &InternalServerError => StatusCode::InternalServerError,
         }
@@ -43,8 +28,8 @@ impl Error {
 
         match self {
             &NotFound => format!("Entity not found"),
-            &BadRequest => format!("Bad request"),
-            &UnprocessableEntity => format!("Failure during JSON conversion"),
+            &BadRequest(ref message) => format!("{}", message),
+            &UnprocessableEntity => format!("Serialization error"),
             &InternalServerError => format!("Internal server error"),
         }
     }
