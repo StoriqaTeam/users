@@ -137,7 +137,6 @@ impl Service for WebService {
             // GET /users/<user_id>
             (&Get, Some(router::Route::User(user_id))) => {
                 let conn = self.get_connection();
-
                 let result: Result<String, ApiError> = users.find(user_id).get_result::<User>(&*conn)
                     .map_err(|e| ApiError::from(e))
                     .and_then(|user| {
@@ -183,14 +182,13 @@ impl Service for WebService {
             },
             // DELETE /users/<user_id>
             (&Delete, Some(router::Route::User(user_id))) => {
-                // Check if user exists
                 let conn = self.get_connection();
-                let source = users.find(user_id);
+                let query = users.filter(id.eq(user_id)).filter(is_active.eq(true));
 
-                let result: Result<String, ApiError> = users.find(user_id).load::<User>(&*conn)
+                let result: Result<String, ApiError> = query.load::<User>(&*conn)
                     .map_err(|e| ApiError::from(e))
                     .and_then(|_user| {
-                        diesel::update(source).set(is_active.eq(false)).get_result::<User>(&*conn)
+                        diesel::update(query).set(is_active.eq(false)).get_result::<User>(&*conn)
                             .map_err(|e| ApiError::from(e))
                     })
                     .and_then(|_user| {
