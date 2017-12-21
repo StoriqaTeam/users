@@ -80,60 +80,6 @@ impl Service for WebService {
                 let response = serde_json::to_string(&message).unwrap();
                 self.respond_with(Ok(response))
             },
-            /*
-            // POST /users
-            (&Post, Some(router::Route::Users)) => {
-                let conn = self.get_connection();
-
-                Box::new(
-                    read_body(req)
-                        .and_then(move |body| {
-                            let result = (serde_json::from_slice::<NewUser>(&body.as_bytes()) as Result<NewUser, serde_json::error::Error>)
-                                .and_then(|new_user| {
-                                    // Insert user
-                                    let user = diesel::insert_into(users)
-                                        .values(&new_user)
-                                        .get_result::<User>(&*conn)
-                                        .expect("Error saving new user");
-
-                                    let response = serde_json::to_string(&user).unwrap();
-                                    Ok::<_, serde_json::Error>(response)
-                                });
-
-                            match result {
-                                Ok(data) => future::ok(response_with_json(data)),
-                                Err(err) => future::ok(response_with_error(error::Error::Json(err)))
-                            }
-                        })
-                )
-            },
-            // PUT /users/1
-            (&Put, Some(router::Route::User(user_id))) => {
-                let conn = self.get_connection();
-
-                Box::new(
-                    read_body(req)
-                        .and_then(move |body| {
-                            let result = (serde_json::from_slice::<UpdateUser>(&body.as_bytes()) as Result<UpdateUser, serde_json::error::Error>)
-                                .and_then(|new_user| {
-                                    // Update user
-                                    let user = diesel::update(users.find(user_id))
-                                        .set(email.eq(new_user.email))
-                                        .get_result::<User>(&*conn)
-                                        .expect("Error updating user");
-
-                                    let response = serde_json::to_string(&user).unwrap();
-                                    Ok::<_, serde_json::Error>(response)
-                                });
-
-                            match result {
-                                Ok(data) => future::ok(response_with_json(data)),
-                                Err(err) => future::ok(response_with_error(error::Error::Json(err)))
-                            }
-                        })
-                )
-            },
-            */
             // GET /users/<user_id>
             (&Get, Some(router::Route::User(user_id))) => {
                 let conn = self.get_connection();
@@ -179,6 +125,65 @@ impl Service for WebService {
                     });
 
                 self.respond_with(result)
+            },
+            // POST /users
+            (&Post, Some(router::Route::Users)) => {
+                let conn = self.get_connection();
+
+                Box::new(
+                    read_body(req)
+                        .and_then(move |body| {
+                            let result: Result<String, ApiError> = serde_json::from_slice::<NewUser>(&body.as_bytes())
+                                .map_err(|e| ApiError::from(e))
+                                .and_then(|new_user| {
+                                    let query = diesel::insert_into(users).values(&new_user);
+
+                                    query.get_result::<User>(&*conn)
+                                        .map_err(|e| ApiError::from(e))
+                                        .and_then(|user: User| {
+                                            serde_json::to_string(&user)
+                                                .map_err(|e| ApiError::from(e))
+                                        })
+                                });
+
+                            match result {
+                                Ok(data) => future::ok(response_with_json(data)),
+                                Err(err) => future::ok(response_with_error(ApiError::from(err)))
+                            }
+                        })
+                )
+            },
+            // PUT /users/1
+            (&Put, Some(router::Route::User(user_id))) => {
+                let conn = self.get_connection();
+
+                Box::new(
+                    read_body(req)
+                        .and_then(move |body| {
+                            let result: Result<String, ApiError> = users.find(user_id).get_result::<User>(&*conn)
+                                .map_err(|e| ApiError::from(e))
+                                .and_then(|_user| {
+                                    serde_json::from_slice::<UpdateUser>(&body.as_bytes())
+                                        .map_err(|e| ApiError::from(e))
+                                })
+                                .and_then(|new_user| {
+                                    let filter = users.filter(id.eq(user_id)).filter(is_active.eq(true));
+                                    let query = diesel::update(filter).set(email.eq(new_user.email));
+
+                                    query.get_result::<User>(&*conn)
+                                        .map_err(|e| ApiError::from(e))
+                                        .and_then(|user: User| {
+                                            serde_json::to_string(&user)
+                                                .map_err(|e| ApiError::from(e))
+                                        })
+                                });
+
+                            match result {
+                                Ok(data) => future::ok(response_with_json(data)),
+                                Err(err) => future::ok(response_with_error(ApiError::from(err)))
+                            }
+                        })
+                )
             },
             // DELETE /users/<user_id>
             (&Delete, Some(router::Route::User(user_id))) => {
