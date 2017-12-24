@@ -57,9 +57,20 @@ impl From<serde_json::error::Error> for Error {
 }
 
 impl From<ValidationErrors> for Error {
-    fn from(_e: ValidationErrors) -> Self {
-        // TODO: Unwrap messages from Vec<Vec<Option>>
-        Error::BadRequest("Validation error".to_string())
+    fn from(e: ValidationErrors) -> Self {
+        // Grabs first validation error
+        // TODO: Grab all of them to Vec<String>?
+        
+        let message = e.inner().values().next()
+            .ok_or("Unreachable validation error")
+            .and_then(|vec| vec.first().ok_or("Unreachable validation error"))
+            .and_then(|x| x.message.clone().ok_or("Unknown validation error"))
+            .and_then(|x| Ok(x.into_owned()));
+
+        match message {
+            Ok(msg) => Error::BadRequest(msg),
+            Err(err) => Error::BadRequest(err.to_string())
+        }
     }
 }
 
