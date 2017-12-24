@@ -1,4 +1,3 @@
-use schema::users;
 //use serde::ser::{self, Serialize, Serializer};
 
 #[derive(Debug, Serialize, Queryable, Deserialize)]
@@ -7,19 +6,6 @@ pub struct User {
     pub email: String,
     pub password: String,
     pub is_active: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize, Insertable)]
-#[table_name = "users"]
-pub struct NewUser<'a> {
-    pub email: &'a str,
-    pub password: &'a str,
-}
-
-#[derive(Debug, Serialize, Deserialize, Insertable)]
-#[table_name = "users"]
-pub struct UpdateUser<'a> {
-    pub email: &'a str
 }
 
 /*

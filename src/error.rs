@@ -1,6 +1,7 @@
+use hyper::StatusCode;
 use serde_json;
 use diesel;
-use hyper::StatusCode;
+use validator::ValidationErrors;
 
 // Error
 #[derive(Debug)]
@@ -28,7 +29,7 @@ impl Error {
 
         match self {
             &NotFound => format!("Entity not found"),
-            &BadRequest(ref message) => format!("{}", message),
+            &BadRequest(ref messages) => format!("{:?}", messages),
             &UnprocessableEntity => format!("Serialization error"),
             &InternalServerError => format!("Internal server error"),
         }
@@ -52,6 +53,13 @@ impl From<diesel::result::Error> for Error {
 impl From<serde_json::error::Error> for Error {
     fn from(_e: serde_json::error::Error) -> Self {
         Error::UnprocessableEntity
+    }
+}
+
+impl From<ValidationErrors> for Error {
+    fn from(_e: ValidationErrors) -> Self {
+        // TODO: Unwrap messages from Vec<Vec<Option>>
+        Error::BadRequest("Validation error".to_string())
     }
 }
 

@@ -13,12 +13,16 @@ extern crate env_logger;
 extern crate diesel;
 extern crate r2d2;
 extern crate r2d2_diesel;
+#[macro_use]
+extern crate validator_derive;
+extern crate validator;
 
 pub mod error;
 pub mod router;
 pub mod http_utils;
 pub mod schema;
 pub mod models;
+pub mod payloads;
 pub mod settings;
 
 use std::sync::Arc;
@@ -30,6 +34,7 @@ use hyper::server::{Http, Service, Request, Response};
 use diesel::prelude::*;
 use diesel::pg::PgConnection;
 use r2d2_diesel::ConnectionManager;
+use validator::Validate;
 
 use error::Error as ApiError;
 use error::StatusMessage;
@@ -37,6 +42,7 @@ use http_utils::*;
 use models::*;
 use schema::users::dsl::*;
 use settings::Settings;
+use payloads::{NewUser, UpdateUser};
 
 type ThePool = r2d2::Pool<ConnectionManager<PgConnection>>;
 type TheConnection = r2d2::PooledConnection<ConnectionManager<PgConnection>>;
@@ -136,6 +142,12 @@ impl Service for WebService {
                             let result: Result<String, ApiError> = serde_json::from_slice::<NewUser>(&body.as_bytes())
                                 .map_err(|e| ApiError::from(e))
                                 .and_then(|new_user| {
+                                    match new_user.validate() {
+                                        Ok(_) => Ok(new_user),
+                                        Err(e) => Err(ApiError::from(e))
+                                    }
+                                })
+                                .and_then(|new_user| {
                                     let query = diesel::insert_into(users).values(&new_user);
 
                                     query.get_result::<User>(&*conn)
@@ -193,7 +205,9 @@ impl Service for WebService {
                 let result: Result<String, ApiError> = query.load::<User>(&*conn)
                     .map_err(|e| ApiError::from(e))
                     .and_then(|_user| {
-                        diesel::update(query).set(is_active.eq(false)).get_result::<User>(&*conn)
+                        let query = diesel::update(query).set(is_active.eq(false));
+
+                        query.get_result::<User>(&*conn)
                             .map_err(|e| ApiError::from(e))
                     })
                     .and_then(|_user| {
