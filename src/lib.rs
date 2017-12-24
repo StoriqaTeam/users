@@ -1,5 +1,7 @@
 extern crate config;
 extern crate futures;
+extern crate futures_cpupool;
+extern crate tokio_core;
 extern crate hyper;
 extern crate regex;
 extern crate serde;
@@ -25,10 +27,12 @@ pub mod models;
 pub mod payloads;
 pub mod settings;
 
+use std::process;
 use std::sync::Arc;
 
 use futures::future;
-use futures::Future;
+use futures::{Future, Stream};
+use futures_cpupool::CpuPool;
 use hyper::{Get, Post, Put, Delete};
 use hyper::server::{Http, Service, Request, Response};
 use diesel::prelude::*;
@@ -36,6 +40,7 @@ use diesel::pg::PgConnection;
 use diesel::select;
 use diesel::dsl::exists;
 use r2d2_diesel::ConnectionManager;
+use tokio_core::reactor::Core;
 use validator::Validate;
 
 use error::Error as ApiError;
@@ -53,12 +58,13 @@ const MAX_USER_COUNT: i64 = 50;
 
 struct WebService {
     router: Arc<router::Router>,
-    pool: Arc<ThePool>
+    db_pool: Arc<ThePool>,
+    cpu_pool: CpuPool,
 }
 
 impl WebService {
     fn get_connection(&self) -> TheConnection {
-        match self.pool.get() {
+        match self.db_pool.get() {
             Ok(connection) => connection,
             Err(e) => panic!("Error obtaining connection from pool: {}", e)
         }
@@ -90,15 +96,22 @@ impl Service for WebService {
             },
             // GET /users/<user_id>
             (&Get, Some(router::Route::User(user_id))) => {
-                let conn = self.get_connection();
-                let result: Result<String, ApiError> = users.find(user_id).get_result::<User>(&*conn)
-                    .map_err(|e| ApiError::from(e))
-                    .and_then(|user| {
-                        serde_json::to_string(&user)
-                            .map_err(|e| ApiError::from(e))
-                    });
+                let result = self.cpu_pool.spawn_fn(move || {
+                    let conn = self.get_connection();
+                    let result: Result<String, ApiError> = users.find(user_id).get_result::<User>(&*conn)
+                        .map_err(|e| ApiError::from(e))
+                        .and_then(|user| {
+                            serde_json::to_string(&user)
+                                .map_err(|e| ApiError::from(e))
+                        });
 
-                self.respond_with(result)
+                    result
+                }).then(|r| match r {
+                    Ok(data) => future::ok(response_with_json(data)),
+                    Err(err) => future::ok(response_with_error(ApiError::from(err))),
+                });
+
+                Box::new(result)
             },
             // GET /users
             (&Get, Some(router::Route::Users)) => {
@@ -245,9 +258,16 @@ pub fn start_server(settings: Settings) {
     // Prepare logger
     env_logger::init().unwrap();
 
+    // Create a worker thread pool with four threads
+    let n_workers = 4;
+    let pool = CpuPool::new(n_workers);
+    let mut core = Core::new().unwrap();
+    let main_handle = core.handle();
+    let remote = main_handle.remote().clone();
+
     // Prepare server
     let address = settings.address.parse().expect("Address must be set in configuration");
-    let mut server = Http::new().bind(&address, move || {
+    let server = Http::new().serve_addr_handle(&address, &main_handle, move || {
         // Prepare database pool
         let database_url: String = settings.database.parse().expect("Database URL must be set in configuration");
         let manager = ConnectionManager::<PgConnection>::new(database_url);
@@ -258,15 +278,31 @@ pub fn start_server(settings: Settings) {
         // Prepare service
         let service = WebService {
             router: Arc::new(router::create_router()),
-            pool: Arc::new(r2d2_pool),
+            db_pool: Arc::new(r2d2_pool),
+            cpu_pool: pool.clone(),
         };
 
         Ok(service)
-    }).unwrap();
+    })
+        .unwrap_or_else(|why| {
+            error!("Http Server Initialization Error: {}", why);
+            process::exit(1);
+        });
 
-    server.no_proto();
+    info!("Listening on http://{}", address);
 
-    // Start
-    info!("Listening on http://{}", server.local_addr().unwrap());
-    server.run().unwrap();
+    let server_handle = main_handle.clone();
+    main_handle.spawn(
+        server
+            .for_each(move |conn| {
+                server_handle.spawn(
+                    conn.map(|_| ())
+                        .map_err(|why| error!("Server Error: {:?}", why)),
+                );
+                Ok(())
+            })
+            .map_err(|_| ()),
+    );
+
+    core.run(futures::future::empty::<(), ()>()).unwrap();
 }
