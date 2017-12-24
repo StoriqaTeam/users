@@ -29,7 +29,7 @@ impl Error {
 
         match self {
             &NotFound => format!("Entity not found"),
-            &BadRequest(ref messages) => format!("{:?}", messages),
+            &BadRequest(ref message) => format!("{}", message),
             &UnprocessableEntity => format!("Serialization error"),
             &InternalServerError => format!("Internal server error"),
         }

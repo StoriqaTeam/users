@@ -33,6 +33,8 @@ use hyper::{Get, Post, Put, Delete};
 use hyper::server::{Http, Service, Request, Response};
 use diesel::prelude::*;
 use diesel::pg::PgConnection;
+use diesel::select;
+use diesel::dsl::exists;
 use r2d2_diesel::ConnectionManager;
 use validator::Validate;
 
@@ -105,20 +107,24 @@ impl Service for WebService {
                     .ok_or(ApiError::BadRequest("Missing query parameters: `from`, `count`".to_string()))
                     .and_then(|query| Ok(query_params(query)))
                     .and_then(|params| {
+                        // Extract `from` param
                         Ok((params.clone(), params.get("from").and_then(|v| v.parse::<i32>().ok())
                             .ok_or(ApiError::BadRequest("Invalid value provided for `from`".to_string()))))
                     })
                     .and_then(|(params, from)| {
+                        // Extract `count` param
                         Ok((from, params.get("count").and_then(|v| v.parse::<i64>().ok())
                             .ok_or(ApiError::BadRequest("Invalid value provided for `count`".to_string()))))
                     })
                     .and_then(|(from, count)| {
+                        // Transform tuple of `Result`s to `Result` of tuple
                         match (from, count) {
                             (Ok(x), Ok(y)) if x > 0 && y < MAX_USER_COUNT => Ok((x, y)),
                             (_, _) => Err(ApiError::BadRequest("Invalid values provided for `from` or `count`".to_string())),
                         }
                     })
                     .and_then(|(from, count)| {
+                        // Get users
                         let query = users.filter(is_active.eq(true)).filter(id.gt(from))
                             .order(id).limit(count);
 
@@ -142,12 +148,23 @@ impl Service for WebService {
                             let result: Result<String, ApiError> = serde_json::from_slice::<NewUser>(&body.as_bytes())
                                 .map_err(|e| ApiError::from(e))
                                 .and_then(|new_user| {
+                                    // General validation
                                     match new_user.validate() {
                                         Ok(_) => Ok(new_user),
                                         Err(e) => Err(ApiError::from(e))
                                     }
                                 })
                                 .and_then(|new_user| {
+                                    // Unique e-mail validation
+                                    let count = select(exists(users.filter(email.eq(new_user.email)))).get_result(&*conn);
+                                    match count {
+                                        Ok(false) => Ok(new_user),
+                                        Ok(true) => Err(ApiError::BadRequest("E-mail already registered".to_string())),
+                                        Err(e) => Err(ApiError::from(e))
+                                    }
+                                })
+                                .and_then(|new_user| {
+                                    // User creation
                                     let query = diesel::insert_into(users).values(&new_user);
 
                                     query.get_result::<User>(&*conn)
@@ -179,6 +196,7 @@ impl Service for WebService {
                                         .map_err(|e| ApiError::from(e))
                                 })
                                 .and_then(|new_user| {
+                                    // TODO: Update other fields, don't update e-mail at all
                                     let filter = users.filter(id.eq(user_id)).filter(is_active.eq(true));
                                     let query = diesel::update(filter).set(email.eq(new_user.email));
 
