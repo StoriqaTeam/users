@@ -8,29 +8,19 @@ use futures::future::{Future};
 use futures::{future, Stream};
 
 use std::collections::HashMap;
+use std::iter::FromIterator;
 
 use hyper;
 use error;
 
-#[derive(Serialize, Debug)]
-pub struct Status {
-    pub status: String
-}
-
-pub fn status_ok() -> Status {
-    Status { status: String::from("OK") }
-}
-
 pub fn query_params(query: &str) -> HashMap<&str, &str> {
-    let mut params = HashMap::new();
-    let pairs: Vec<&str> = query.split("&").collect();
-
-    for pair in pairs {
-        let split: Vec<&str> = pair.split("=").collect();
-        params.insert(split[0], split[1]);
-    }
-
-    params
+    HashMap::from_iter(
+        query.split("&")
+            .map(|pair| {
+                let mut params = pair.split("=");
+                (params.next().unwrap(), params.next().unwrap_or(""))
+            })
+    )
 }
 
 pub fn read_body(request: Request) -> Box<Future<Item=String, Error=hyper::Error>> {
@@ -49,7 +39,7 @@ pub fn read_body(request: Request) -> Box<Future<Item=String, Error=hyper::Error
     )
 }
 
-pub fn response_with_body(body: String) -> Response {
+fn response_with_body(body: String) -> Response {
     Response::new()
         .with_header(ContentLength(body.len() as u64))
         .with_header(ContentType(mime::APPLICATION_JSON))
@@ -57,14 +47,12 @@ pub fn response_with_body(body: String) -> Response {
         .with_body(body)
 }
 
+pub fn response_with_json(body: String) -> Response {
+    info!("{}", body);
+    response_with_body(body)
+}
+
 pub fn response_with_error(error: error::Error) -> Response {
-    use error::Error::*;
-    match error {
-        Json(err) => response_with_body(err.to_string()).with_status(StatusCode::UnprocessableEntity)
-    }
+    error!("{}", error.to_json());
+    response_with_body(error.to_json()).with_status(error.to_code())
 }
-
-pub fn response_not_found() -> Response {
-    response_with_body("Not found".to_string()).with_status(StatusCode::NotFound)
-}
-

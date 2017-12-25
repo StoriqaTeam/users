@@ -1,7 +1,6 @@
-use schema::users;
-use validator::Validate;
+//use serde::ser::{self, Serialize, Serializer};
 
-#[derive(Debug, Queryable, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Queryable, Deserialize)]
 pub struct User {
     pub id: i32,
     pub email: String,
@@ -9,18 +8,13 @@ pub struct User {
     pub is_active: bool,
 }
 
-#[derive(Debug, Validate, Deserialize, Insertable)]
-#[table_name = "users"]
-pub struct NewUser<'a> {
-    #[validate(email)]
-    pub email: &'a str,
-    #[validate(length(min = "6", max = "20"))]
-    pub password: &'a str,
+/*
+// Serialization failure test
+impl Serialize for User {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer
+    {
+        Err(ser::Error::custom("path contains invalid UTF-8 characters"))
+    }
 }
-
-#[derive(Debug, Validate, Deserialize, Insertable)]
-#[table_name = "users"]
-pub struct UpdateUser<'a> {
-    #[validate(email)]
-    pub email: &'a str
-}
+*/

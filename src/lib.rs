@@ -13,12 +13,16 @@ extern crate env_logger;
 extern crate diesel;
 extern crate r2d2;
 extern crate r2d2_diesel;
+#[macro_use]
+extern crate validator_derive;
+extern crate validator;
 
 pub mod error;
 pub mod router;
 pub mod http_utils;
 pub mod schema;
 pub mod models;
+pub mod payloads;
 pub mod settings;
 
 use std::sync::Arc;
@@ -29,15 +33,23 @@ use hyper::{Get, Post, Put, Delete};
 use hyper::server::{Http, Service, Request, Response};
 use diesel::prelude::*;
 use diesel::pg::PgConnection;
+use diesel::select;
+use diesel::dsl::exists;
 use r2d2_diesel::ConnectionManager;
+use validator::Validate;
 
+use error::Error as ApiError;
+use error::StatusMessage;
 use http_utils::*;
 use models::*;
 use schema::users::dsl::*;
 use settings::Settings;
+use payloads::{NewUser, UpdateUser};
 
 type ThePool = r2d2::Pool<ConnectionManager<PgConnection>>;
 type TheConnection = r2d2::PooledConnection<ConnectionManager<PgConnection>>;
+
+const MAX_USER_COUNT: i64 = 50;
 
 struct WebService {
     router: Arc<router::Router>,
@@ -51,6 +63,13 @@ impl WebService {
             Err(e) => panic!("Error obtaining connection from pool: {}", e)
         }
     }
+
+    fn respond_with(&self, result: Result<String, ApiError>) -> <WebService as Service>::Future {
+        match result {
+            Ok(response) => Box::new(future::ok(response_with_json(response))),
+            Err(err) => Box::new(future::ok(response_with_error(err)))
+        }
+    }
 }
 
 impl Service for WebService {
@@ -60,123 +79,164 @@ impl Service for WebService {
     type Future = Box<futures::Future<Item = Self::Response, Error = Self::Error>>;
 
     fn call(&self, req: Request) -> Self::Future {
+        info!("{:?}", req);
+
         match (req.method(), self.router.test(req.path())) {
             // GET /healthcheck
             (&Get, Some(router::Route::Healthcheck)) => {
-                info!("Handling request GET /healthcheck");
+                let message = StatusMessage::new("OK");
+                let response = serde_json::to_string(&message).unwrap();
+                self.respond_with(Ok(response))
+            },
+            // GET /users/<user_id>
+            (&Get, Some(router::Route::User(user_id))) => {
+                let conn = self.get_connection();
+                let result: Result<String, ApiError> = users.find(user_id).get_result::<User>(&*conn)
+                    .map_err(|e| ApiError::from(e))
+                    .and_then(|user| {
+                        serde_json::to_string(&user)
+                            .map_err(|e| ApiError::from(e))
+                    });
 
-                let response = serde_json::to_string(&status_ok()).unwrap();
-                Box::new(future::ok(response_with_body(response)))
+                self.respond_with(result)
+            },
+            // GET /users
+            (&Get, Some(router::Route::Users)) => {
+                let conn = self.get_connection();
+                let result: Result<String, ApiError> = req.uri().query()
+                    .ok_or(ApiError::BadRequest("Missing query parameters: `from`, `count`".to_string()))
+                    .and_then(|query| Ok(query_params(query)))
+                    .and_then(|params| {
+                        // Extract `from` param
+                        Ok((params.clone(), params.get("from").and_then(|v| v.parse::<i32>().ok())
+                            .ok_or(ApiError::BadRequest("Invalid value provided for `from`".to_string()))))
+                    })
+                    .and_then(|(params, from)| {
+                        // Extract `count` param
+                        Ok((from, params.get("count").and_then(|v| v.parse::<i64>().ok())
+                            .ok_or(ApiError::BadRequest("Invalid value provided for `count`".to_string()))))
+                    })
+                    .and_then(|(from, count)| {
+                        // Transform tuple of `Result`s to `Result` of tuple
+                        match (from, count) {
+                            (Ok(x), Ok(y)) if x > 0 && y < MAX_USER_COUNT => Ok((x, y)),
+                            (_, _) => Err(ApiError::BadRequest("Invalid values provided for `from` or `count`".to_string())),
+                        }
+                    })
+                    .and_then(|(from, count)| {
+                        // Get users
+                        let query = users.filter(is_active.eq(true)).filter(id.gt(from))
+                            .order(id).limit(count);
+
+                        query.load::<User>(&*conn)
+                            .map_err(|e| ApiError::from(e))
+                            .and_then(|results: Vec<User>| {
+                                serde_json::to_string(&results)
+                                    .map_err(|e| ApiError::from(e))
+                            })
+                    });
+
+                self.respond_with(result)
             },
             // POST /users
             (&Post, Some(router::Route::Users)) => {
-                info!("Handling request POST /users");
                 let conn = self.get_connection();
 
                 Box::new(
                     read_body(req)
                         .and_then(move |body| {
-                            let result = (serde_json::from_slice::<NewUser>(&body.as_bytes()) as Result<NewUser, serde_json::error::Error>)
+                            let result: Result<String, ApiError> = serde_json::from_slice::<NewUser>(&body.as_bytes())
+                                .map_err(|e| ApiError::from(e))
                                 .and_then(|new_user| {
-                                    // Insert user
-                                    let user = diesel::insert_into(users)
-                                        .values(&new_user)
-                                        .get_result::<User>(&*conn)
-                                        .expect("Error saving new user");
+                                    // General validation
+                                    match new_user.validate() {
+                                        Ok(_) => Ok(new_user),
+                                        Err(e) => Err(ApiError::from(e))
+                                    }
+                                })
+                                .and_then(|new_user| {
+                                    // Unique e-mail validation
+                                    let count = select(exists(users.filter(email.eq(new_user.email)))).get_result(&*conn);
+                                    match count {
+                                        Ok(false) => Ok(new_user),
+                                        Ok(true) => Err(ApiError::BadRequest("E-mail already registered".to_string())),
+                                        Err(e) => Err(ApiError::from(e))
+                                    }
+                                })
+                                .and_then(|new_user| {
+                                    // User creation
+                                    let query = diesel::insert_into(users).values(&new_user);
 
-                                    let response = serde_json::to_string(&user).unwrap();
-                                    Ok::<_, serde_json::Error>(response)
+                                    query.get_result::<User>(&*conn)
+                                        .map_err(|e| ApiError::from(e))
+                                        .and_then(|user: User| {
+                                            serde_json::to_string(&user)
+                                                .map_err(|e| ApiError::from(e))
+                                        })
                                 });
 
                             match result {
-                                Ok(data) => future::ok(response_with_body(data)),
-                                Err(err) => future::ok(response_with_error(error::Error::Json(err)))
+                                Ok(data) => future::ok(response_with_json(data)),
+                                Err(err) => future::ok(response_with_error(ApiError::from(err)))
                             }
                         })
                 )
             },
             // PUT /users/1
             (&Put, Some(router::Route::User(user_id))) => {
-                info!("Handling request PUT /users/{}", user_id);
-
                 let conn = self.get_connection();
 
                 Box::new(
                     read_body(req)
                         .and_then(move |body| {
-                            let result = (serde_json::from_slice::<UpdateUser>(&body.as_bytes()) as Result<UpdateUser, serde_json::error::Error>)
+                            let result: Result<String, ApiError> = users.find(user_id).get_result::<User>(&*conn)
+                                .map_err(|e| ApiError::from(e))
+                                .and_then(|_user| {
+                                    serde_json::from_slice::<UpdateUser>(&body.as_bytes())
+                                        .map_err(|e| ApiError::from(e))
+                                })
                                 .and_then(|new_user| {
-                                    // Update user
-                                    let user = diesel::update(users.find(user_id))
-                                        .set(email.eq(new_user.email))
-                                        .get_result::<User>(&*conn)
-                                        .expect("Error updating user");
+                                    // TODO: Update other fields, don't update e-mail at all
+                                    let filter = users.filter(id.eq(user_id)).filter(is_active.eq(true));
+                                    let query = diesel::update(filter).set(email.eq(new_user.email));
 
-                                    let response = serde_json::to_string(&user).unwrap();
-                                    Ok::<_, serde_json::Error>(response)
+                                    query.get_result::<User>(&*conn)
+                                        .map_err(|e| ApiError::from(e))
+                                        .and_then(|user: User| {
+                                            serde_json::to_string(&user)
+                                                .map_err(|e| ApiError::from(e))
+                                        })
                                 });
 
                             match result {
-                                Ok(data) => future::ok(response_with_body(data)),
-                                Err(err) => future::ok(response_with_error(error::Error::Json(err)))
+                                Ok(data) => future::ok(response_with_json(data)),
+                                Err(err) => future::ok(response_with_error(ApiError::from(err)))
                             }
                         })
                 )
             },
-            // GET /users/<user_id>
-            (&Get, Some(router::Route::User(user_id))) => {
-                info!("Handling request GET /users/{}", user_id);
-
-                let conn = self.get_connection();
-
-                let user = users
-                    .find(user_id)
-                    .get_result::<User>(&*conn)
-                    .expect("Error loading user");
-
-                let response = serde_json::to_string(&user).unwrap();
-                Box::new(future::ok(response_with_body(response)))
-            },
-            // GET /users
-            (&Get, Some(router::Route::Users)) => {
-                info!("Handling request GET /users");
-
-                let query = req.uri().query().unwrap();
-                info!("Query: {}", query);
-
-                let query_params = query_params(query);
-                let from = query_params.get("from").and_then(|v| v.parse::<i32>().ok()).expect("From value");
-                let count = query_params.get("count").and_then(|v| v.parse::<i64>().ok()).expect("Count value");
-
-                let conn = self.get_connection();
-
-                let results = users
-                    .filter(is_active.eq(true))
-                    .filter(id.gt(from))
-                    .order(id)
-                    .limit(count)
-                    .load::<User>(&*conn)
-                    .expect("Error loading users");
-
-                let response = serde_json::to_string(&results).unwrap();
-                Box::new(future::ok(response_with_body(response)))
-            },
             // DELETE /users/<user_id>
             (&Delete, Some(router::Route::User(user_id))) => {
-                info!("Handling request DELETE /users/{}", user_id);
-
                 let conn = self.get_connection();
+                let query = users.filter(id.eq(user_id)).filter(is_active.eq(true));
 
-                diesel::update(users.find(user_id))
-                    .set(is_active.eq(false))
-                    .get_result::<User>(&*conn)
-                    .expect("Error loading user");
+                let result: Result<String, ApiError> = query.load::<User>(&*conn)
+                    .map_err(|e| ApiError::from(e))
+                    .and_then(|_user| {
+                        let query = diesel::update(query).set(is_active.eq(false));
 
-                let response = serde_json::to_string(&status_ok()).unwrap();
-                Box::new(future::ok(response_with_body(response)))
+                        query.get_result::<User>(&*conn)
+                            .map_err(|e| ApiError::from(e))
+                    })
+                    .and_then(|_user| {
+                        let message = StatusMessage::new("User has been deleted");
+                        serde_json::to_string(&message).map_err(|e| ApiError::from(e))
+                    });
+
+                self.respond_with(result)
             },
             // Fallback
-            _ => Box::new(future::ok(response_not_found()))
+            _ => self.respond_with(Err(ApiError::NotFound))
         }
     }
 }
