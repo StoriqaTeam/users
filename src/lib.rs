@@ -33,24 +33,15 @@ pub mod users_service;
 use std::sync::Arc;
 
 use futures::future;
-//use futures::Future;
 use hyper::{Get, Post, Put, Delete};
 use hyper::server::{Http, Service, Request};
-//use diesel::prelude::*;
 use diesel::pg::PgConnection;
-//use diesel::select;
-//use diesel::dsl::exists;
 use r2d2_diesel::ConnectionManager;
-//use validator::Validate;
 
 use common::{TheError, TheFuture, TheRequest, TheResponse};
 use error::Error as ApiError;
-//use error::StatusMessage;
 use http_utils::response_with_error;
-//use models::*;
-//use schema::users::dsl::*;
 use settings::Settings;
-//use payloads::{NewUser, UpdateUser};
 use system_service::SystemService;
 use users_repo::UsersRepo;
 use users_service::UsersService;
@@ -61,29 +52,13 @@ struct WebService {
     users_service: Arc<UsersService>,
 }
 
-//impl WebService {
-//    fn get_connection(&self) -> TheConnection {
-//        match self.pool.get() {
-//            Ok(connection) => connection,
-//            Err(e) => panic!("Error obtaining connection from pool: {}", e)
-//        }
-//    }
-//
-//    fn respond_with(&self, result: Result<String, ApiError>) -> <WebService as Service>::Future {
-//        match result {
-//            Ok(response) => Box::new(future::ok(response_with_json(response))),
-//            Err(err) => Box::new(future::ok(response_with_error(err)))
-//        }
-//    }
-//}
-
 impl Service for WebService {
     type Request = TheRequest;
     type Response = TheResponse;
     type Error = TheError;
     type Future = TheFuture;
 
-    fn call(&self, req: Request) -> Self::Future {
+    fn call(&self, req: Request) -> TheFuture {
         info!("{:?}", req);
 
         match (req.method(), self.router.test(req.path())) {

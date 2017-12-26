@@ -75,10 +75,10 @@ impl UsersService {
                             serde_json::from_slice::<UpdateUser>(&body.as_bytes())
                                 .map_err(|e| ApiError::from(e))
                         })
-                        .and_then(|new_user| {
-                            self.users_repo.update(user_id, &new_user)
+                        .and_then(|payload| {
+                            self.users_repo.update(user_id, &payload)
                                 .map_err(|e| ApiError::from(e))
-                                .and_then(|user: User| {
+                                .and_then(|user| {
                                     serde_json::to_string(&user)
                                         .map_err(|e| ApiError::from(e))
                                 })
