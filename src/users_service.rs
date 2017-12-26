@@ -3,12 +3,12 @@ use std::sync::Arc;
 use futures::future;
 use futures::Future;
 use serde_json;
+use validator::Validate;
 
-use common::{TheFuture, TheRequest, MAX_USER_COUNT};
+use common::{TheError, TheFuture, TheRequest, TheResponse, MAX_USER_COUNT};
 use error::Error as ApiError;
 use error::StatusMessage;
 use http_utils::*;
-use models::User;
 use payloads::{NewUser, UpdateUser};
 use service::Service;
 use users_repo::UsersRepo;
@@ -65,29 +65,71 @@ impl UsersService {
         self.respond_with(result)
     }
 
-    pub fn update(&self, req: TheRequest, user_id: i32) -> TheFuture {
-        let result = read_body(req)
-            .and_then(move |body| {
-                let inner = self.users_repo.find(user_id)
-                    .map_err(|e| ApiError::from(e))
-                    .and_then(|_user| {
-                        serde_json::from_slice::<UpdateUser>(&body.as_bytes())
-                            .map_err(|e| ApiError::from(e))
-                    })
-                    .and_then(|payload| {
-                        self.users_repo.update(user_id, &payload)
-                            .map_err(|e| ApiError::from(e))
-                            .and_then(|user| {
-                                serde_json::to_string(&user)
-                                    .map_err(|e| ApiError::from(e))
-                            })
-                    });
+    pub fn create(&self, req: TheRequest) -> Box<Future<Item = TheResponse, Error = TheError>> {
+        let users_repo = self.users_repo.clone();
 
-                match inner {
-                    Ok(data) => future::ok(response_with_json(data)),
-                    Err(err) => future::ok(response_with_error(ApiError::from(err)))
-                }
-            });
+        let result = read_body(req).and_then(move |body| {
+            let result: Result<String, ApiError> = serde_json::from_slice::<NewUser>(&body.as_bytes())
+                .map_err(|e| ApiError::from(e))
+                .and_then(|payload| {
+                    // General validation
+                    match payload.validate() {
+                        Ok(_) => Ok(payload),
+                        Err(e) => Err(ApiError::from(e))
+                    }
+                })
+                .and_then(|payload| {
+                    // Unique e-mail validation
+                    match users_repo.email_exists(payload.email.to_string()) {
+                        Ok(false) => Ok(payload),
+                        Ok(true) => Err(ApiError::BadRequest("E-mail already registered".to_string())),
+                        Err(e) => Err(ApiError::from(e))
+                    }
+                })
+                .and_then(|payload| {
+                    // User creation
+                    users_repo.create(payload)
+                        .map_err(|e| ApiError::from(e))
+                        .and_then(|user| {
+                            serde_json::to_string(&user)
+                                .map_err(|e| ApiError::from(e))
+                        })
+                });
+
+            match result {
+                Ok(data) => future::ok(response_with_json(data)),
+                Err(err) => future::ok(response_with_error(ApiError::from(err)))
+            }
+        });
+
+        Box::new(result)
+    }
+
+    pub fn update(&self, req: TheRequest, user_id: i32) -> Box<Future<Item = TheResponse, Error = TheError>> {
+        let users_repo = self.users_repo.clone();
+
+        let result = read_body(req).and_then(move |body| {
+            let inner = users_repo.find(user_id)
+                .map_err(|e| ApiError::from(e))
+                .and_then(|_user| {
+                    // TODO: from_string?
+                    serde_json::from_slice::<UpdateUser>(&body.as_bytes())
+                        .map_err(|e| ApiError::from(e))
+                })
+                .and_then(|payload| {
+                    users_repo.update(user_id, &payload)
+                        .map_err(|e| ApiError::from(e))
+                        .and_then(|user| {
+                            serde_json::to_string(&user)
+                                .map_err(|e| ApiError::from(e))
+                        })
+                });
+
+            match inner {
+                Ok(data) => future::ok(response_with_json(data)),
+                Err(err) => future::ok(response_with_error(ApiError::from(err)))
+            }
+        });
 
         Box::new(result)
     }

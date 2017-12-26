@@ -32,6 +32,7 @@ pub mod users_service;
 
 use std::sync::Arc;
 
+use futures::Future;
 use futures::future;
 use hyper::{Get, Post, Put, Delete};
 use hyper::server::{Http, Service, Request};
@@ -58,7 +59,7 @@ impl Service for WebService {
     type Error = TheError;
     type Future = TheFuture;
 
-    fn call(&self, req: Request) -> TheFuture {
+    fn call(&self, req: Request) -> Box<Future<Item = TheResponse, Error = TheError>> {
         info!("{:?}", req);
 
         match (req.method(), self.router.test(req.path())) {
@@ -68,52 +69,8 @@ impl Service for WebService {
             (&Get, Some(router::Route::User(user_id))) => self.users_service.find(user_id),
             // GET /users
             (&Get, Some(router::Route::Users)) => self.users_service.list(req),
-            /*
             // POST /users
-            (&Post, Some(router::Route::Users)) => {
-                let conn = self.get_connection();
-
-                Box::new(
-                    read_body(req)
-                        .and_then(move |body| {
-                            let result: Result<String, ApiError> = serde_json::from_slice::<NewUser>(&body.as_bytes())
-                                .map_err(|e| ApiError::from(e))
-                                .and_then(|new_user| {
-                                    // General validation
-                                    match new_user.validate() {
-                                        Ok(_) => Ok(new_user),
-                                        Err(e) => Err(ApiError::from(e))
-                                    }
-                                })
-                                .and_then(|new_user| {
-                                    // Unique e-mail validation
-                                    let count = select(exists(users.filter(email.eq(new_user.email)))).get_result(&*conn);
-                                    match count {
-                                        Ok(false) => Ok(new_user),
-                                        Ok(true) => Err(ApiError::BadRequest("E-mail already registered".to_string())),
-                                        Err(e) => Err(ApiError::from(e))
-                                    }
-                                })
-                                .and_then(|new_user| {
-                                    // User creation
-                                    let query = diesel::insert_into(users).values(&new_user);
-
-                                    query.get_result::<User>(&*conn)
-                                        .map_err(|e| ApiError::from(e))
-                                        .and_then(|user: User| {
-                                            serde_json::to_string(&user)
-                                                .map_err(|e| ApiError::from(e))
-                                        })
-                                });
-
-                            match result {
-                                Ok(data) => future::ok(response_with_json(data)),
-                                Err(err) => future::ok(response_with_error(ApiError::from(err)))
-                            }
-                        })
-                )
-            },
-            */
+            (&Post, Some(router::Route::Users)) => self.users_service.create(req),
             // PUT /users/1
             (&Put, Some(router::Route::User(user_id))) => self.users_service.update(req, user_id),
             // DELETE /users/<user_id>
