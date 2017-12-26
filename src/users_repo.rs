@@ -1,0 +1,60 @@
+use diesel;
+use diesel::select;
+use diesel::dsl::exists;
+use diesel::prelude::*;
+
+use common::{TheConnection, ThePool};
+use models::{User};
+use payloads::{NewUser, UpdateUser};
+use schema::users::dsl::*;
+
+pub struct UsersRepo {
+    r2d2_pool: ThePool
+}
+
+impl UsersRepo {
+    fn get_connection(&self) -> TheConnection {
+        match self.r2d2_pool.get() {
+            Ok(connection) => connection,
+            Err(e) => panic!("Error obtaining connection from pool: {}", e)
+        }
+    }
+
+    pub fn find(&self, user_id: i32) -> diesel::QueryResult<User> {
+        let conn = self.get_connection();
+        let query = users.find(user_id);
+        query.get_result::<User>(&*conn)
+    }
+
+    pub fn email_exists(&self, needle: String) -> diesel::QueryResult<bool> {
+        let conn = self.get_connection();
+        let query = select(exists(users.filter(email.eq(needle))));
+        query.get_result::<bool>(&*conn)
+    }
+
+    pub fn list(&self, from: i32, count: i64) -> diesel::QueryResult<Vec<User>> {
+        let conn = self.get_connection();
+        let query = users.filter(is_active.eq(true)).filter(id.gt(from)).order(id).limit(count);
+        query.get_results::<User>(&*conn)
+    }
+
+    pub fn create(&self, payload: NewUser) -> diesel::QueryResult<User> {
+        let conn = self.get_connection();
+        let query = diesel::insert_into(users).values(&payload);
+        query.get_result::<User>(&*conn)
+    }
+
+    pub fn update(&self, user_id: i32, payload: &UpdateUser) -> diesel::QueryResult<User> {
+        let conn = self.get_connection();
+        let filter = users.filter(id.eq(user_id)).filter(is_active.eq(true));
+        let query = diesel::update(filter).set(email.eq(payload.email));
+        query.get_result::<User>(&*conn)
+    }
+
+    pub fn deactivate(&self, user_id: i32) -> diesel::QueryResult<User> {
+        let conn = self.get_connection();
+        let filter = users.filter(id.eq(user_id)).filter(is_active.eq(true));
+        let query = diesel::update(filter).set(is_active.eq(false));
+        query.get_result::<User>(&*conn)
+    }
+}

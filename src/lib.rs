@@ -17,6 +17,7 @@ extern crate r2d2_diesel;
 extern crate validator_derive;
 extern crate validator;
 
+pub mod common;
 pub mod error;
 pub mod router;
 pub mod http_utils;
@@ -24,13 +25,15 @@ pub mod schema;
 pub mod models;
 pub mod payloads;
 pub mod settings;
+pub mod users_repo;
+pub mod users_service;
 
 use std::sync::Arc;
 
 use futures::future;
 use futures::Future;
 use hyper::{Get, Post, Put, Delete};
-use hyper::server::{Http, Service, Request, Response};
+use hyper::server::{Http, Service, Request};
 use diesel::prelude::*;
 use diesel::pg::PgConnection;
 use diesel::select;
@@ -38,6 +41,7 @@ use diesel::dsl::exists;
 use r2d2_diesel::ConnectionManager;
 use validator::Validate;
 
+use common::{TheError, TheFuture, TheRequest, TheResponse, TheConnection, ThePool};
 use error::Error as ApiError;
 use error::StatusMessage;
 use http_utils::*;
@@ -45,11 +49,6 @@ use models::*;
 use schema::users::dsl::*;
 use settings::Settings;
 use payloads::{NewUser, UpdateUser};
-
-type ThePool = r2d2::Pool<ConnectionManager<PgConnection>>;
-type TheConnection = r2d2::PooledConnection<ConnectionManager<PgConnection>>;
-
-const MAX_USER_COUNT: i64 = 50;
 
 struct WebService {
     router: Arc<router::Router>,
@@ -73,10 +72,10 @@ impl WebService {
 }
 
 impl Service for WebService {
-    type Request = Request;
-    type Response = Response;
-    type Error = hyper::Error;
-    type Future = Box<futures::Future<Item = Self::Response, Error = Self::Error>>;
+    type Request = TheRequest;
+    type Response = TheResponse;
+    type Error = TheError;
+    type Future = TheFuture;
 
     fn call(&self, req: Request) -> Self::Future {
         info!("{:?}", req);
@@ -119,7 +118,7 @@ impl Service for WebService {
                     .and_then(|(from, count)| {
                         // Transform tuple of `Result`s to `Result` of tuple
                         match (from, count) {
-                            (Ok(x), Ok(y)) if x > 0 && y < MAX_USER_COUNT => Ok((x, y)),
+                            (Ok(x), Ok(y)) if x > 0 && y < common::MAX_USER_COUNT => Ok((x, y)),
                             (_, _) => Err(ApiError::BadRequest("Invalid values provided for `from` or `count`".to_string())),
                         }
                     })
