@@ -24,52 +24,58 @@ pub mod http_utils;
 pub mod schema;
 pub mod models;
 pub mod payloads;
+pub mod service;
 pub mod settings;
+pub mod system_service;
 pub mod users_repo;
 pub mod users_service;
 
 use std::sync::Arc;
 
 use futures::future;
-use futures::Future;
+//use futures::Future;
 use hyper::{Get, Post, Put, Delete};
 use hyper::server::{Http, Service, Request};
-use diesel::prelude::*;
+//use diesel::prelude::*;
 use diesel::pg::PgConnection;
-use diesel::select;
-use diesel::dsl::exists;
+//use diesel::select;
+//use diesel::dsl::exists;
 use r2d2_diesel::ConnectionManager;
-use validator::Validate;
+//use validator::Validate;
 
-use common::{TheError, TheFuture, TheRequest, TheResponse, TheConnection, ThePool};
+use common::{TheError, TheFuture, TheRequest, TheResponse};
 use error::Error as ApiError;
-use error::StatusMessage;
-use http_utils::*;
-use models::*;
-use schema::users::dsl::*;
+//use error::StatusMessage;
+use http_utils::response_with_error;
+//use models::*;
+//use schema::users::dsl::*;
 use settings::Settings;
-use payloads::{NewUser, UpdateUser};
+//use payloads::{NewUser, UpdateUser};
+use system_service::SystemService;
+use users_repo::UsersRepo;
+use users_service::UsersService;
 
 struct WebService {
     router: Arc<router::Router>,
-    pool: Arc<ThePool>
+    system_service: Arc<SystemService>,
+    users_service: Arc<UsersService>,
 }
 
-impl WebService {
-    fn get_connection(&self) -> TheConnection {
-        match self.pool.get() {
-            Ok(connection) => connection,
-            Err(e) => panic!("Error obtaining connection from pool: {}", e)
-        }
-    }
-
-    fn respond_with(&self, result: Result<String, ApiError>) -> <WebService as Service>::Future {
-        match result {
-            Ok(response) => Box::new(future::ok(response_with_json(response))),
-            Err(err) => Box::new(future::ok(response_with_error(err)))
-        }
-    }
-}
+//impl WebService {
+//    fn get_connection(&self) -> TheConnection {
+//        match self.pool.get() {
+//            Ok(connection) => connection,
+//            Err(e) => panic!("Error obtaining connection from pool: {}", e)
+//        }
+//    }
+//
+//    fn respond_with(&self, result: Result<String, ApiError>) -> <WebService as Service>::Future {
+//        match result {
+//            Ok(response) => Box::new(future::ok(response_with_json(response))),
+//            Err(err) => Box::new(future::ok(response_with_error(err)))
+//        }
+//    }
+//}
 
 impl Service for WebService {
     type Request = TheRequest;
@@ -82,61 +88,12 @@ impl Service for WebService {
 
         match (req.method(), self.router.test(req.path())) {
             // GET /healthcheck
-            (&Get, Some(router::Route::Healthcheck)) => {
-                let message = StatusMessage::new("OK");
-                let response = serde_json::to_string(&message).unwrap();
-                self.respond_with(Ok(response))
-            },
+            (&Get, Some(router::Route::Healthcheck)) => self.system_service.healthcheck(),
             // GET /users/<user_id>
-            (&Get, Some(router::Route::User(user_id))) => {
-                let conn = self.get_connection();
-                let result: Result<String, ApiError> = users.find(user_id).get_result::<User>(&*conn)
-                    .map_err(|e| ApiError::from(e))
-                    .and_then(|user| {
-                        serde_json::to_string(&user)
-                            .map_err(|e| ApiError::from(e))
-                    });
-
-                self.respond_with(result)
-            },
+            (&Get, Some(router::Route::User(user_id))) => self.users_service.find(user_id),
             // GET /users
-            (&Get, Some(router::Route::Users)) => {
-                let conn = self.get_connection();
-                let result: Result<String, ApiError> = req.uri().query()
-                    .ok_or(ApiError::BadRequest("Missing query parameters: `from`, `count`".to_string()))
-                    .and_then(|query| Ok(query_params(query)))
-                    .and_then(|params| {
-                        // Extract `from` param
-                        Ok((params.clone(), params.get("from").and_then(|v| v.parse::<i32>().ok())
-                            .ok_or(ApiError::BadRequest("Invalid value provided for `from`".to_string()))))
-                    })
-                    .and_then(|(params, from)| {
-                        // Extract `count` param
-                        Ok((from, params.get("count").and_then(|v| v.parse::<i64>().ok())
-                            .ok_or(ApiError::BadRequest("Invalid value provided for `count`".to_string()))))
-                    })
-                    .and_then(|(from, count)| {
-                        // Transform tuple of `Result`s to `Result` of tuple
-                        match (from, count) {
-                            (Ok(x), Ok(y)) if x > 0 && y < common::MAX_USER_COUNT => Ok((x, y)),
-                            (_, _) => Err(ApiError::BadRequest("Invalid values provided for `from` or `count`".to_string())),
-                        }
-                    })
-                    .and_then(|(from, count)| {
-                        // Get users
-                        let query = users.filter(is_active.eq(true)).filter(id.gt(from))
-                            .order(id).limit(count);
-
-                        query.load::<User>(&*conn)
-                            .map_err(|e| ApiError::from(e))
-                            .and_then(|results: Vec<User>| {
-                                serde_json::to_string(&results)
-                                    .map_err(|e| ApiError::from(e))
-                            })
-                    });
-
-                self.respond_with(result)
-            },
+            (&Get, Some(router::Route::Users)) => self.users_service.list(req),
+            /*
             // POST /users
             (&Post, Some(router::Route::Users)) => {
                 let conn = self.get_connection();
@@ -214,28 +171,11 @@ impl Service for WebService {
                         })
                 )
             },
+            */
             // DELETE /users/<user_id>
-            (&Delete, Some(router::Route::User(user_id))) => {
-                let conn = self.get_connection();
-                let query = users.filter(id.eq(user_id)).filter(is_active.eq(true));
-
-                let result: Result<String, ApiError> = query.load::<User>(&*conn)
-                    .map_err(|e| ApiError::from(e))
-                    .and_then(|_user| {
-                        let query = diesel::update(query).set(is_active.eq(false));
-
-                        query.get_result::<User>(&*conn)
-                            .map_err(|e| ApiError::from(e))
-                    })
-                    .and_then(|_user| {
-                        let message = StatusMessage::new("User has been deleted");
-                        serde_json::to_string(&message).map_err(|e| ApiError::from(e))
-                    });
-
-                self.respond_with(result)
-            },
+            (&Delete, Some(router::Route::User(user_id))) => self.users_service.deactivate(user_id),
             // Fallback
-            _ => self.respond_with(Err(ApiError::NotFound))
+            _ => Box::new(future::ok(response_with_error(ApiError::NotFound)))
         }
     }
 }
@@ -254,10 +194,23 @@ pub fn start_server(settings: Settings) {
             .build(manager)
             .expect("Failed to create connection pool");
 
-        // Prepare service
+        // Prepare repositories
+        let users_repo = UsersRepo {
+            r2d2_pool: Arc::new(r2d2_pool),
+        };
+
+        // Prepare services
+        let system_service = SystemService{};
+
+        let users_service = UsersService {
+            users_repo: Arc::new(users_repo)
+        };
+
+        // Prepare final service
         let service = WebService {
             router: Arc::new(router::create_router()),
-            pool: Arc::new(r2d2_pool),
+            system_service: Arc::new(system_service),
+            users_service: Arc::new(users_service),
         };
 
         Ok(service)

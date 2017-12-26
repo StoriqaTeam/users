@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use diesel;
 use diesel::select;
 use diesel::dsl::exists;
@@ -9,7 +11,7 @@ use payloads::{NewUser, UpdateUser};
 use schema::users::dsl::*;
 
 pub struct UsersRepo {
-    r2d2_pool: ThePool
+    pub r2d2_pool: Arc<ThePool>
 }
 
 impl UsersRepo {
