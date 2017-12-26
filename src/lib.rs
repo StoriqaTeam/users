@@ -138,40 +138,9 @@ impl Service for WebService {
                         })
                 )
             },
-            // PUT /users/1
-            (&Put, Some(router::Route::User(user_id))) => {
-                let conn = self.get_connection();
-
-                Box::new(
-                    read_body(req)
-                        .and_then(move |body| {
-                            let result: Result<String, ApiError> = users.find(user_id).get_result::<User>(&*conn)
-                                .map_err(|e| ApiError::from(e))
-                                .and_then(|_user| {
-                                    serde_json::from_slice::<UpdateUser>(&body.as_bytes())
-                                        .map_err(|e| ApiError::from(e))
-                                })
-                                .and_then(|new_user| {
-                                    // TODO: Update other fields, don't update e-mail at all
-                                    let filter = users.filter(id.eq(user_id)).filter(is_active.eq(true));
-                                    let query = diesel::update(filter).set(email.eq(new_user.email));
-
-                                    query.get_result::<User>(&*conn)
-                                        .map_err(|e| ApiError::from(e))
-                                        .and_then(|user: User| {
-                                            serde_json::to_string(&user)
-                                                .map_err(|e| ApiError::from(e))
-                                        })
-                                });
-
-                            match result {
-                                Ok(data) => future::ok(response_with_json(data)),
-                                Err(err) => future::ok(response_with_error(ApiError::from(err)))
-                            }
-                        })
-                )
-            },
             */
+            // PUT /users/1
+            (&Put, Some(router::Route::User(user_id))) => self.users_service.update(req, user_id),
             // DELETE /users/<user_id>
             (&Delete, Some(router::Route::User(user_id))) => self.users_service.deactivate(user_id),
             // Fallback

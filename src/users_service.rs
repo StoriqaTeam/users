@@ -1,11 +1,15 @@
 use std::sync::Arc;
 
+use futures::future;
+use futures::Future;
 use serde_json;
 
 use common::{TheFuture, TheRequest, MAX_USER_COUNT};
 use error::Error as ApiError;
 use error::StatusMessage;
-use http_utils::query_params;
+use http_utils::*;
+use models::User;
+use payloads::{NewUser, UpdateUser};
 use service::Service;
 use users_repo::UsersRepo;
 
@@ -59,6 +63,33 @@ impl UsersService {
             });
 
         self.respond_with(result)
+    }
+
+    pub fn update(&self, req: TheRequest, user_id: i32) -> TheFuture {
+        Box::new(
+            read_body(req)
+                .and_then(move |body| {
+                    let result = self.users_repo.find(user_id)
+                        .map_err(|e| ApiError::from(e))
+                        .and_then(|_user| {
+                            serde_json::from_slice::<UpdateUser>(&body.as_bytes())
+                                .map_err(|e| ApiError::from(e))
+                        })
+                        .and_then(|new_user| {
+                            self.users_repo.update(user_id, &new_user)
+                                .map_err(|e| ApiError::from(e))
+                                .and_then(|user: User| {
+                                    serde_json::to_string(&user)
+                                        .map_err(|e| ApiError::from(e))
+                                })
+                        });
+
+                    match result {
+                        Ok(data) => future::ok(response_with_json(data)),
+                        Err(err) => future::ok(response_with_error(ApiError::from(err)))
+                    }
+                })
+        )
     }
 
     pub fn deactivate(&self, user_id: i32) -> TheFuture {
