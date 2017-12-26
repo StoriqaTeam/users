@@ -1,7 +1,10 @@
+pub mod users;
+pub mod system;
+
 use futures::future;
 use common::TheFuture;
 use error::Error as ApiError;
-use http_utils::*;
+use utils::http::*;
 
 pub trait Service {
     fn respond_with(&self, result: Result<String, ApiError>) -> TheFuture {

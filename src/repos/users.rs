@@ -6,9 +6,9 @@ use diesel::dsl::exists;
 use diesel::prelude::*;
 
 use common::{TheConnection, ThePool};
-use models::{User};
-use payloads::{NewUser, UpdateUser};
-use schema::users::dsl::*;
+use models::schema::users::dsl::*;
+use models::user::{User};
+use payloads::user::{NewUser, UpdateUser};
 
 pub struct UsersRepo {
     pub r2d2_pool: Arc<ThePool>

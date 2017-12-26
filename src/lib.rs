@@ -20,15 +20,12 @@ extern crate validator;
 pub mod common;
 pub mod error;
 pub mod router;
-pub mod http_utils;
-pub mod schema;
 pub mod models;
 pub mod payloads;
-pub mod service;
+pub mod repos;
+pub mod services;
 pub mod settings;
-pub mod system_service;
-pub mod users_repo;
-pub mod users_service;
+pub mod utils;
 
 use std::sync::Arc;
 
@@ -41,11 +38,11 @@ use r2d2_diesel::ConnectionManager;
 
 use common::{TheError, TheFuture, TheRequest, TheResponse};
 use error::Error as ApiError;
-use http_utils::response_with_error;
+use repos::users::UsersRepo;
+use services::system::SystemService;
+use services::users::UsersService;
 use settings::Settings;
-use system_service::SystemService;
-use users_repo::UsersRepo;
-use users_service::UsersService;
+use utils::http::response_with_error;
 
 struct WebService {
     router: Arc<router::Router>,
@@ -71,7 +68,7 @@ impl Service for WebService {
             (&Get, Some(router::Route::Users)) => self.users_service.list(req),
             // POST /users
             (&Post, Some(router::Route::Users)) => self.users_service.create(req),
-            // PUT /users/1
+            // PUT /users/<user_id>
             (&Put, Some(router::Route::User(user_id))) => self.users_service.update(req, user_id),
             // DELETE /users/<user_id>
             (&Delete, Some(router::Route::User(user_id))) => self.users_service.deactivate(user_id),

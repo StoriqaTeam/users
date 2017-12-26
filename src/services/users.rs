@@ -8,10 +8,10 @@ use validator::Validate;
 use common::{TheError, TheFuture, TheRequest, TheResponse, MAX_USER_COUNT};
 use error::Error as ApiError;
 use error::StatusMessage;
-use http_utils::*;
-use payloads::{NewUser, UpdateUser};
-use service::Service;
-use users_repo::UsersRepo;
+use payloads::user::{NewUser, UpdateUser};
+use repos::users::UsersRepo;
+use services::Service;
+use utils::http::*;
 
 pub struct UsersService {
     pub users_repo: Arc<UsersRepo>
@@ -69,7 +69,7 @@ impl UsersService {
         let users_repo = self.users_repo.clone();
 
         let result = read_body(req).and_then(move |body| {
-            let result: Result<String, ApiError> = serde_json::from_slice::<NewUser>(&body.as_bytes())
+            let result: Result<String, ApiError> = serde_json::from_str::<NewUser>(&body)
                 .map_err(|e| ApiError::from(e))
                 .and_then(|payload| {
                     // General validation
@@ -113,7 +113,7 @@ impl UsersService {
                 .map_err(|e| ApiError::from(e))
                 .and_then(|_user| {
                     // TODO: from_string?
-                    serde_json::from_slice::<UpdateUser>(&body.as_bytes())
+                    serde_json::from_str::<UpdateUser>(&body)
                         .map_err(|e| ApiError::from(e))
                 })
                 .and_then(|payload| {

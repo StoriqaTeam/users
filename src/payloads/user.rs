@@ -1,4 +1,4 @@
-use schema::users;
+use models::schema::users;
 use validator::Validate;
 
 #[derive(Debug, Serialize, Deserialize, Insertable, Validate)]

@@ -1,7 +1,7 @@
 use serde_json;
 use common::TheFuture;
 use error::StatusMessage;
-use service::Service;
+use services::Service;
 
 pub struct SystemService;
 
