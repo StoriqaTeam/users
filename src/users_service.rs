@@ -66,30 +66,30 @@ impl UsersService {
     }
 
     pub fn update(&self, req: TheRequest, user_id: i32) -> TheFuture {
-        Box::new(
-            read_body(req)
-                .and_then(move |body| {
-                    let result = self.users_repo.find(user_id)
-                        .map_err(|e| ApiError::from(e))
-                        .and_then(|_user| {
-                            serde_json::from_slice::<UpdateUser>(&body.as_bytes())
-                                .map_err(|e| ApiError::from(e))
-                        })
-                        .and_then(|payload| {
-                            self.users_repo.update(user_id, &payload)
-                                .map_err(|e| ApiError::from(e))
-                                .and_then(|user| {
-                                    serde_json::to_string(&user)
-                                        .map_err(|e| ApiError::from(e))
-                                })
-                        });
+        let result = read_body(req)
+            .and_then(move |body| {
+                let inner = self.users_repo.find(user_id)
+                    .map_err(|e| ApiError::from(e))
+                    .and_then(|_user| {
+                        serde_json::from_slice::<UpdateUser>(&body.as_bytes())
+                            .map_err(|e| ApiError::from(e))
+                    })
+                    .and_then(|payload| {
+                        self.users_repo.update(user_id, &payload)
+                            .map_err(|e| ApiError::from(e))
+                            .and_then(|user| {
+                                serde_json::to_string(&user)
+                                    .map_err(|e| ApiError::from(e))
+                            })
+                    });
 
-                    match result {
-                        Ok(data) => future::ok(response_with_json(data)),
-                        Err(err) => future::ok(response_with_error(ApiError::from(err)))
-                    }
-                })
-        )
+                match inner {
+                    Ok(data) => future::ok(response_with_json(data)),
+                    Err(err) => future::ok(response_with_error(ApiError::from(err)))
+                }
+            });
+
+        Box::new(result)
     }
 
     pub fn deactivate(&self, user_id: i32) -> TheFuture {
