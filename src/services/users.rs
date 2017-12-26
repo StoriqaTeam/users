@@ -5,7 +5,7 @@ use futures::Future;
 use serde_json;
 use validator::Validate;
 
-use common::{TheError, TheFuture, TheRequest, TheResponse, MAX_USER_COUNT};
+use common::{TheFuture, TheRequest, MAX_USER_COUNT};
 use error::Error as ApiError;
 use error::StatusMessage;
 use payloads::user::{NewUser, UpdateUser};
@@ -65,7 +65,7 @@ impl UsersService {
         self.respond_with(result)
     }
 
-    pub fn create(&self, req: TheRequest) -> Box<Future<Item = TheResponse, Error = TheError>> {
+    pub fn create(&self, req: TheRequest) -> TheFuture {
         let users_repo = self.users_repo.clone();
 
         let result = read_body(req).and_then(move |body| {
@@ -105,7 +105,7 @@ impl UsersService {
         Box::new(result)
     }
 
-    pub fn update(&self, req: TheRequest, user_id: i32) -> Box<Future<Item = TheResponse, Error = TheError>> {
+    pub fn update(&self, req: TheRequest, user_id: i32) -> TheFuture {
         let users_repo = self.users_repo.clone();
 
         let result = read_body(req).and_then(move |body| {
