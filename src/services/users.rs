@@ -22,7 +22,7 @@ impl Service for UsersService {}
 
 impl UsersService {
     /// Returns user by ID
-    pub fn find(&self, user_id: i32) -> TheFuture {
+    pub fn get(&self, user_id: i32) -> TheFuture {
         let result = self.users_repo.find(user_id)
             .map_err(|e| ApiError::from(e))
             .and_then(|user| {

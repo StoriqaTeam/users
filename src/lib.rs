@@ -65,7 +65,7 @@ impl Service for WebService {
             // GET /healthcheck
             (&Get, Some(router::Route::Healthcheck)) => self.system_service.healthcheck(),
             // GET /users/<user_id>
-            (&Get, Some(router::Route::User(user_id))) => self.users_service.find(user_id),
+            (&Get, Some(router::Route::User(user_id))) => self.users_service.get(user_id),
             // GET /users
             (&Get, Some(router::Route::Users)) => self.users_service.list(req),
             // POST /users
