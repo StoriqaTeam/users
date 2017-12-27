@@ -40,7 +40,7 @@ use r2d2_diesel::ConnectionManager;
 use common::{TheError, TheFuture, TheRequest, TheResponse};
 use error::Error as ApiError;
 use repos::users::UsersRepo;
-use router::Route;
+use router::{Route, Router};
 use services::system::SystemService;
 use services::users::UsersService;
 use settings::Settings;
@@ -48,7 +48,7 @@ use utils::http::response_with_error;
 
 /// WebService containing all sub-crate services and `Router`
 struct WebService {
-    router: Arc<router::Router>,
+    router: Arc<Router>,
     system_service: Arc<SystemService>,
     users_service: Arc<UsersService>,
 }
