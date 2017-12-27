@@ -117,7 +117,6 @@ impl UsersService {
             let inner = users_repo.find(user_id)
                 .map_err(|e| ApiError::from(e))
                 .and_then(|_user| {
-                    // TODO: from_string?
                     serde_json::from_str::<UpdateUser>(&body)
                         .map_err(|e| ApiError::from(e))
                 })
