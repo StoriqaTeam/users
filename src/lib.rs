@@ -40,6 +40,7 @@ use r2d2_diesel::ConnectionManager;
 use common::{TheError, TheFuture, TheRequest, TheResponse};
 use error::Error as ApiError;
 use repos::users::UsersRepo;
+use router::Route;
 use services::system::SystemService;
 use services::users::UsersService;
 use settings::Settings;
@@ -63,17 +64,17 @@ impl Service for WebService {
 
         match (req.method(), self.router.test(req.path())) {
             // GET /healthcheck
-            (&Get, Some(router::Route::Healthcheck)) => self.system_service.healthcheck(),
+            (&Get, Some(Route::Healthcheck)) => self.system_service.healthcheck(),
             // GET /users/<user_id>
-            (&Get, Some(router::Route::User(user_id))) => self.users_service.get(user_id),
+            (&Get, Some(Route::User(user_id))) => self.users_service.get(user_id),
             // GET /users
-            (&Get, Some(router::Route::Users)) => self.users_service.list(req),
+            (&Get, Some(Route::Users)) => self.users_service.list(req),
             // POST /users
-            (&Post, Some(router::Route::Users)) => self.users_service.create(req),
+            (&Post, Some(Route::Users)) => self.users_service.create(req),
             // PUT /users/<user_id>
-            (&Put, Some(router::Route::User(user_id))) => self.users_service.update(req, user_id),
+            (&Put, Some(Route::User(user_id))) => self.users_service.update(req, user_id),
             // DELETE /users/<user_id>
-            (&Delete, Some(router::Route::User(user_id))) => self.users_service.deactivate(user_id),
+            (&Delete, Some(Route::User(user_id))) => self.users_service.deactivate(user_id),
             // Fallback
             _ => Box::new(future::ok(response_with_error(ApiError::NotFound)))
         }
