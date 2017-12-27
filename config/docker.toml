@@ -1,1 +1,1 @@
-database = "postgresql://users:users@postgres/users"
+database = "postgresql://users:users@users-pg/users"
