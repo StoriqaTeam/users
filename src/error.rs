@@ -3,7 +3,9 @@ use serde_json;
 use diesel;
 use validator::ValidationErrors;
 
-// Error
+use responses::error::ErrorMessage;
+
+/// Error wrapper for `hyper`, `diesel`, `serde`, `validator`
 #[derive(Debug)]
 pub enum Error {
     NotFound,
@@ -13,6 +15,7 @@ pub enum Error {
 }
 
 impl Error {
+    /// Converts `Error` to HTTP Status Code
     pub fn to_code(&self) -> StatusCode {
         use error::Error::*;
 
@@ -24,6 +27,7 @@ impl Error {
         }
     }
 
+    /// Converts `Error` to string
     pub fn to_string(&self) -> String {
         use error::Error::*;
 
@@ -35,6 +39,7 @@ impl Error {
         }
     }
 
+    /// Converts `Error` to JSON response body
     pub fn to_json(&self) -> String {
         let message = ErrorMessage::new(self);
         serde_json::to_string(&message).unwrap()
@@ -60,7 +65,7 @@ impl From<ValidationErrors> for Error {
     fn from(e: ValidationErrors) -> Self {
         // Grabs first validation error
         // TODO: Grab all of them to Vec<String>?
-        
+
         let message = e.inner().values().next()
             .ok_or("Unreachable validation error")
             .and_then(|vec| vec.first().ok_or("Unreachable validation error"))
@@ -70,36 +75,6 @@ impl From<ValidationErrors> for Error {
         match message {
             Ok(msg) => Error::BadRequest(msg),
             Err(err) => Error::BadRequest(err.to_string())
-        }
-    }
-}
-
-// Error Message
-#[derive(Serialize, Deserialize, Debug)]
-pub struct ErrorMessage {
-    code: u16,
-    message: String
-}
-
-impl ErrorMessage {
-    pub fn new(error: &Error) -> ErrorMessage {
-        ErrorMessage {
-            code: error.to_code().as_u16(),
-            message: error.to_string()
-        }
-    }
-}
-
-// Status Message
-#[derive(Serialize, Deserialize, Debug)]
-pub struct StatusMessage {
-    pub status: String
-}
-
-impl StatusMessage {
-    pub fn new(msg: &str) -> StatusMessage {
-        StatusMessage {
-            status: msg.to_string()
         }
     }
 }

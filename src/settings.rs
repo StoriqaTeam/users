@@ -1,6 +1,7 @@
 use std::env;
 use config::{Config, ConfigError, Environment, File};
 
+/// Basic settings - HTTP binding address and database DSN
 #[derive(Debug, Deserialize, Clone)]
 pub struct Settings {
     pub address: String,
