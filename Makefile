@@ -4,6 +4,9 @@ build:
 clean:
 	@cargo clean
 
+doc:
+	@cargo doc --no-deps --open
+
 run:
 	@RUST_LOG=info ./target/release/users
 
@@ -13,4 +16,4 @@ docker:
 compose:
 	@docker-compose up
 
-.PHONY: build clean run docker compose
+.PHONY: build clean doc run docker compose

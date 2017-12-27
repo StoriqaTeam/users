@@ -23,6 +23,7 @@ pub mod router;
 pub mod models;
 pub mod payloads;
 pub mod repos;
+pub mod responses;
 pub mod services;
 pub mod settings;
 pub mod utils;
@@ -44,6 +45,7 @@ use services::users::UsersService;
 use settings::Settings;
 use utils::http::response_with_error;
 
+/// WebService containing all sub-crate services and `Router`
 struct WebService {
     router: Arc<router::Router>,
     system_service: Arc<SystemService>,
@@ -78,6 +80,7 @@ impl Service for WebService {
     }
 }
 
+/// Starts new web service from provided `Settings`
 pub fn start_server(settings: Settings) {
     // Prepare logger
     env_logger::init().unwrap();

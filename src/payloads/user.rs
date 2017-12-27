@@ -1,6 +1,7 @@
 use models::schema::users;
 use validator::Validate;
 
+/// Payload for creating users
 #[derive(Debug, Serialize, Deserialize, Insertable, Validate)]
 #[table_name = "users"]
 pub struct NewUser<'a> {
@@ -10,6 +11,7 @@ pub struct NewUser<'a> {
     pub password: &'a str,
 }
 
+/// Payload for updating users
 #[derive(Debug, Serialize, Deserialize, Insertable, Validate)]
 #[table_name = "users"]
 pub struct UpdateUser<'a> {

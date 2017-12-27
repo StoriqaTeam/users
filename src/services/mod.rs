@@ -6,6 +6,7 @@ use common::TheFuture;
 use error::Error as ApiError;
 use utils::http::*;
 
+/// Generic service trait
 pub trait Service {
     fn respond_with(&self, result: Result<String, ApiError>) -> TheFuture {
         match result {

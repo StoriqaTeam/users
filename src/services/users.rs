@@ -7,12 +7,13 @@ use validator::Validate;
 
 use common::{TheFuture, TheRequest, MAX_USER_COUNT};
 use error::Error as ApiError;
-use error::StatusMessage;
 use payloads::user::{NewUser, UpdateUser};
 use repos::users::UsersRepo;
+use responses::status::StatusMessage;
 use services::Service;
 use utils::http::*;
 
+/// Users services, responsible for User-related CRUD operations
 pub struct UsersService {
     pub users_repo: Arc<UsersRepo>
 }
@@ -20,6 +21,7 @@ pub struct UsersService {
 impl Service for UsersService {}
 
 impl UsersService {
+    /// Returns user by ID
     pub fn find(&self, user_id: i32) -> TheFuture {
         let result = self.users_repo.find(user_id)
             .map_err(|e| ApiError::from(e))
@@ -31,6 +33,7 @@ impl UsersService {
         self.respond_with(result)
     }
 
+    /// Returns list of users, limited by `from` and `count` request parameters
     pub fn list(&self, req: TheRequest) -> TheFuture {
         let result: Result<String, ApiError> = req.uri().query()
             .ok_or(ApiError::BadRequest("Missing query parameters: `from`, `count`".to_string()))
@@ -65,6 +68,7 @@ impl UsersService {
         self.respond_with(result)
     }
 
+    /// Creates user from payload, provided in request body
     pub fn create(&self, req: TheRequest) -> TheFuture {
         let users_repo = self.users_repo.clone();
 
@@ -105,6 +109,7 @@ impl UsersService {
         Box::new(result)
     }
 
+    /// Updates specific user from payload, provided in request body
     pub fn update(&self, req: TheRequest, user_id: i32) -> TheFuture {
         let users_repo = self.users_repo.clone();
 
@@ -134,6 +139,7 @@ impl UsersService {
         Box::new(result)
     }
 
+    /// Deactivates specific user
     pub fn deactivate(&self, user_id: i32) -> TheFuture {
         let result = self.users_repo.deactivate(user_id)
             .map_err(|e| ApiError::from(e))

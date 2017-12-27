@@ -1,3 +1,4 @@
+/// User model (WIP)
 #[derive(Debug, Serialize, Queryable, Deserialize)]
 pub struct User {
     pub id: i32,
