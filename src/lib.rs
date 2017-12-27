@@ -1,5 +1,7 @@
 extern crate config;
 extern crate futures;
+extern crate futures_cpupool;
+extern crate tokio_core;
 extern crate hyper;
 extern crate regex;
 extern crate serde;
@@ -29,13 +31,15 @@ pub mod settings;
 pub mod utils;
 
 use std::sync::Arc;
+use std::process;
 
-use futures::Future;
+use futures::{Future, Stream};
 use futures::future;
 use hyper::{Get, Post, Put, Delete};
 use hyper::server::{Http, Service, Request};
 use diesel::pg::PgConnection;
 use r2d2_diesel::ConnectionManager;
+use tokio_core::reactor::Core;
 
 use common::{TheError, TheFuture, TheRequest, TheResponse};
 use error::Error as ApiError;
@@ -86,9 +90,13 @@ pub fn start_server(settings: Settings) {
     // Prepare logger
     env_logger::init().unwrap();
 
+    // Prepare reactor
+    let mut core = Core::new().expect("Unexpected error creating event loop core");
+    let handle = Arc::new(core.handle());
+
     // Prepare server
     let address = settings.address.parse().expect("Address must be set in configuration");
-    let mut server = Http::new().bind(&address, move || {
+    let serve = Http::new().serve_addr_handle(&address, &handle, move || {
         // Prepare database pool
         let database_url: String = settings.database.parse().expect("Database URL must be set in configuration");
         let manager = ConnectionManager::<PgConnection>::new(database_url);
@@ -116,11 +124,23 @@ pub fn start_server(settings: Settings) {
         };
 
         Ok(service)
-    }).unwrap();
+    }).unwrap_or_else(|why| {
+        error!("Http Server Initialization Error: {}", why);
+        process::exit(1);
+    });
 
-    server.no_proto();
+    let handle_arc2 = handle.clone();
+    handle.spawn(
+        serve.for_each(move |conn| {
+            handle_arc2.spawn(
+                conn.map(|_| ())
+                    .map_err(|why| error!("Server Error: {:?}", why)),
+            );
+            Ok(())
+        })
+        .map_err(|_| ()),
+    );
 
-    // Start
-    info!("Listening on http://{}", server.local_addr().unwrap());
-    server.run().unwrap();
+    info!("Listening on http://{}", address);
+    core.run(future::empty::<(), ()>()).unwrap();
 }
