@@ -25,8 +25,7 @@ impl UsersService {
     pub fn get(&self, user_id: i32) -> TheFuture {
         let result = self.users_repo.find(user_id)
             .and_then(|user| {
-                serde_json::to_string(&user)
-                    .map_err(|e| ApiError::from(e))
+                serde_json::to_string(&user).map_err(|e| ApiError::from(e))
             })
             .then(|r| match r {
                 Ok(data) => future::ok(response_with_json(data)),

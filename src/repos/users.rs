@@ -32,8 +32,7 @@ impl UsersRepo {
         let query = users.find(user_id);
 
         self.cpu_pool.spawn_fn(move || {
-            query.get_result(&*conn)
-                .map_err(|e| ApiError::from(e))
+            query.get_result(&*conn).map_err(|e| ApiError::from(e))
         })
     }
 
