@@ -27,7 +27,7 @@ impl UsersService {
             .and_then(|user| {
                 serde_json::to_string(&user).map_err(|e| ApiError::from(e))
             })
-            .then(|r| match r {
+            .then(|res| match res {
                 Ok(data) => future::ok(response_with_json(data)),
                 Err(err) => future::ok(response_with_error(err))
             });
@@ -37,7 +37,8 @@ impl UsersService {
 
     /// Returns list of users, limited by `from` and `count` request parameters
     pub fn list(&self, req: TheRequest) -> TheFuture {
-        let result: Result<String, ApiError> = req.uri().query()
+        // TODO - Move request parsing to separate layer
+        let request = req.uri().query()
             .ok_or(ApiError::BadRequest("Missing query parameters: `from`, `count`".to_string()))
             .and_then(|query| Ok(query_params(query)))
             .and_then(|params| {
@@ -56,18 +57,23 @@ impl UsersService {
                     (Ok(x), Ok(y)) if x > 0 && y < MAX_USER_COUNT => Ok((x, y)),
                     (_, _) => Err(ApiError::BadRequest("Invalid values provided for `from` or `count`".to_string())),
                 }
-            })
-            .and_then(|(from, count)| {
-                // Get users
-                self.users_repo.list(from, count)
-                    .map_err(|e| ApiError::from(e))
-                    .and_then(|users| {
-                        serde_json::to_string(&users)
-                            .map_err(|e| ApiError::from(e))
-                    })
             });
 
-        self.respond_with(result)
+        match request {
+            Ok((from, count)) => {
+                let result = self.users_repo.list(from, count)
+                    .and_then(|user| {
+                        serde_json::to_string(&user).map_err(|e| ApiError::from(e))
+                    })
+                    .then(|res| match res {
+                        Ok(data) => future::ok(response_with_json(data)),
+                        Err(err) => future::ok(response_with_error(err))
+                    });
+
+                Box::new(result)
+            },
+            Err(err) => self.respond_with(Err(err))
+        }
     }
 
     /// Creates user from payload, provided in request body
@@ -75,7 +81,7 @@ impl UsersService {
         let users_repo = self.users_repo.clone();
 
         let result = read_body(req).and_then(move |body| {
-            let result: Result<String, ApiError> = serde_json::from_str::<NewUser>(&body)
+            let res: Result<String, ApiError> = serde_json::from_str::<NewUser>(&body)
                 .map_err(|e| ApiError::from(e))
                 .and_then(|payload| {
                     // General validation
@@ -102,7 +108,7 @@ impl UsersService {
                         })
                 });
 
-            match result {
+            match res {
                 Ok(data) => future::ok(response_with_json(data)),
                 Err(err) => future::ok(response_with_error(ApiError::from(err)))
             }
@@ -151,7 +157,7 @@ impl UsersService {
                 serde_json::to_string(&message)
                     .map_err(|e| ApiError::from(e))
             })
-            .then(|r| match r {
+            .then(|res| match res {
                 Ok(data) => future::ok(response_with_json(data)),
                 Err(err) => future::ok(response_with_error(err))
             });

@@ -44,10 +44,13 @@ impl UsersRepo {
     }
 
     /// Returns list of users, limited by `from` and `count` parameters
-    pub fn list(&self, from: i32, count: i64) -> diesel::QueryResult<Vec<User>> {
+    pub fn list(&self, from: i32, count: i64) -> CpuFuture<Vec<User>, ApiError> {
         let conn = self.get_connection();
         let query = users.filter(is_active.eq(true)).filter(id.gt(from)).order(id).limit(count);
-        query.get_results::<User>(&*conn)
+
+        self.cpu_pool.spawn_fn(move || {
+            query.get_results(&*conn).map_err(|e| ApiError::from(e))
+        })
     }
 
     /// Creates new user
