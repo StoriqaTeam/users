@@ -6,7 +6,7 @@ use diesel::dsl::exists;
 use diesel::prelude::*;
 use futures::future;
 use futures::Future;
-use futures_cpupool::CpuPool;
+use futures_cpupool::{CpuFuture, CpuPool};
 
 use common::{TheConnection, ThePool};
 use models::schema::users::dsl::*;
@@ -28,19 +28,16 @@ impl UsersRepo {
     }
 
     /// Find specific user by ID
-    pub fn find(&self, user_id: i32) -> Box<Future<Item=User, Error=diesel::result::Error>> {
+    pub fn find(&self, user_id: i32) -> CpuFuture<User, diesel::result::Error> {
         let conn = self.get_connection();
         let query = users.find(user_id);
         //query.get_result::<User>(&*conn)
 
         let future = self.cpu_pool.spawn_fn(move || {
             query.get_result(&*conn)
-        }).then(|r| match r {
-            Ok(data) => future::ok(data),
-            Err(err) => future::err(err)
         });
 
-        Box::new(future)
+        future
     }
 
     /// Checks if e-mail is already registered
