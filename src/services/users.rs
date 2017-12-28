@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use futures::future;
-use futures::Future;
+use futures::{IntoFuture, Future};
 use serde_json;
 use validator::Validate;
 
@@ -78,38 +78,35 @@ impl UsersService {
 
     /// Creates user from payload, provided in request body
     pub fn create(&self, req: TheRequest) -> TheFuture {
-        let users_repo = self.users_repo.clone();
+        let select_repo = self.users_repo.clone();
+        let insert_repo = self.users_repo.clone();
 
         let future = read_body(req).and_then(move |body| {
-            let result = serde_json::from_str::<NewUser>(&body)
+            serde_json::from_str::<NewUser>(&body)
                 .map_err(|e| ApiError::from(e))
                 .and_then(|payload| match payload.validate() {
                     Ok(_) => Ok(payload),
                     Err(e) => Err(ApiError::from(e))
-                });
-
-            match result {
-                Ok(payload) => {
-                    let inner = users_repo.email_exists(payload.email.to_string())
-                        .and_then(|res| match res {
-                            false => future::ok(payload),
-                            true => future::err(ApiError::BadRequest("E-mail already registered".to_string()))
-                        })
-                        .and_then(move |user| {
-                            users_repo.create(user)
-                        })
-                        .and_then(|user| {
-                            serde_json::to_string(&user).map_err(|e| ApiError::from(e))
-                        })
-                        .then(|res| match res {
-                            Ok(data) => future::ok(response_with_json(data)),
-                            Err(err) => future::ok(response_with_error(err))
-                        });
-
-                    Box::new(inner)
-                },
-                Err(err) => unimplemented!()
-            }
+                })
+                .into_future()
+                .and_then(move |payload| {
+                    select_repo.email_exists(payload.email.to_string())
+                        .map(|exists| (payload, exists))
+                })
+                .and_then(|(payload, exists)| match exists {
+                    false => future::ok(payload),
+                    true => future::err(ApiError::BadRequest("E-mail already registered".to_string()))
+                })
+                .and_then(move |user| {
+                    insert_repo.create(user)
+                })
+                .and_then(|user| {
+                    serde_json::to_string(&user).map_err(|e| ApiError::from(e))
+                })
+                .then(|res| match res {
+                    Ok(data) => future::ok(response_with_json(data)),
+                    Err(err) => future::ok(response_with_error(err))
+                })
         });
 
         Box::new(future)
