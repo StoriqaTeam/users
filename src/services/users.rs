@@ -150,8 +150,12 @@ impl UsersService {
                 let message = StatusMessage::new("User has been deactivated");
                 serde_json::to_string(&message)
                     .map_err(|e| ApiError::from(e))
+            })
+            .then(|r| match r {
+                Ok(data) => future::ok(response_with_json(data)),
+                Err(err) => future::ok(response_with_error(err))
             });
 
-        self.respond_with(result)
+        Box::new(result)
     }
 }

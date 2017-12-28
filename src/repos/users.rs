@@ -66,10 +66,13 @@ impl UsersRepo {
     }
 
     /// Deactivates specific user
-    pub fn deactivate(&self, user_id: i32) -> diesel::QueryResult<User> {
+    pub fn deactivate(&self, user_id: i32) -> CpuFuture<User, ApiError> {
         let conn = self.get_connection();
         let filter = users.filter(id.eq(user_id)).filter(is_active.eq(true));
         let query = diesel::update(filter).set(is_active.eq(false));
-        query.get_result::<User>(&*conn)
+
+        self.cpu_pool.spawn_fn(move || {
+            query.get_result(&*conn).map_err(|e| ApiError::from(e))
+        })
     }
 }
