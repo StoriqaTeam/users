@@ -1,18 +1,16 @@
-use serde_json;
-use common::TheFuture;
+use futures::future;
+use futures::Future;
+
+use error::Error as ApiError;
 use responses::status::StatusMessage;
-use services::Service;
 
 /// System service, responsible for common endpoints like healthcheck
 pub struct SystemService;
 
-impl Service for SystemService {}
-
 impl SystemService {
     /// Healthcheck endpoint, always returns OK status
-    pub fn healthcheck(&self) -> TheFuture {
+    pub fn healthcheck(&self) -> Box<Future<Item = StatusMessage, Error = ApiError>> {
         let message = StatusMessage::new("OK");
-        let response = serde_json::to_string(&message).unwrap();
-        self.respond_with(Ok(response))
+        Box::new(future::ok(message))
     }
 }
