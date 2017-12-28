@@ -36,9 +36,11 @@ impl UsersService {
     }
 
     /// Returns list of users, limited by `from` and `count` request parameters
+    /// // TODO - Move request parameters parsing to separate layer
     pub fn list(&self, req: TheRequest) -> TheFuture {
-        // TODO - Move request parsing to separate layer
-        let request = req.uri().query()
+        let users_repo = self.users_repo.clone();
+
+        let future = req.uri().query()
             .ok_or(ApiError::BadRequest("Missing query parameters: `from`, `count`".to_string()))
             .and_then(|query| Ok(query_params(query)))
             .and_then(|params| {
@@ -57,23 +59,20 @@ impl UsersService {
                     (Ok(x), Ok(y)) if x > 0 && y < MAX_USER_COUNT => Ok((x, y)),
                     (_, _) => Err(ApiError::BadRequest("Invalid values provided for `from` or `count`".to_string())),
                 }
+            })
+            .into_future()
+            .and_then(move |(from, count)| {
+                users_repo.list(from, count)
+            })
+            .and_then(|user| {
+                serde_json::to_string(&user).map_err(|e| ApiError::from(e))
+            })
+            .then(|res| match res {
+                Ok(data) => future::ok(response_with_json(data)),
+                Err(err) => future::ok(response_with_error(err))
             });
 
-        match request {
-            Ok((from, count)) => {
-                let result = self.users_repo.list(from, count)
-                    .and_then(|user| {
-                        serde_json::to_string(&user).map_err(|e| ApiError::from(e))
-                    })
-                    .then(|res| match res {
-                        Ok(data) => future::ok(response_with_json(data)),
-                        Err(err) => future::ok(response_with_error(err))
-                    });
-
-                Box::new(result)
-            },
-            Err(err) => self.respond_with(Err(err))
-        }
+        Box::new(future)
     }
 
     /// Creates user from payload, provided in request body
