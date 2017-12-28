@@ -22,7 +22,7 @@ impl Service for UsersService {}
 
 impl UsersService {
     /// Returns user by ID
-    pub fn get(&self, user_id: i32) -> Box<Future<Item = TheResponse, Error = TheError>> {
+    pub fn get(&self, user_id: i32) -> TheFuture {
         let result = self.users_repo.find(user_id)
             .and_then(|user| {
                 serde_json::to_string(&user)
