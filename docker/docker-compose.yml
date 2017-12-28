@@ -1,0 +1,37 @@
+version: '3'
+services:
+  users:
+    image: rust
+    container_name: users
+    working_dir: /app
+    command: cargo run
+    volumes:
+      - ..:/app
+      - users_cargo_cache:/usr/local/cargo
+    environment:
+      - RUN_MODE=docker
+      - DATABASE_URL=postgresql://users:users@users-pg/users
+    expose:
+      - 8000
+    stdin_open: true
+    tty: true
+    depends_on:
+      - users-pg
+
+  users-pg:
+    image: postgres:10
+    container_name: users-pg
+    environment:
+      - POSTGRES_USER=users
+      - POSTGRES_DB=users
+      - POSTGRES_PASSWORD=users
+    expose:
+      - 5432
+
+volumes:
+  users_cargo_cache:
+
+networks:
+  default:
+    external:
+      name: storiqa
