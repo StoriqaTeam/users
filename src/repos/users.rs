@@ -9,7 +9,6 @@ use futures::Future;
 use futures_cpupool::CpuPool;
 
 use common::{TheConnection, ThePool};
-use error::Error as ApiError;
 use models::schema::users::dsl::*;
 use models::user::{User};
 use payloads::user::{NewUser, UpdateUser};
@@ -29,7 +28,7 @@ impl UsersRepo {
     }
 
     /// Find specific user by ID
-    pub fn find(&self, user_id: i32) -> Box<Future<Item=User, Error=ApiError>> {
+    pub fn find(&self, user_id: i32) -> Box<Future<Item=User, Error=diesel::result::Error>> {
         let conn = self.get_connection();
         let query = users.find(user_id);
         //query.get_result::<User>(&*conn)
@@ -38,7 +37,7 @@ impl UsersRepo {
             query.get_result(&*conn)
         }).then(|r| match r {
             Ok(data) => future::ok(data),
-            Err(err) => future::err(ApiError::from(err))
+            Err(err) => future::err(err)
         });
 
         Box::new(future)

@@ -5,7 +5,7 @@ use futures::Future;
 use serde_json;
 use validator::Validate;
 
-use common::{TheFuture, TheRequest, MAX_USER_COUNT};
+use common::{TheError, TheResponse, TheFuture, TheRequest, MAX_USER_COUNT};
 use error::Error as ApiError;
 use payloads::user::{NewUser, UpdateUser};
 use repos::users::UsersRepo;
@@ -22,19 +22,18 @@ impl Service for UsersService {}
 
 impl UsersService {
     /// Returns user by ID
-    pub fn get(&self, user_id: i32) -> TheFuture {
+    pub fn get(&self, user_id: i32) -> Box<Future<Item = TheResponse, Error = TheError>> {
         let result = self.users_repo.find(user_id)
             .map_err(|e| ApiError::from(e))
-            .map(|user| {
-                let result = serde_json::to_string(&user);
-
-                match result {
-                    Ok(data) => future::ok(data),
-                    Err(err) => future::ok(err.to_string())
-                }
+            .and_then(|user| {
+                serde_json::to_string(&user)
+                    .map_err(|e| ApiError::from(e))
             });
 
-        Box::new(result)
+        match result {
+            Ok(data) => Box::new(future::ok(response_with_json(data))),
+            Err(err) => Box::new(future::ok(response_with_error(ApiError::from(err))))
+        }
     }
 
     /// Returns list of users, limited by `from` and `count` request parameters
