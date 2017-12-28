@@ -2,7 +2,7 @@ use models::schema::users;
 use validator::Validate;
 
 /// Payload for creating users
-#[derive(Debug, Clone, Serialize, Deserialize, Insertable, Validate)]
+#[derive(Serialize, Deserialize, Insertable, Validate)]
 #[table_name = "users"]
 pub struct NewUser {
     #[validate(email(message = "Invalid e-mail format"))]
@@ -12,9 +12,9 @@ pub struct NewUser {
 }
 
 /// Payload for updating users
-#[derive(Debug, Clone, Serialize, Deserialize, Insertable, Validate)]
+#[derive(Serialize, Deserialize, Insertable, Validate)]
 #[table_name = "users"]
-pub struct UpdateUser<'a> {
+pub struct UpdateUser {
     #[validate(email(message = "Invalid e-mail format"))]
-    pub email: &'a str
+    pub email: String
 }

@@ -57,6 +57,7 @@ impl UsersRepo {
     }
 
     /// Creates new user
+    // TODO - set e-mail uniqueness in database
     pub fn create(&self, payload: NewUser) -> CpuFuture<User, ApiError> {
         let conn = self.get_connection();
 
@@ -67,11 +68,14 @@ impl UsersRepo {
     }
 
     /// Updates specific user
-    pub fn update(&self, user_id: i32, payload: &UpdateUser) -> diesel::QueryResult<User> {
+    pub fn update(&self, user_id: i32, payload: UpdateUser) -> CpuFuture<User, ApiError> {
         let conn = self.get_connection();
         let filter = users.filter(id.eq(user_id)).filter(is_active.eq(true));
-        let query = diesel::update(filter).set(email.eq(payload.email));
-        query.get_result::<User>(&*conn)
+
+        self.cpu_pool.spawn_fn(move || {
+            let query = diesel::update(filter).set(email.eq(payload.email));
+            query.get_result::<User>(&*conn).map_err(|e| ApiError::from(e))
+        })
     }
 
     /// Deactivates specific user

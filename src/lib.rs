@@ -77,7 +77,7 @@ impl Service for WebService {
             // POST /users
             (&Post, Some(Route::Users)) => self.users_service.create(req),
             // PUT /users/<user_id>
-            //(&Put, Some(Route::User(user_id))) => self.users_service.update(req, user_id),
+            (&Put, Some(Route::User(user_id))) => self.users_service.update(req, user_id),
             // DELETE /users/<user_id>
             (&Delete, Some(Route::User(user_id))) => self.users_service.deactivate(user_id),
             // Fallback

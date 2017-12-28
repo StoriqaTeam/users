@@ -5,7 +5,7 @@ use futures::{IntoFuture, Future};
 use serde_json;
 use validator::Validate;
 
-use common::{TheError, TheResponse, TheFuture, TheRequest, MAX_USER_COUNT};
+use common::{TheFuture, TheRequest, MAX_USER_COUNT};
 use error::Error as ApiError;
 use payloads::user::{NewUser, UpdateUser};
 use repos::users::UsersRepo;
@@ -36,7 +36,7 @@ impl UsersService {
     }
 
     /// Returns list of users, limited by `from` and `count` request parameters
-    /// // TODO - Move request parameters parsing to separate layer
+    // TODO - Move request parameters parsing to separate layer
     pub fn list(&self, req: TheRequest) -> TheFuture {
         let users_repo = self.users_repo.clone();
 
@@ -112,33 +112,30 @@ impl UsersService {
     }
 
     /// Updates specific user from payload, provided in request body
-    /*
     pub fn update(&self, req: TheRequest, user_id: i32) -> TheFuture {
-        let users_repo = self.users_repo.clone();
+        let select_repo = self.users_repo.clone();
+        let update_repo = self.users_repo.clone();
 
-        let result = read_body(req).and_then(move |body| {
-            let inner = users_repo.find(user_id)
+        let future = read_body(req).and_then(move |body| {
+            select_repo.find(user_id)
                 .map_err(|e| ApiError::from(e))
-                .and_then(|_user| {
+                .and_then(move |_user| {
                     serde_json::from_str::<UpdateUser>(&body).map_err(|e| ApiError::from(e))
                 })
-                .and_then(|payload| {
-                    users_repo.update(user_id, &payload)
-                        .map_err(|e| ApiError::from(e))
-                        .and_then(|user| {
-                            serde_json::to_string(&user).map_err(|e| ApiError::from(e))
-                        })
-                });
-
-            match inner {
-                Ok(data) => future::ok(response_with_json(data)),
-                Err(err) => future::ok(response_with_error(ApiError::from(err)))
-            }
+                .and_then(move |payload| {
+                    update_repo.update(user_id, payload)
+                })
+                .and_then(|user| {
+                    serde_json::to_string(&user).map_err(|e| ApiError::from(e))
+                })
+                .then(|res| match res {
+                    Ok(data) => future::ok(response_with_json(data)),
+                    Err(err) => future::ok(response_with_error(err))
+                })
         });
 
-        Box::new(result)
+        Box::new(future)
     }
-    */
 
     /// Deactivates specific user
     pub fn deactivate(&self, user_id: i32) -> TheFuture {
