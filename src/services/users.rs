@@ -24,14 +24,14 @@ impl UsersService {
     /// Returns user by ID
     pub fn get(&self, user_id: i32) -> Box<Future<Item = TheResponse, Error = TheError>> {
         let result = self.users_repo.find(user_id)
+            .and_then(|user| {
+                serde_json::to_string(&user)
+                    .map_err(|e| ApiError::from(e))
+            })
             .then(|r| match r {
-                Ok(data) => future::ok(response_with_json("whatever".to_string())),
-                Err(err) => future::ok(response_with_error(ApiError::from(err)))
+                Ok(data) => future::ok(response_with_json(data)),
+                Err(err) => future::ok(response_with_error(err))
             });
-//            .and_then(|user| {
-//                serde_json::to_string(&user)
-//                    .map_err(|e| ApiError::from(e))
-//            })
 
         Box::new(result)
     }

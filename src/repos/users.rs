@@ -4,11 +4,10 @@ use diesel;
 use diesel::select;
 use diesel::dsl::exists;
 use diesel::prelude::*;
-use futures::future;
-use futures::Future;
 use futures_cpupool::{CpuFuture, CpuPool};
 
 use common::{TheConnection, ThePool};
+use error::Error as ApiError;
 use models::schema::users::dsl::*;
 use models::user::{User};
 use payloads::user::{NewUser, UpdateUser};
@@ -28,16 +27,14 @@ impl UsersRepo {
     }
 
     /// Find specific user by ID
-    pub fn find(&self, user_id: i32) -> CpuFuture<User, diesel::result::Error> {
+    pub fn find(&self, user_id: i32) -> CpuFuture<User, ApiError> {
         let conn = self.get_connection();
         let query = users.find(user_id);
-        //query.get_result::<User>(&*conn)
 
-        let future = self.cpu_pool.spawn_fn(move || {
+        self.cpu_pool.spawn_fn(move || {
             query.get_result(&*conn)
-        });
-
-        future
+                .map_err(|e| ApiError::from(e))
+        })
     }
 
     /// Checks if e-mail is already registered
