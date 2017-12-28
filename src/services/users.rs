@@ -23,17 +23,16 @@ impl Service for UsersService {}
 impl UsersService {
     /// Returns user by ID
     pub fn get(&self, user_id: i32) -> TheFuture {
-        let inner = self.users_repo.find(user_id)
+        let result = self.users_repo.find(user_id)
             .map_err(|e| ApiError::from(e))
-            .and_then(|user| {
-                serde_json::to_string(&user)
-                    .map_err(|e| ApiError::from(e))
-            });
+            .map(|user| {
+                let result = serde_json::to_string(&user);
 
-        let result = match inner {
-            Ok(data) => future::ok(response_with_json(data)),
-            Err(err) => future::ok(response_with_error(ApiError::from(err)))
-        };
+                match result {
+                    Ok(data) => future::ok(data),
+                    Err(err) => future::ok(err.to_string())
+                }
+            });
 
         Box::new(result)
     }
