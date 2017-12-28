@@ -35,6 +35,7 @@ use std::process;
 
 use futures::{Future, Stream};
 use futures::future;
+use futures_cpupool::CpuPool;
 use hyper::{Get, Post, Put, Delete};
 use hyper::server::{Http, Service, Request};
 use diesel::pg::PgConnection;
@@ -76,7 +77,7 @@ impl Service for WebService {
             // POST /users
             (&Post, Some(Route::Users)) => self.users_service.create(req),
             // PUT /users/<user_id>
-            (&Put, Some(Route::User(user_id))) => self.users_service.update(req, user_id),
+            //(&Put, Some(Route::User(user_id))) => self.users_service.update(req, user_id),
             // DELETE /users/<user_id>
             (&Delete, Some(Route::User(user_id))) => self.users_service.deactivate(user_id),
             // Fallback
@@ -104,9 +105,12 @@ pub fn start_server(settings: Settings) {
             .build(manager)
             .expect("Failed to create connection pool");
 
+        let cpu_pool = CpuPool::new(10);
+
         // Prepare repositories
         let users_repo = UsersRepo {
             r2d2_pool: Arc::new(r2d2_pool),
+            cpu_pool: Arc::new(cpu_pool),
         };
 
         // Prepare services

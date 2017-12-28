@@ -23,14 +23,19 @@ impl Service for UsersService {}
 impl UsersService {
     /// Returns user by ID
     pub fn get(&self, user_id: i32) -> TheFuture {
-        let result = self.users_repo.find(user_id)
+        let inner = self.users_repo.find(user_id)
             .map_err(|e| ApiError::from(e))
             .and_then(|user| {
                 serde_json::to_string(&user)
                     .map_err(|e| ApiError::from(e))
             });
 
-        self.respond_with(result)
+        let result = match inner {
+            Ok(data) => future::ok(response_with_json(data)),
+            Err(err) => future::ok(response_with_error(ApiError::from(err)))
+        };
+
+        Box::new(result)
     }
 
     /// Returns list of users, limited by `from` and `count` request parameters
@@ -110,6 +115,7 @@ impl UsersService {
     }
 
     /// Updates specific user from payload, provided in request body
+    /*
     pub fn update(&self, req: TheRequest, user_id: i32) -> TheFuture {
         let users_repo = self.users_repo.clone();
 
@@ -137,6 +143,7 @@ impl UsersService {
 
         Box::new(result)
     }
+    */
 
     /// Deactivates specific user
     pub fn deactivate(&self, user_id: i32) -> TheFuture {
