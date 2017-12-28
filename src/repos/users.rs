@@ -37,10 +37,13 @@ impl UsersRepo {
     }
 
     /// Checks if e-mail is already registered
-    pub fn email_exists(&self, needle: String) -> diesel::QueryResult<bool> {
+    pub fn email_exists(&self, needle: String) -> CpuFuture<bool, ApiError> {
         let conn = self.get_connection();
         let query = select(exists(users.filter(email.eq(needle))));
-        query.get_result::<bool>(&*conn)
+
+        self.cpu_pool.spawn_fn(move || {
+            query.get_result::<bool>(&*conn).map_err(|e| ApiError::from(e))
+        })
     }
 
     /// Returns list of users, limited by `from` and `count` parameters
@@ -54,10 +57,13 @@ impl UsersRepo {
     }
 
     /// Creates new user
-    pub fn create(&self, payload: NewUser) -> diesel::QueryResult<User> {
+    pub fn create(&self, payload: NewUser) -> CpuFuture<User, ApiError> {
         let conn = self.get_connection();
-        let query = diesel::insert_into(users).values(&payload);
-        query.get_result::<User>(&*conn)
+
+        self.cpu_pool.spawn_fn(move || {
+            let query = diesel::insert_into(users).values(&payload);
+            query.get_result(&*conn).map_err(|e| ApiError::from(e))
+        })
     }
 
     /// Updates specific user

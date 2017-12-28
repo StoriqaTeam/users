@@ -23,7 +23,7 @@ impl Service for UsersService {}
 impl UsersService {
     /// Returns user by ID
     pub fn get(&self, user_id: i32) -> TheFuture {
-        let result = self.users_repo.find(user_id)
+        let future = self.users_repo.find(user_id)
             .and_then(|user| {
                 serde_json::to_string(&user).map_err(|e| ApiError::from(e))
             })
@@ -32,7 +32,7 @@ impl UsersService {
                 Err(err) => future::ok(response_with_error(err))
             });
 
-        Box::new(result)
+        Box::new(future)
     }
 
     /// Returns list of users, limited by `from` and `count` request parameters
@@ -80,41 +80,39 @@ impl UsersService {
     pub fn create(&self, req: TheRequest) -> TheFuture {
         let users_repo = self.users_repo.clone();
 
-        let result = read_body(req).and_then(move |body| {
-            let res: Result<String, ApiError> = serde_json::from_str::<NewUser>(&body)
+        let future = read_body(req).and_then(move |body| {
+            let result = serde_json::from_str::<NewUser>(&body)
                 .map_err(|e| ApiError::from(e))
-                .and_then(|payload| {
-                    // General validation
-                    match payload.validate() {
-                        Ok(_) => Ok(payload),
-                        Err(e) => Err(ApiError::from(e))
-                    }
-                })
-                .and_then(|payload| {
-                    // Unique e-mail validation
-                    match users_repo.email_exists(payload.email.to_string()) {
-                        Ok(false) => Ok(payload),
-                        Ok(true) => Err(ApiError::BadRequest("E-mail already registered".to_string())),
-                        Err(e) => Err(ApiError::from(e))
-                    }
-                })
-                .and_then(|payload| {
-                    // User creation
-                    users_repo.create(payload)
-                        .map_err(|e| ApiError::from(e))
-                        .and_then(|user| {
-                            serde_json::to_string(&user)
-                                .map_err(|e| ApiError::from(e))
-                        })
+                .and_then(|payload| match payload.validate() {
+                    Ok(_) => Ok(payload),
+                    Err(e) => Err(ApiError::from(e))
                 });
 
-            match res {
-                Ok(data) => future::ok(response_with_json(data)),
-                Err(err) => future::ok(response_with_error(ApiError::from(err)))
+            match result {
+                Ok(payload) => {
+                    let inner = users_repo.email_exists(payload.email.to_string())
+                        .and_then(|res| match res {
+                            false => future::ok(payload),
+                            true => future::err(ApiError::BadRequest("E-mail already registered".to_string()))
+                        })
+                        .and_then(move |user| {
+                            users_repo.create(user)
+                        })
+                        .and_then(|user| {
+                            serde_json::to_string(&user).map_err(|e| ApiError::from(e))
+                        })
+                        .then(|res| match res {
+                            Ok(data) => future::ok(response_with_json(data)),
+                            Err(err) => future::ok(response_with_error(err))
+                        });
+
+                    Box::new(inner)
+                },
+                Err(err) => unimplemented!()
             }
         });
 
-        Box::new(result)
+        Box::new(future)
     }
 
     /// Updates specific user from payload, provided in request body
@@ -126,15 +124,13 @@ impl UsersService {
             let inner = users_repo.find(user_id)
                 .map_err(|e| ApiError::from(e))
                 .and_then(|_user| {
-                    serde_json::from_str::<UpdateUser>(&body)
-                        .map_err(|e| ApiError::from(e))
+                    serde_json::from_str::<UpdateUser>(&body).map_err(|e| ApiError::from(e))
                 })
                 .and_then(|payload| {
                     users_repo.update(user_id, &payload)
                         .map_err(|e| ApiError::from(e))
                         .and_then(|user| {
-                            serde_json::to_string(&user)
-                                .map_err(|e| ApiError::from(e))
+                            serde_json::to_string(&user).map_err(|e| ApiError::from(e))
                         })
                 });
 
@@ -150,7 +146,7 @@ impl UsersService {
 
     /// Deactivates specific user
     pub fn deactivate(&self, user_id: i32) -> TheFuture {
-        let result = self.users_repo.deactivate(user_id)
+        let future = self.users_repo.deactivate(user_id)
             .map_err(|e| ApiError::from(e))
             .and_then(|_user| {
                 let message = StatusMessage::new("User has been deactivated");
@@ -162,6 +158,6 @@ impl UsersService {
                 Err(err) => future::ok(response_with_error(err))
             });
 
-        Box::new(result)
+        Box::new(future)
     }
 }
