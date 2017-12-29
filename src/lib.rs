@@ -63,7 +63,7 @@ pub fn start_server(settings: Settings) {
     // Prepare server
     let threads = settings.threads.clone();
     let address = settings.address.parse().expect("Address must be set in configuration");
-    
+
     let serve = Http::new().serve_addr_handle(&address, &handle, move || {
         // Prepare database pool
         let database_url: String = settings.database.parse().expect("Database URL must be set in configuration");
