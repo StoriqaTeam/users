@@ -1,4 +1,4 @@
-use hyper::StatusCode;
+use hyper;
 use serde_json;
 use diesel;
 use validator::ValidationErrors;
@@ -16,8 +16,9 @@ pub enum Error {
 
 impl Error {
     /// Converts `Error` to HTTP Status Code
-    pub fn to_code(&self) -> StatusCode {
+    pub fn to_code(&self) -> hyper::StatusCode {
         use error::Error::*;
+        use hyper::StatusCode;
 
         match self {
             &NotFound => StatusCode::NotFound,
@@ -52,6 +53,12 @@ impl From<diesel::result::Error> for Error {
             diesel::result::Error::NotFound => Error::NotFound,
             _ => Error::InternalServerError,
         }
+    }
+}
+
+impl From<hyper::Error> for Error {
+    fn from(_e: hyper::Error) -> Self {
+        Error::InternalServerError
     }
 }
 

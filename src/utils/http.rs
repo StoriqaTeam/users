@@ -14,7 +14,7 @@ use hyper;
 use error;
 
 /// Splits query string to key-value pairs
-/// TODO: Cover more complex cases, e.g. `from=count=10`
+// TODO: Cover more complex cases, e.g. `from=count=10`
 pub fn query_params(query: &str) -> HashMap<&str, &str> {
     HashMap::from_iter(
         query.split("&")
