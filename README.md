@@ -8,7 +8,7 @@ Microservice for managing authentication and user profiles.
 
 ## Request Flow
 
-`Application` → `Router` → `Facade` → `Service` → `Repo`
+* `Application` ⇄ `Router` ⇄ `Facade` ⇄ `Service` ⇄ `Repo`
 
 ## API Documentation
 
