@@ -6,6 +6,7 @@ use config::{Config, ConfigError, Environment, File};
 pub struct Settings {
     pub address: String,
     pub database: String,
+    pub threads: usize,
 }
 
 impl Settings {
