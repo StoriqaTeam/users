@@ -30,6 +30,7 @@ pub mod repos;
 pub mod responses;
 pub mod services;
 pub mod settings;
+#[macro_use]
 pub mod utils;
 
 use std::sync::Arc;

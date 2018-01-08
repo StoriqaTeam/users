@@ -13,6 +13,10 @@ use std::iter::FromIterator;
 use hyper;
 use error;
 
+macro_rules! params {
+    ($v: expr, $e:expr, $t:tt) => { $v.get($e).and_then(|x| x.parse::<$t>().ok()) }
+}
+
 /// Splits query string to key-value pairs
 // TODO: Cover more complex cases, e.g. `from=count=10`
 pub fn query_params(query: &str) -> HashMap<&str, &str> {
@@ -60,4 +64,12 @@ pub fn response_with_json(body: String) -> Response {
 pub fn response_with_error(error: error::Error) -> Response {
     error!("{}", error.to_json());
     response_with_body(error.to_json()).with_status(error.to_code())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn it_works() {
+        assert_eq!(2 + 2, 4);
+    }
 }
