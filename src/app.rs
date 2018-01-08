@@ -9,9 +9,9 @@ use hyper::server::{Service, Request};
 use common::{TheError, TheFuture, TheRequest, TheResponse};
 use error::Error as ApiError;
 use services::system::SystemService;
-use facades::users::UsersFacade;
+use services::users::UsersService;
 use router::{Route, Router};
-use utils::http::response_with_error;
+use utils::http::{response_with_error, response_with_json};
 use serde_json;
 
 macro_rules! serialize_future {
@@ -22,7 +22,7 @@ macro_rules! serialize_future {
 pub struct Application {
     pub router: Arc<Router>,
     pub system_service: Arc<SystemService>,
-    pub users_facade: Arc<UsersFacade>,
+    pub users_service: Arc<UsersService>,
 }
 
 impl Service for Application {
@@ -50,7 +50,13 @@ impl Service for Application {
         //     // Fallback
         //     _ => Box::new(future::ok(response_with_error(ApiError::NotFound)))
         // }
-        Box::new(future::ok(response_with_error(ApiError::NotFound)))
+        Box::new(
+            self.call_service(req).then(|res| match res {
+                Ok(data) => future::ok(response_with_json(data)),
+                Err(err) => future::ok(response_with_error(err))
+            })
+        )
+        // Box::new(future::ok(response_with_error(ApiError::NotFound)))
     }
 }
 
@@ -62,7 +68,7 @@ impl Application {
             (&Get, Some(Route::Healthcheck)) => serialize_future!(self.system_service.healthcheck()),
 
             // GET /users/<user_id>
-            // (&Get, Some(Route::User(user_id))) => self.users_facade.get(user_id),
+            (&Get, Some(Route::User(user_id))) => serialize_future!(self.users_service.get(user_id)),
             // GET /users
             // (&Get, Some(Route::Users)) => self.users_facade.list(req),
             // POST /users
