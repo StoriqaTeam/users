@@ -1,7 +1,9 @@
 use payloads::jwt::ProviderOauth;
 use payloads::user::NewUser;
 use models::jwt::JWT;
-use frank_jwt::{Header, Payload, Algorithm, encode, decode};
+use jsonwebtoken::{encode, Header, Algorithm};
+use error::Error as ApiError;
+
 
 /// JWT repository, responsible for handling jwt
 pub struct JWTRepo {
@@ -11,35 +13,21 @@ pub struct JWTRepo {
 
 impl JWTRepo {
     /// Creates JWT for user
-    pub fn create_token_user(&self, user: NewUser) -> JWT {
-        let mut payload = Payload::new();
-        payload.insert("email".to_string(), user.email.to_string());
-        payload.insert("password".to_string(), user.password.to_string());
-        let header = Header::new(Algorithm::HS256);
-        let token = encode(header, self.secret_key.to_string(), payload.clone());
-        JWT { token: token}
+    pub fn create_token_user(&self, user: NewUser) -> Result<JWT, ApiError> {
+        let token = encode(&Header::default(), &user, self.secret_key.as_ref())?;
+        Ok (JWT { token: token})
     }
 
-/// Creates JWT for user
-    pub fn create_token_google(&self, oauth: ProviderOauth) -> JWT {
-        let mut payload = Payload::new();
-        payload.insert("token".to_string(), oauth.token);
-        payload.insert("provider".to_string(), "google".to_string());
-        let header = Header::new(Algorithm::HS256);
-        let token = encode(header, self.secret_key.to_string(), payload.clone());
-        JWT { token: token}
+    /// Creates JWT for user with google oauth
+    pub fn create_token_google(&self, oauth: ProviderOauth) -> Result<JWT, ApiError> {
+        let token = encode(&Header::default(), &oauth, self.secret_key.as_ref())?;
+        Ok (JWT { token: token})
     }
 
-    /// Creates JWT for user
-    pub fn create_token_facebook(&self, oauth: ProviderOauth) -> JWT {
-        let mut payload = Payload::new();
-        payload.insert("token".to_string(), oauth.token);
-        payload.insert("provider".to_string(), "facebook".to_string());
-        let header = Header::new(Algorithm::HS256);
-        let token = encode(header, self.secret_key.to_string(), payload.clone());
-        JWT { token: token}
+    /// Creates JWT for user with facebook oauth
+    pub fn create_token_facebook(&self, oauth: ProviderOauth) -> Result<JWT, ApiError> {
+        let token = encode(&Header::default(), &oauth, self.secret_key.as_ref())?;
+        Ok (JWT { token: token})
     }
-
-
     
 }

@@ -18,7 +18,7 @@ extern crate r2d2_diesel;
 #[macro_use]
 extern crate validator_derive;
 extern crate validator;
-extern crate frank_jwt;
+extern crate jsonwebtoken;
 
 pub mod app;
 pub mod common;
