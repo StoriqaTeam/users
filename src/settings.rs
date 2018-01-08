@@ -6,8 +6,8 @@ use config::{Config, ConfigError, Environment, File};
 pub struct Settings {
     pub address: String,
     pub database: String,
-    pub threads: usize,
-    pub secret_key: String,
+    pub threads_count: usize,
+    pub jwt_secret_key: String,
 }
 
 impl Settings {

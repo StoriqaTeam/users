@@ -11,10 +11,12 @@ use payloads::user::{NewUser, UpdateUser};
 use payloads::jwt::ProviderOauth;
 use responses::status::StatusMessage;
 use services::users::UsersService;
+use services::jwt::JWTService;
 use utils::http::*;
 
 pub struct UsersFacade {
-    pub users_service: Arc<UsersService>
+    pub users_service: Arc<UsersService>,
+    pub jwt_service: ArcJWTService>,
 }
 
 impl UsersFacade {
@@ -138,7 +140,7 @@ impl UsersFacade {
 
      
     pub fn create_token_by_email(&self, req: TheRequest) -> TheFuture {
-        let users_service = self.users_service.clone();
+        let jwt_service = self.jwt_service.clone();
 
         let future = read_body(req).and_then(move |body| {
             serde_json::from_str::<NewUser>(&body)
@@ -149,7 +151,7 @@ impl UsersFacade {
                 })
                 .into_future()
                 .and_then(move |payload| {
-                    users_service.create_token_email(payload)
+                    jwt_service.create_token_email(payload)
                 })
                 .and_then(|token| {
                     serde_json::to_string(&token).map_err(|e| ApiError::from(e))
@@ -164,18 +166,13 @@ impl UsersFacade {
     }
 
     pub fn create_token_by_google(&self, req: TheRequest) -> TheFuture {
-        let users_service = self.users_service.clone();
+        let jwt_service = self.jwt_service.clone();
 
         let future = read_body(req).and_then(move |body| {
             serde_json::from_str::<ProviderOauth>(&body)
                 .map_err(|e| ApiError::from(e))
-                .and_then(|payload| match payload.validate() {
-                    Ok(_) => Ok(payload),
-                    Err(e) => Err(ApiError::from(e))
-                })
-                .into_future()
                 .and_then(move |payload| {
-                    users_service.create_token_google(payload)
+                    jwt_service.create_token_google(payload)
                 })
                 .and_then(|token| {
                     serde_json::to_string(&token).map_err(|e| ApiError::from(e))
@@ -190,18 +187,13 @@ impl UsersFacade {
     }
 
     pub fn create_token_by_facebook(&self, req: TheRequest) -> TheFuture {
-        let users_service = self.users_service.clone();
+        let jwt_service = self.jwt_service.clone();
 
         let future = read_body(req).and_then(move |body| {
             serde_json::from_str::<ProviderOauth>(&body)
                 .map_err(|e| ApiError::from(e))
-                .and_then(|payload| match payload.validate() {
-                    Ok(_) => Ok(payload),
-                    Err(e) => Err(ApiError::from(e))
-                })
-                .into_future()
                 .and_then(move |payload| {
-                    users_service.create_token_facebook(payload)
+                    jwt_service.create_token_facebook(payload)
                 })
                 .and_then(|token| {
                     serde_json::to_string(&token).map_err(|e| ApiError::from(e))

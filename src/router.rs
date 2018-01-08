@@ -13,9 +13,9 @@ pub enum Route {
     Healthcheck,
     Users,
     User(i32),
-    JWT_email,
-    JWT_google,
-    JWT_facebook,
+    JWTEmail,
+    JWTGoogle,
+    JWTFacebook,
 }
 
 impl Router {
@@ -91,13 +91,13 @@ pub fn create_router() -> Router {
     router.add_route(r"^/users$", Route::Users);
     
     // JWT email route
-    router.add_route(r"^/jwt/email$", Route::JWT_email);
+    router.add_route(r"^/jwt/email$", Route::JWTEmail);
 
     // JWT google route
-    router.add_route(r"^/jwt/google$", Route::JWT_google);
+    router.add_route(r"^/jwt/google$", Route::JWTGoogle);
     
     // JWT facebook route
-    router.add_route(r"^/jwt/facebook$", Route::JWT_facebook);
+    router.add_route(r"^/jwt/facebook$", Route::JWTFacebook);
 
     router.add_route_with_params(r"^/users/(\d+)$", |params| {
         params.get(0)

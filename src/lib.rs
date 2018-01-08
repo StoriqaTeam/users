@@ -48,9 +48,9 @@ use app::Application;
 use facades::system::SystemFacade;
 use facades::users::UsersFacade;
 use repos::users::UsersRepo;
-use repos::jwt::JWTRepo;
 use services::system::SystemService;
 use services::users::UsersService;
+use services::jwt::JWTService;
 use settings::Settings;
 
 /// Starts new web service from provided `Settings`
@@ -63,7 +63,7 @@ pub fn start_server(settings: Settings) {
     let handle = Arc::new(core.handle());
 
     // Prepare server
-    let threads = settings.threads.clone();
+    let threads_count = settings.threads_count.clone();
     let address = settings.address.parse().expect("Address must be set in configuration");
     let secret_key = settings.secret_key.clone();
 
@@ -76,7 +76,7 @@ pub fn start_server(settings: Settings) {
             .expect("Failed to create connection pool");
 
         // Prepare CPU pool
-        let cpu_pool = CpuPool::new(settings.threads);
+        let cpu_pool = CpuPool::new(threads_count);
 
         // Prepare repositories
         let users_repo = UsersRepo {
@@ -84,16 +84,18 @@ pub fn start_server(settings: Settings) {
             cpu_pool: Arc::new(cpu_pool),
         };
 
-        let jwt_repo = JWTRepo{
-            secret_key: secret_key
-        }
-
-        // Prepare services
+         // Prepare services
         let system_service = SystemService{};
 
+        let users_repo = Arc::new(users_repo); 
+
         let users_service = UsersService {
-            users_repo: Arc::new(users_repo),
-            jwt_repo: Arc::new(jwt_repo)
+            users_repo: users_repo.clone(),
+        };
+
+        let jwt_service = JWTService {
+            users_repo: users_repo.clone(),
+            secret_key: secret_key
         };
 
         // Prepare facades
@@ -102,7 +104,8 @@ pub fn start_server(settings: Settings) {
         };
 
         let users_facade = UsersFacade {
-            users_service: Arc::new(users_service)
+            users_service: Arc::new(users_service),
+            jwt_service: Arc::new(jwt_service)
         };
 
         // Prepare application
