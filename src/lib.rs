@@ -89,11 +89,6 @@ pub fn start_server(settings: Settings) {
             users_repo: Arc::new(users_repo)
         };
 
-        // Prepare facades
-        let system_facade = SystemFacade {
-            system_service: Arc::new(system_service)
-        };
-
         let users_facade = UsersFacade {
             users_service: Arc::new(users_service)
         };
@@ -101,7 +96,7 @@ pub fn start_server(settings: Settings) {
         // Prepare application
         let app = Application {
             router: Arc::new(router::create_router()),
-            system_facade: Arc::new(system_facade),
+            system_service: Arc::new(system_service),
             users_facade: Arc::new(users_facade)
         };
 

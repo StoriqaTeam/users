@@ -1,3 +1,5 @@
+use std::string::ToString;
+
 /// Status Message - generic information status response
 #[derive(Serialize, Deserialize, Debug)]
 pub struct StatusMessage {
@@ -10,5 +12,11 @@ impl StatusMessage {
         StatusMessage {
             status: msg.to_string()
         }
+    }
+}
+
+impl ToString for StatusMessage {
+    fn to_string(&self) -> String {
+        self.status.clone()
     }
 }
