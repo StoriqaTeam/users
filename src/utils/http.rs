@@ -1,3 +1,7 @@
+use std::collections::HashMap;
+use std::iter::FromIterator;
+use std::str::FromStr;
+
 use hyper::{StatusCode};
 use hyper::mime;
 use hyper::header::{ContentLength, ContentType};
@@ -7,14 +11,20 @@ use hyper::error::Error;
 use futures::future::{Future};
 use futures::{future, Stream};
 
-use std::collections::HashMap;
-use std::iter::FromIterator;
-
 use hyper;
 use error;
 
 macro_rules! params {
-    ($v: expr, $e:expr, $t:tt) => { $v.get($e).and_then(|x| x.parse::<$t>().ok()) }
+    ($query: expr, $e:tt -> $t:ty) => ({ let hash = query_params($query); get_and_parse::<$t>(&hash, $e) });
+    ($query: expr, $e1:tt -> $t1:ty, $e2:tt -> $t2:ty) => ({ let hash = query_params($query); (get_and_parse::<$t1>(&hash, $e1), get_and_parse::<$t2>(&hash, $e2)) });
+    ($query: expr, $e1:tt -> $t1:ty, $e2:tt -> $t2:ty, $e3:tt -> $t3:ty) => ({ let hash = query_params($query); (get_and_parse::<$t1>(&hash, $e1), get_and_parse::<$t2>(&hash, $e2), get_and_parse::<$t3>(&hash, $e3)) });
+    ($query: expr, $e1:tt -> $t1:ty, $e2:tt -> $t2:ty, $e3:tt -> $t3:ty, $e4:tt -> $t4:ty) => ({ let hash = query_params($query); (get_and_parse::<$t1>(&hash, $e1), get_and_parse::<$t2>(&hash, $e2), get_and_parse::<$t3>(&hash, $e3), get_and_parse::<$t4>(&hash, $e4)) });
+    ($query: expr, $e1:tt -> $t1:ty, $e2:tt -> $t2:ty, $e3:tt -> $t3:ty, $e4:tt -> $t4:ty, $e5:tt -> $t5:ty) => ({ let hash = query_params($query); (get_and_parse::<$t1>(&hash, $e1), get_and_parse::<$t2>(&hash, $e2), get_and_parse::<$t3>(&hash, $e3), get_and_parse::<$t4>(&hash, $e4), get_and_parse::<$t5>(&hash, $e5)) });
+}
+
+#[inline]
+fn get_and_parse<T: FromStr>(hash: &HashMap<&str, &str>, key: &str) -> Option<T> {
+    hash.get(key).and_then(|value| value.parse::<T>().ok())
 }
 
 /// Splits query string to key-value pairs
@@ -70,11 +80,33 @@ pub fn response_with_error(error: error::Error) -> Response {
 mod tests {
     use super::*;
     use std::collections::HashMap;
+
     #[test]
-    fn it_works() {
-        let mut hash = HashMap::new();
-        hash.insert("from", "12");
-        let pars = params!(hash, "from", i32);
-        assert_eq!(pars, Some(12));
+    fn params_1() {
+        assert_eq!(params!("from=12", "from" -> i32), Some(12));
+        assert_eq!(params!("from=12a", "from" -> i32), None);
+        assert_eq!(params!("from=12", "to" -> i32), None);
+    }
+
+    #[test]
+    fn params_2() {
+        assert_eq!(params!("from=12&to=22", "from" -> i32, "to" -> i64), (Some(12), Some(22)));
+        assert_eq!(params!("from=12&to=22", "from" -> i32, "to" -> String), (Some(12), Some("22".to_string())));
+        assert_eq!(params!("from=12&to=true", "from" -> bool, "to" -> bool), (None, Some(true)));
+    }
+
+    #[test]
+    fn params_3() {
+        assert_eq!(params!("from=12&to=22&published=true", "from" -> i32, "to" -> i64, "published" -> bool), (Some(12), Some(22), Some(true)));
+    }
+
+    #[test]
+    fn params_4() {
+        assert_eq!(params!("from=12&to=22&published=true&name=Alex", "from" -> i32, "to" -> i64, "published" -> bool, "name" -> String), (Some(12), Some(22), Some(true), Some("Alex".to_string())));
+    }
+
+    #[test]
+    fn params_5() {
+        assert_eq!(params!("from=12&to=22&published=true&name=Alex&price=3.25", "from" -> i32, "to" -> i64, "published" -> bool, "name" -> String, "price" -> f32), (Some(12), Some(22), Some(true), Some("Alex".to_string()), Some(3.25)));
     }
 }
