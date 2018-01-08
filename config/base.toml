@@ -1,3 +1,4 @@
 address = "0.0.0.0:8000"
 database = "postgresql://users@localhost/users"
 threads = 20
+secret_key = "secret key"

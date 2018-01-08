@@ -41,6 +41,14 @@ impl Service for Application {
             (&Put, Some(Route::User(user_id))) => self.users_facade.update(req, user_id),
             // DELETE /users/<user_id>
             (&Delete, Some(Route::User(user_id))) => self.users_facade.deactivate(user_id),
+            
+            // POST /jwt/email
+            (&Post, Some(Route::JWT_email)) => self.users_facade.create_token_by_email(req),
+            // POST /jwt/google
+            (&Post, Some(Route::JWT_google)) => self.users_facade.create_token_by_google(req),
+            // POST /jwt/facebook
+            (&Post, Some(Route::JWT_facebook)) => self.users_facade.create_token_by_facebook(req),
+
             // Fallback
             _ => Box::new(future::ok(response_with_error(ApiError::NotFound)))
         }

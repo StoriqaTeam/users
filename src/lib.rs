@@ -18,6 +18,7 @@ extern crate r2d2_diesel;
 #[macro_use]
 extern crate validator_derive;
 extern crate validator;
+extern crate frank_jwt;
 
 pub mod app;
 pub mod common;
@@ -47,6 +48,7 @@ use app::Application;
 use facades::system::SystemFacade;
 use facades::users::UsersFacade;
 use repos::users::UsersRepo;
+use repos::jwt::JWTRepo;
 use services::system::SystemService;
 use services::users::UsersService;
 use settings::Settings;
@@ -63,6 +65,7 @@ pub fn start_server(settings: Settings) {
     // Prepare server
     let threads = settings.threads.clone();
     let address = settings.address.parse().expect("Address must be set in configuration");
+    let secret_key = settings.secret_key.clone();
 
     let serve = Http::new().serve_addr_handle(&address, &handle, move || {
         // Prepare database pool
@@ -81,11 +84,16 @@ pub fn start_server(settings: Settings) {
             cpu_pool: Arc::new(cpu_pool),
         };
 
+        let jwt_repo = JWTRepo{
+            secret_key: secret_key
+        }
+
         // Prepare services
         let system_service = SystemService{};
 
         let users_service = UsersService {
-            users_repo: Arc::new(users_repo)
+            users_repo: Arc::new(users_repo),
+            jwt_repo: Arc::new(jwt_repo)
         };
 
         // Prepare facades

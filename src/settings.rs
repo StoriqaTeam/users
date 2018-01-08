@@ -7,6 +7,7 @@ pub struct Settings {
     pub address: String,
     pub database: String,
     pub threads: usize,
+    pub secret_key: String,
 }
 
 impl Settings {

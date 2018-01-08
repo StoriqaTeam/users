@@ -5,12 +5,16 @@ use futures::Future;
 
 use error::Error as ApiError;
 use models::user::User;
+use models::jwt::JWT;
 use payloads::user::{NewUser, UpdateUser};
+use payloads::jwt::ProviderOauth;
 use repos::users::UsersRepo;
+use repos::jwt::JWTRepo;
 
 /// Users services, responsible for User-related CRUD operations
 pub struct UsersService {
-    pub users_repo: Arc<UsersRepo>
+    pub users_repo: Arc<UsersRepo>,
+    pub jwt_repo: Arc<JWTRepo>,
 }
 
 impl UsersService {
@@ -53,6 +57,36 @@ impl UsersService {
         let future = self.users_repo.find(user_id)
             .and_then(move |_user| update_repo.update(user_id, payload));
 
+        Box::new(future)
+    }
+
+    /// Creates new JWT token by email
+    pub fn create_token_email(&self, user: NewUser) -> Box<Future<Item = JWT, Error = ApiError>> {
+        let insert_repo = self.users_repo.clone();
+        let jwt_repo = self.jwt_repo.clone();
+
+        let future = self.users_repo.email_exists(user.email.to_string())
+            .map(|exists| (user, exists))
+            .and_then(|(user, exists)| match exists {
+                true => future::ok(user),
+                false => insert_repo.create(user).map(|_| user),
+            })
+            .and_then(|user| future::ok(jwt_repo.create_token_user(user)));
+
+        Box::new(future)
+    }
+
+    /// Creates new JWT token by google
+    pub fn create_token_google(&self, payload: ProviderOauth) -> Box<Future<Item = JWT, Error = ApiError>> {
+        let jwt_repo = self.jwt_repo.clone();
+        let future = future::ok(jwt_repo.create_token_google(payload));
+        Box::new(future)
+    }
+
+    /// Creates new JWT token by facebook
+    pub fn create_token_facebook(&self, payload: ProviderOauth) -> Box<Future<Item = JWT, Error = ApiError>> {
+        let jwt_repo = self.jwt_repo.clone();
+        let future = future::ok(jwt_repo.create_token_facebook(payload));
         Box::new(future)
     }
 }
