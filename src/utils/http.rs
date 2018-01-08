@@ -68,8 +68,13 @@ pub fn response_with_error(error: error::Error) -> Response {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use std::collections::HashMap;
     #[test]
     fn it_works() {
-        assert_eq!(2 + 2, 4);
+        let mut hash = HashMap::new();
+        hash.insert("from", "12");
+        let pars = params!(hash, "from", i32);
+        assert_eq!(pars, Some(12));
     }
 }
