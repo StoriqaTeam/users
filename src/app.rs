@@ -69,8 +69,15 @@ impl Application {
 
             // GET /users/<user_id>
             (&Get, Some(Route::User(user_id))) => serialize_future!(self.users_service.get(user_id)),
+
             // GET /users
-            // (&Get, Some(Route::Users)) => self.users_facade.list(req),
+            (&Get, Some(Route::Users)) => {
+                if let (Some(from), Some(to)) = params!(req.query().unwrap_or_default(), "from" -> i32, "to" -> i64) {
+                    serialize_future!(self.users_service.list(from, to))
+                } else {
+                    Box::new(future::err(ApiError::UnprocessableEntity))
+                }
+            },
             // POST /users
             // (&Post, Some(Route::Users)) => self.users_facade.create(req),
             // PUT /users/<user_id>

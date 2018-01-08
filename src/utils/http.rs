@@ -14,17 +14,17 @@ use futures::{future, Stream};
 use hyper;
 use error;
 
-macro_rules! params {
-    ($query: expr, $e:tt -> $t:ty) => ({ let hash = query_params($query); get_and_parse::<$t>(&hash, $e) });
-    ($query: expr, $e1:tt -> $t1:ty, $e2:tt -> $t2:ty) => ({ let hash = query_params($query); (get_and_parse::<$t1>(&hash, $e1), get_and_parse::<$t2>(&hash, $e2)) });
-    ($query: expr, $e1:tt -> $t1:ty, $e2:tt -> $t2:ty, $e3:tt -> $t3:ty) => ({ let hash = query_params($query); (get_and_parse::<$t1>(&hash, $e1), get_and_parse::<$t2>(&hash, $e2), get_and_parse::<$t3>(&hash, $e3)) });
-    ($query: expr, $e1:tt -> $t1:ty, $e2:tt -> $t2:ty, $e3:tt -> $t3:ty, $e4:tt -> $t4:ty) => ({ let hash = query_params($query); (get_and_parse::<$t1>(&hash, $e1), get_and_parse::<$t2>(&hash, $e2), get_and_parse::<$t3>(&hash, $e3), get_and_parse::<$t4>(&hash, $e4)) });
-    ($query: expr, $e1:tt -> $t1:ty, $e2:tt -> $t2:ty, $e3:tt -> $t3:ty, $e4:tt -> $t4:ty, $e5:tt -> $t5:ty) => ({ let hash = query_params($query); (get_and_parse::<$t1>(&hash, $e1), get_and_parse::<$t2>(&hash, $e2), get_and_parse::<$t3>(&hash, $e3), get_and_parse::<$t4>(&hash, $e4), get_and_parse::<$t5>(&hash, $e5)) });
+macro_rules! get_and_parse {
+    ($hash:expr, $t: ty, $key: tt) => ($hash.get($key).and_then(|value| value.parse::<$t>().ok()))
 }
 
-#[inline]
-fn get_and_parse<T: FromStr>(hash: &HashMap<&str, &str>, key: &str) -> Option<T> {
-    hash.get(key).and_then(|value| value.parse::<T>().ok())
+#[macro_export]
+macro_rules! params {
+    ($query: expr, $e:tt -> $t:ty) => ({ let hash = $crate::utils::http::query_params($query); get_and_parse!(hash, $t, $e) });
+    ($query: expr, $e1:tt -> $t1:ty, $e2:tt -> $t2:ty) => ({ let hash = $crate::utils::http::query_params($query); (get_and_parse!(hash, $t1, $e1), get_and_parse!(hash, $t2, $e2)) });
+    ($query: expr, $e1:tt -> $t1:ty, $e2:tt -> $t2:ty, $e3:tt -> $t3:ty) => ({ let hash = $crate::utils::http::query_params($query); (get_and_parse!(hash, $t1, $e1), get_and_parse!(hash, $t2, $e2), get_and_parse!(hash, $t3, $e3)) });
+    ($query: expr, $e1:tt -> $t1:ty, $e2:tt -> $t2:ty, $e3:tt -> $t3:ty, $e4:tt -> $t4:ty) => ({ let hash = $crate::utils::http::query_params($query); (get_and_parse!(hash, $t1, $e1), get_and_parse!(hash, $t2, $e2), get_and_parse!(hash, $t3, $e3), get_and_parse!(hash, $t4, $e4)) });
+    ($query: expr, $e1:tt -> $t1:ty, $e2:tt -> $t2:ty, $e3:tt -> $t3:ty, $e4:tt -> $t4:ty, $e5:tt -> $t5:ty) => ({ let hash = $crate::utils::http::query_params($query); (get_and_parse!(hash, $t1, $e1), get_and_parse!(hash, $t2, $e2), get_and_parse!(hash, $t3, $e3), get_and_parse!(hash, $t4, $e4), get_and_parse!(hash, $t5, $e5)) });
 }
 
 /// Splits query string to key-value pairs
