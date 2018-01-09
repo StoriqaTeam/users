@@ -80,6 +80,7 @@ impl Application {
                     Box::new(future::err(ApiError::UnprocessableEntity))
                 }
             },
+
             // POST /users
             (&Post, Some(Route::Users)) => {
                 let users_service = self.users_service.clone();
@@ -88,10 +89,19 @@ impl Application {
                         .and_then(move |new_user| users_service.create(new_user))
                 )
             },
+
             // PUT /users/<user_id>
-            // (&Put, Some(Route::User(user_id))) => self.users_facade.update(req, user_id),
+            (&Put, Some(Route::User(user_id))) => {
+                let users_service = self.users_service.clone();
+                serialize_future!(
+                    parse_body::<payloads::user::UpdateUser>(req)
+                        .and_then(move |update_user| users_service.update(user_id, update_user))
+                )
+            }
             // DELETE /users/<user_id>
-            // (&Delete, Some(Route::User(user_id))) => self.users_facade.deactivate(user_id),
+            (&Delete, Some(Route::User(user_id))) =>
+                serialize_future!(self.users_service.deactivate(user_id)),
+
             // Fallback
             _ => Box::new(future::err(ApiError::NotFound))
         }
