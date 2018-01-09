@@ -1,4 +1,5 @@
 #[macro_export]
+#[doc(hidden)]
 macro_rules! get_and_parse {
     ($hash:expr, $t: ty, $key: tt) => ($hash.get($key).and_then(|value| value.parse::<$t>().ok()))
 }
@@ -11,15 +12,15 @@ macro_rules! get_and_parse {
 /// ```
 ///  #[macro_use] extern crate users_lib;
 ///
-///  fn main() {
-///    assert_eq!(parse_query!("from=12", "from" -> i32), Some(12));
-///    assert_eq!(parse_query!("from=12a", "from" -> i32), None);
-///    assert_eq!(parse_query!("from=12", "to" -> i32), None);
-///    assert_eq!(parse_query!("from=12&to=22", "from" -> i32, "to" -> i64), (Some(12), Some(22)));
-///    assert_eq!(parse_query!("from=12&to=abc", "from" -> i32, "to" -> String), (Some(12), Some("abc".to_string())));
-///    assert_eq!(parse_query!("from=12&to=true", "from" -> bool, "to" -> bool), (None, Some(true)));
-///    assert_eq!(parse_query!("from=12&to=22&published=true", "from" -> i32, "to" -> i64, "published" -> bool), (Some(12), Some(22), Some(true)));
-///  }
+/// fn main() {
+///     assert_eq!(parse_query!("from=12", "from" -> i32), Some(12));
+///     assert_eq!(parse_query!("from=12a", "from" -> i32), None);
+///     assert_eq!(parse_query!("from=12", "to" -> i32), None);
+///     assert_eq!(parse_query!("from=12&to=22", "from" -> i32, "to" -> i64), (Some(12), Some(22)));
+///     assert_eq!(parse_query!("from=12&to=abc", "from" -> i32, "to" -> String), (Some(12), Some("abc".to_string())));
+///     assert_eq!(parse_query!("from=12&to=true", "from" -> bool, "to" -> bool), (None, Some(true)));
+///     assert_eq!(parse_query!("from=12&to=22&published=true", "from" -> i32, "to" -> i64, "published" -> bool), (Some(12), Some(22), Some(true)));
+/// }
 /// ```
 
 #[macro_export]
