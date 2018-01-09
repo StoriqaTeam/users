@@ -28,11 +28,14 @@ pub fn query_params(query: &str) -> HashMap<&str, &str> {
 }
 
 /// Transforms request body with the following pipeline:
-///   1. Parse request body into entity of type T (T must implement `serde::de::Deserialize` trait) for that
-///   2. Validate entity (T must implement `validator::Validate`) for that
 ///
-/// Fails with Error::Unprocessable entity if step 1 fails
-/// Fails with BadRequest with message if step 2 fails
+///   1. Parse request body into entity of type T (T must implement `serde::de::Deserialize` trait)
+///
+///   2. Validate entity (T must implement `validator::Validate`)
+///
+/// Fails with `error::Error::UnprocessableEntity` if step 1 fails.
+///
+/// Fails with `error::Error::BadRequest` with message if step 2 fails.
 pub fn parse_body<T>(req: Request) -> Box<Future<Item=T, Error=error::Error>>
     where
         T: for<'a> Deserialize<'a> + Validate + 'static
