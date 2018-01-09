@@ -19,10 +19,11 @@ extern crate r2d2_diesel;
 extern crate validator_derive;
 extern crate validator;
 
+#[macro_use]
+pub mod macros;
 pub mod app;
 pub mod common;
 pub mod error;
-pub mod facades;
 pub mod router;
 pub mod models;
 pub mod payloads;
@@ -44,8 +45,6 @@ use r2d2_diesel::ConnectionManager;
 use tokio_core::reactor::Core;
 
 use app::Application;
-use facades::system::SystemFacade;
-use facades::users::UsersFacade;
 use repos::users::UsersRepo;
 use services::system::SystemService;
 use services::users::UsersService;
@@ -88,20 +87,11 @@ pub fn start_server(settings: Settings) {
             users_repo: Arc::new(users_repo)
         };
 
-        // Prepare facades
-        let system_facade = SystemFacade {
-            system_service: Arc::new(system_service)
-        };
-
-        let users_facade = UsersFacade {
-            users_service: Arc::new(users_service)
-        };
-
         // Prepare application
         let app = Application {
             router: Arc::new(router::create_router()),
-            system_facade: Arc::new(system_facade),
-            users_facade: Arc::new(users_facade)
+            system_service: Arc::new(system_service),
+            users_service: Arc::new(users_service)
         };
 
         Ok(app)

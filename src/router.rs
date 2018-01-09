@@ -32,18 +32,16 @@ impl Router {
     /// converter is a function with argument being a set of regex matches (strings) for route params in regex
     /// this is needed if you want to convert params from strings to int or some other types
     ///
-    /// #Example
+    /// #Examples
     ///
     /// ```
-    /// enum Route {
-    ///     Users(i32)
-    /// }
+    /// use users_lib::router::{Router, Route};
     ///
-    /// let router = Router::new();
+    /// let mut router = Router::new();
     /// router.add_route_with_params(r"^/users/(\d+)$", |params| {
     ///     params.get(0)
     ///        .and_then(|string_id| string_id.parse::<i32>().ok())
-    ///        .map(|user_id| Route::Users(user_id))
+    ///        .map(|user_id| Route::User(user_id))
     /// });
     /// ```
     pub fn add_route_with_params<F>(&mut self, regex_pattern: &str, converter: F) -> &Self

@@ -1,19 +1,21 @@
+use std::collections::HashMap;
+use std::iter::FromIterator;
+
 use hyper::{StatusCode};
 use hyper::mime;
 use hyper::header::{ContentLength, ContentType};
 use hyper::server::{Request, Response};
 use hyper::error::Error;
-
 use futures::future::{Future};
 use futures::{future, Stream};
-
-use std::collections::HashMap;
-use std::iter::FromIterator;
+use serde_json;
+use serde::de::Deserialize;
+use validator::Validate;
 
 use hyper;
 use error;
 
-/// Splits query string to key-value pairs
+/// Splits query string to key-value pairs. See `macros::parse_query` for more sophisticated parsing.
 // TODO: Cover more complex cases, e.g. `from=count=10`
 pub fn query_params(query: &str) -> HashMap<&str, &str> {
     HashMap::from_iter(
@@ -21,6 +23,30 @@ pub fn query_params(query: &str) -> HashMap<&str, &str> {
             .map(|pair| {
                 let mut params = pair.split("=");
                 (params.next().unwrap(), params.next().unwrap_or(""))
+            })
+    )
+}
+
+/// Transforms request body with the following pipeline:
+///
+///   1. Parse request body into entity of type T (T must implement `serde::de::Deserialize` trait)
+///
+///   2. Validate entity (T must implement `validator::Validate`)
+///
+/// Fails with `error::Error::UnprocessableEntity` if step 1 fails.
+///
+/// Fails with `error::Error::BadRequest` with message if step 2 fails.
+pub fn parse_body<T>(req: Request) -> Box<Future<Item=T, Error=error::Error>>
+    where
+        T: for<'a> Deserialize<'a> + Validate + 'static
+{
+    Box::new(
+        read_body(req)
+            .map_err(|err| error::Error::from(err))
+            .and_then(|body| serde_json::from_str::<T>(&body).map_err(|_| error::Error::UnprocessableEntity))
+            .and_then(|payload| match payload.validate() {
+                Ok(_) => Ok(payload),
+                Err(e) => Err(error::Error::from(e))
             })
     )
 }
