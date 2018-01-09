@@ -15,7 +15,7 @@ use validator::Validate;
 use hyper;
 use error;
 
-/// Splits query string to key-value pairs
+/// Splits query string to key-value pairs. See `macros::parse_query` for more sophisticated parsing.
 // TODO: Cover more complex cases, e.g. `from=count=10`
 pub fn query_params(query: &str) -> HashMap<&str, &str> {
     HashMap::from_iter(
@@ -27,6 +27,12 @@ pub fn query_params(query: &str) -> HashMap<&str, &str> {
     )
 }
 
+/// Transforms request body with the following pipeline:
+///   1. Parse request body into entity of type T (T must implement `serde::de::Deserialize` trait) for that
+///   2. Validate entity (T must implement `validator::Validate`) for that
+///
+/// Fails with Error::Unprocessable entity if step 1 fails
+/// Fails with BadRequest with message if step 2 fails
 pub fn parse_body<T>(req: Request) -> Box<Future<Item=T, Error=error::Error>>
     where
         T: for<'a> Deserialize<'a> + Validate + 'static

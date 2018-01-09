@@ -56,7 +56,7 @@ impl Application {
 
             // GET /users
             (&Get, Some(Route::Users)) => {
-                if let (Some(from), Some(to)) = parse_params!(req.query().unwrap_or_default(), "from" -> i32, "to" -> i64) {
+                if let (Some(from), Some(to)) = parse_query!(req.query().unwrap_or_default(), "from" -> i32, "to" -> i64) {
                     serialize_future!(self.users_service.list(from, to))
                 } else {
                     Box::new(future::err(ApiError::UnprocessableEntity))

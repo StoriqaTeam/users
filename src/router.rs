@@ -32,7 +32,7 @@ impl Router {
     /// converter is a function with argument being a set of regex matches (strings) for route params in regex
     /// this is needed if you want to convert params from strings to int or some other types
     ///
-    /// #Example
+    /// #Examples
     ///
     /// ```
     /// use users_lib::router::{Router, Route};
