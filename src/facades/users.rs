@@ -12,7 +12,7 @@ use payloads::jwt::ProviderOauth;
 use responses::status::StatusMessage;
 use services::users::UsersService;
 use services::jwt::JWTService;
-use utils::http::*;
+use utils::httpserver::*;
 
 pub struct UsersFacade {
     pub users_service: Arc<UsersService>,

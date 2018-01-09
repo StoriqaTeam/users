@@ -5,6 +5,7 @@ extern crate tokio_core;
 extern crate hyper;
 extern crate regex;
 extern crate serde;
+#[macro_use]
 extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
@@ -32,6 +33,7 @@ pub mod responses;
 pub mod services;
 pub mod settings;
 pub mod utils;
+pub mod client;
 
 use std::sync::Arc;
 use std::process;
@@ -61,6 +63,13 @@ pub fn start_server(settings: Settings) {
     // Prepare reactor
     let mut core = Core::new().expect("Unexpected error creating event loop core");
     let handle = Arc::new(core.handle());
+
+    let client = client::Client::new(&settings, &handle);
+    let client_handle = client.handle();
+    let client_stream = client.stream();
+    handle.spawn(
+        client_stream.for_each(|_| Ok(()))
+    );
 
     // Prepare server
     let threads_count = settings.threads_count.clone();
@@ -95,7 +104,8 @@ pub fn start_server(settings: Settings) {
 
         let jwt_service = JWTService {
             users_repo: users_repo.clone(),
-            secret_key: secret_key.clone()
+            secret_key: secret_key.clone(),
+            http_client: client_handle.clone()
         };
 
         // Prepare facades

@@ -8,6 +8,8 @@ pub struct Settings {
     pub database: String,
     pub threads_count: usize,
     pub jwt_secret_key: String,
+    pub http_client_retries: usize,
+    pub http_client_buffer_size: usize
 }
 
 impl Settings {

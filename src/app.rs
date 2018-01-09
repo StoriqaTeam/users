@@ -10,7 +10,7 @@ use error::Error as ApiError;
 use facades::system::SystemFacade;
 use facades::users::UsersFacade;
 use router::{Route, Router};
-use utils::http::response_with_error;
+use utils::httpserver::response_with_error;
 
 /// Application contains all facades, services and `Router`
 pub struct Application {
