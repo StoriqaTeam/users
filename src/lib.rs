@@ -25,7 +25,6 @@ pub mod utils;
 pub mod app;
 pub mod common;
 pub mod error;
-pub mod facades;
 pub mod router;
 pub mod models;
 pub mod payloads;
@@ -46,8 +45,6 @@ use r2d2_diesel::ConnectionManager;
 use tokio_core::reactor::Core;
 
 use app::Application;
-use facades::system::SystemFacade;
-use facades::users::UsersFacade;
 use repos::users::UsersRepo;
 use services::system::SystemService;
 use services::users::UsersService;

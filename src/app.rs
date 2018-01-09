@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::string::ToString;
 
 use futures::Future;
 use futures::future;
