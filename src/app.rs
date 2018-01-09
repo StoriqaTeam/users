@@ -11,8 +11,10 @@ use error::Error as ApiError;
 use services::system::SystemService;
 use services::users::UsersService;
 use router::{Route, Router};
-use utils::http::{response_with_error, response_with_json};
+use utils::http::{response_with_error, response_with_json, parse_body};
 use serde_json;
+
+use payloads;
 
 macro_rules! serialize_future {
     ($e:expr) => (Box::new($e.and_then(|resp| serde_json::to_string(&resp).map_err(|e| ApiError::from(e)))))
@@ -79,7 +81,13 @@ impl Application {
                 }
             },
             // POST /users
-            // (&Post, Some(Route::Users)) => self.users_facade.create(req),
+            (&Post, Some(Route::Users)) => {
+                let users_service = self.users_service.clone();
+                serialize_future!(
+                    parse_body::<payloads::user::NewUser>(req)
+                        .and_then(move |new_user| users_service.create(new_user))
+                )
+            },
             // PUT /users/<user_id>
             // (&Put, Some(Route::User(user_id))) => self.users_facade.update(req, user_id),
             // DELETE /users/<user_id>

@@ -1,15 +1,16 @@
 use std::collections::HashMap;
 use std::iter::FromIterator;
-use std::str::FromStr;
 
 use hyper::{StatusCode};
 use hyper::mime;
 use hyper::header::{ContentLength, ContentType};
 use hyper::server::{Request, Response};
 use hyper::error::Error;
-
 use futures::future::{Future};
 use futures::{future, Stream};
+use serde_json;
+use serde::de::Deserialize;
+use validator::Validate;
 
 use hyper;
 use error;
@@ -35,6 +36,21 @@ pub fn query_params(query: &str) -> HashMap<&str, &str> {
             .map(|pair| {
                 let mut params = pair.split("=");
                 (params.next().unwrap(), params.next().unwrap_or(""))
+            })
+    )
+}
+
+pub fn parse_body<T>(req: Request) -> Box<Future<Item=T, Error=error::Error>>
+    where
+        T: for<'a> Deserialize<'a> + Validate + 'static
+{
+    Box::new(
+        read_body(req)
+            .map_err(|err| error::Error::from(err))
+            .and_then(|body| serde_json::from_str::<T>(&body).map_err(|_| error::Error::UnprocessableEntity))
+            .and_then(|payload| match payload.validate() {
+                Ok(_) => Ok(payload),
+                Err(e) => Err(error::Error::from(e))
             })
     )
 }
