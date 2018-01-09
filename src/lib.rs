@@ -20,8 +20,7 @@ extern crate validator_derive;
 extern crate validator;
 
 #[macro_use]
-pub mod utils;
-
+pub mod macros;
 pub mod app;
 pub mod common;
 pub mod error;
@@ -32,6 +31,7 @@ pub mod repos;
 pub mod responses;
 pub mod services;
 pub mod settings;
+pub mod utils;
 
 use std::sync::Arc;
 use std::process;

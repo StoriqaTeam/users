@@ -35,29 +35,12 @@ impl Service for Application {
     fn call(&self, req: Request) -> Box<Future<Item = TheResponse, Error = TheError>> {
         info!("{:?}", req);
 
-        // match (req.method(), self.router.test(req.path())) {
-        //     // GET /healthcheck
-        //     (&Get, Some(Route::Healthcheck)) => self.system_service.healthcheck(),
-        //     // GET /users/<user_id>
-        //     (&Get, Some(Route::User(user_id))) => self.users_facade.get(user_id),
-        //     // GET /users
-        //     (&Get, Some(Route::Users)) => self.users_facade.list(req),
-        //     // POST /users
-        //     (&Post, Some(Route::Users)) => self.users_facade.create(req),
-        //     // PUT /users/<user_id>
-        //     (&Put, Some(Route::User(user_id))) => self.users_facade.update(req, user_id),
-        //     // DELETE /users/<user_id>
-        //     (&Delete, Some(Route::User(user_id))) => self.users_facade.deactivate(user_id),
-        //     // Fallback
-        //     _ => Box::new(future::ok(response_with_error(ApiError::NotFound)))
-        // }
         Box::new(
             self.call_service(req).then(|res| match res {
                 Ok(data) => future::ok(response_with_json(data)),
                 Err(err) => future::ok(response_with_error(err))
             })
         )
-        // Box::new(future::ok(response_with_error(ApiError::NotFound)))
     }
 }
 
@@ -73,7 +56,7 @@ impl Application {
 
             // GET /users
             (&Get, Some(Route::Users)) => {
-                if let (Some(from), Some(to)) = params!(req.query().unwrap_or_default(), "from" -> i32, "to" -> i64) {
+                if let (Some(from), Some(to)) = parse_params!(req.query().unwrap_or_default(), "from" -> i32, "to" -> i64) {
                     serialize_future!(self.users_service.list(from, to))
                 } else {
                     Box::new(future::err(ApiError::UnprocessableEntity))
