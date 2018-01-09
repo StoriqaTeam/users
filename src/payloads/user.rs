@@ -2,7 +2,7 @@ use models::schema::users;
 use validator::Validate;
 
 /// Payload for creating users
-#[derive(Serialize, Deserialize, Insertable, Validate)]
+#[derive(Serialize, Deserialize, Insertable, Validate, Clone)]
 #[table_name = "users"]
 pub struct NewUser {
     #[validate(email(message = "Invalid e-mail format"))]

@@ -43,11 +43,11 @@ impl Service for Application {
             (&Delete, Some(Route::User(user_id))) => self.users_facade.deactivate(user_id),
             
             // POST /jwt/email
-            (&Post, Some(Route::JWT_email)) => self.users_facade.create_token_by_email(req),
+            (&Post, Some(Route::JWTEmail)) => self.users_facade.create_token_by_email(req),
             // POST /jwt/google
-            (&Post, Some(Route::JWT_google)) => self.users_facade.create_token_by_google(req),
+            (&Post, Some(Route::JWTGoogle)) => self.users_facade.create_token_by_google(req),
             // POST /jwt/facebook
-            (&Post, Some(Route::JWT_facebook)) => self.users_facade.create_token_by_facebook(req),
+            (&Post, Some(Route::JWTFacebook)) => self.users_facade.create_token_by_facebook(req),
 
             // Fallback
             _ => Box::new(future::ok(response_with_error(ApiError::NotFound)))

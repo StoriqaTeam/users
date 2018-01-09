@@ -16,7 +16,7 @@ use utils::http::*;
 
 pub struct UsersFacade {
     pub users_service: Arc<UsersService>,
-    pub jwt_service: ArcJWTService>,
+    pub jwt_service: Arc<JWTService>,
 }
 
 impl UsersFacade {
@@ -171,6 +171,7 @@ impl UsersFacade {
         let future = read_body(req).and_then(move |body| {
             serde_json::from_str::<ProviderOauth>(&body)
                 .map_err(|e| ApiError::from(e))
+                .into_future()
                 .and_then(move |payload| {
                     jwt_service.create_token_google(payload)
                 })
@@ -192,6 +193,7 @@ impl UsersFacade {
         let future = read_body(req).and_then(move |body| {
             serde_json::from_str::<ProviderOauth>(&body)
                 .map_err(|e| ApiError::from(e))
+                .into_future()
                 .and_then(move |payload| {
                     jwt_service.create_token_facebook(payload)
                 })

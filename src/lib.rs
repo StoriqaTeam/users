@@ -65,7 +65,7 @@ pub fn start_server(settings: Settings) {
     // Prepare server
     let threads_count = settings.threads_count.clone();
     let address = settings.address.parse().expect("Address must be set in configuration");
-    let secret_key = settings.secret_key.clone();
+    let secret_key = settings.jwt_secret_key.clone();
 
     let serve = Http::new().serve_addr_handle(&address, &handle, move || {
         // Prepare database pool
@@ -95,7 +95,7 @@ pub fn start_server(settings: Settings) {
 
         let jwt_service = JWTService {
             users_repo: users_repo.clone(),
-            secret_key: secret_key
+            secret_key: secret_key.clone()
         };
 
         // Prepare facades
@@ -133,6 +133,6 @@ pub fn start_server(settings: Settings) {
         .map_err(|_| ()),
     );
 
-    info!("Listening on http://{}, threads: {}", address, threads);
+    info!("Listening on http://{}, threads: {}", address, threads_count);
     core.run(future::empty::<(), ()>()).unwrap();
 }
