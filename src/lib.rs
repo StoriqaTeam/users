@@ -20,6 +20,7 @@ extern crate r2d2_diesel;
 extern crate validator_derive;
 extern crate validator;
 extern crate jsonwebtoken;
+extern crate hyper_tls;
 
 pub mod app;
 pub mod common;

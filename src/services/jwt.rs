@@ -8,9 +8,9 @@ use models::jwt::JWT;
 use payloads::user::NewUser;
 use payloads::jwt::ProviderOauth;
 use repos::users::UsersRepo;
-use jsonwebtoken::{encode, Header};
 use ::client::ClientHandle;
 use hyper::Method;
+use jsonwebtoken::{encode, Header};
 
 /// JWT services, responsible for JsonWebToken operations
 pub struct JWTService {
