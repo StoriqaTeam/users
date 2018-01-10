@@ -23,24 +23,21 @@ impl JWTService {
     /// Creates new JWT token by email
     pub fn create_token_email(&self, payload: NewUser) -> Box<Future<Item = JWT, Error = ApiError>> {
         let insert_repo = self.users_repo.clone();
-        let p = payload.clone();
+        let secret_ket = self.secret_key.clone();
 
-        let future_email_exist = self.users_repo.email_exists(payload.email.to_string());
-
-        let future_create_new_user = move |exists| -> Box<Future<Item = (), Error = ApiError>> {
+        let future = self.users_repo.email_exists(payload.email.to_string())
+            .map(|exists| (exists, payload))
+            .and_then(move |(exists, user)| -> Box<Future<Item = NewUser, Error = ApiError>> {
                 match exists {
-                    false => Box::new(insert_repo.create(p).and_then(|_| future::ok(()))),
-                    true => Box::new(future::ok(())),
-                }};
-        
-        let future_create_token = encode(&Header::default(), &payload, self.secret_key.as_ref())
-            .map_err(|_e| ApiError::UnprocessableEntity)
-            .into_future()
-            .and_then(|t| future::ok(JWT { token: t}) );
-
-        let future = future_email_exist
-            .and_then(future_create_new_user)
-            .and_then(|_| future_create_token);
+                    false => Box::new(insert_repo.create(user.clone()).map(|_| user)),
+                    true => Box::new(future::ok(user)),
+                }})
+            .and_then(move |u| {
+                    encode(&Header::default(), &u, secret_ket.as_ref())
+                        .map_err(|_e| ApiError::UnprocessableEntity)
+                        .into_future()
+                        .and_then(|t| future::ok(JWT { token: t}) )
+            });
         
 
         Box::new(future)
@@ -51,18 +48,17 @@ impl JWTService {
         let url = format!("googleapis.com");
         let user = json!({"token": oauth.token});
         let body: String = user.to_string();
-        unimplemented!();
+        let secret_key = self.secret_key.clone();
 
-//        let future =self.http_client.request::<NewUser>(Method::Post, url, Some(body));
-
-            //.and_then(|u| {
-            //    encode(&Header::default(), &u, self.secret_key.as_ref())
-            //        .map_err(|_e| ApiError::UnprocessableEntity)
-            //        .into_future()
-            //        .and_then(|t| future::ok( JWT { token: t}) )
-            //})
+        let future =self.http_client.request::<NewUser>(Method::Post, url, Some(body))
+            .and_then(move |u| {
+                encode(&Header::default(), &u, secret_key.as_ref())
+                    .map_err(|_e| ApiError::UnprocessableEntity)
+                    .into_future()
+                    .and_then(|t| future::ok( JWT { token: t}) )
+            });
         
-        //Box::new(future)
+        Box::new(future)
     }
 
     /// Creates new JWT token by facebook
@@ -70,18 +66,17 @@ impl JWTService {
         let url = format!("facebook.com");
         let user = json!({"token": oauth.token});
         let body: String = user.to_string();
+        let secret_key = self.secret_key.clone();
 
-        unimplemented!();
-
-//        let future =self.http_client.request::<NewUser>(Method::Post, url, Some(body))
-//            .and_then(|u| {
-//                encode(&Header::default(), &u, self.secret_key.as_ref())
-//                    .map_err(|_e| ApiError::UnprocessableEntity)
-//                    .into_future()
-//                    .and_then(|t| future::ok(JWT { token: t}) )
-//            });
-//
-//        Box::new(future)
+        let future =self.http_client.request::<NewUser>(Method::Post, url, Some(body))
+            .and_then(move |u| {
+                encode(&Header::default(), &u, secret_key.as_ref())
+                    .map_err(|_e| ApiError::UnprocessableEntity)
+                    .into_future()
+                    .and_then(|t| future::ok( JWT { token: t}) )
+            });
+        
+        Box::new(future)
     }
 
 }
