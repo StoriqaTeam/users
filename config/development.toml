@@ -1,1 +1,10 @@
-jwt_secret_key = "jwt secret key"
+[jwt]
+secret_key = "jwt secret key"
+
+[google]
+id = "google id"
+key = "google key"
+
+[facebook]
+id = "facebook id"
+key = "facebook key"

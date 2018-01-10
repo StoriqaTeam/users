@@ -72,13 +72,13 @@ pub fn start_server(settings: Settings) {
     );
 
     // Prepare server
-    let threads_count = settings.threads_count.clone();
-    let address = settings.address.parse().expect("Address must be set in configuration");
-    let secret_key = settings.jwt_secret_key.clone();
+    let threads_count = settings.server.threads_count.clone();
+    let address = settings.server.address.parse().expect("Address must be set in configuration");
+    let secret_key = settings.jwt.secret_key.clone();
 
     let serve = Http::new().serve_addr_handle(&address, &handle, move || {
         // Prepare database pool
-        let database_url: String = settings.database.parse().expect("Database URL must be set in configuration");
+        let database_url: String = settings.server.database.parse().expect("Database URL must be set in configuration");
         let manager = ConnectionManager::<PgConnection>::new(database_url);
         let r2d2_pool = r2d2::Pool::builder()
             .build(manager)

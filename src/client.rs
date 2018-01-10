@@ -24,8 +24,8 @@ pub struct Client {
 
 impl Client {
     pub fn new(settings: &Settings, handle: &Handle) -> Self {
-        let max_retries = settings.http_client_retries;
-        let (tx, rx) = mpsc::channel::<Payload>(settings.http_client_buffer_size);
+        let max_retries = settings.client.http_client_retries;
+        let (tx, rx) = mpsc::channel::<Payload>(settings.client.http_client_buffer_size);
         let client = hyper::Client::new(handle);
         Client { client, tx, rx, max_retries }
     }

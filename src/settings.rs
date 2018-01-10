@@ -4,13 +4,37 @@ use config::{Config, ConfigError, Environment, File};
 /// Basic settings - HTTP binding address and database DSN
 #[derive(Debug, Deserialize, Clone)]
 pub struct Settings {
+    pub server: Server,    
+    pub client: Client,
+    pub jwt: JWT,
+    pub google: OAuth,
+    pub facebook: OAuth,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct Server {
     pub address: String,
     pub database: String,
     pub threads_count: usize,
-    pub jwt_secret_key: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct Client {
     pub http_client_retries: usize,
     pub http_client_buffer_size: usize
 }
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct JWT {
+    pub secret_key: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct OAuth {
+    pub id: String,
+    pub key: String
+}
+
 
 impl Settings {
     pub fn new() -> Result<Self, ConfigError> {

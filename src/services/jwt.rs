@@ -51,16 +51,18 @@ impl JWTService {
         let url = format!("googleapis.com");
         let user = json!({"token": oauth.token});
         let body: String = user.to_string();
+        unimplemented!();
 
-        let future =self.http_client.request::<NewUser>(Method::Post, url, Some(body))
-            .and_then(|u| {
-                encode(&Header::default(), &u, self.secret_key.as_ref())
-                    .map_err(|_e| ApiError::UnprocessableEntity)
-                    .into_future()
-                    .and_then(|t| future::ok( JWT { token: t}) )
-            });
+//        let future =self.http_client.request::<NewUser>(Method::Post, url, Some(body));
+
+            //.and_then(|u| {
+            //    encode(&Header::default(), &u, self.secret_key.as_ref())
+            //        .map_err(|_e| ApiError::UnprocessableEntity)
+            //        .into_future()
+            //        .and_then(|t| future::ok( JWT { token: t}) )
+            //})
         
-        Box::new(future)
+        //Box::new(future)
     }
 
     /// Creates new JWT token by facebook
@@ -69,15 +71,17 @@ impl JWTService {
         let user = json!({"token": oauth.token});
         let body: String = user.to_string();
 
-        let future =self.http_client.request::<NewUser>(Method::Post, url, Some(body))
-            .and_then(|u| {
-                encode(&Header::default(), &u, self.secret_key.as_ref())
-                    .map_err(|_e| ApiError::UnprocessableEntity)
-                    .into_future()
-                    .and_then(|t| future::ok(JWT { token: t}) )
-            });
+        unimplemented!();
 
-        Box::new(future)
+//        let future =self.http_client.request::<NewUser>(Method::Post, url, Some(body))
+//            .and_then(|u| {
+//                encode(&Header::default(), &u, self.secret_key.as_ref())
+//                    .map_err(|_e| ApiError::UnprocessableEntity)
+//                    .into_future()
+//                    .and_then(|t| future::ok(JWT { token: t}) )
+//            });
+//
+//        Box::new(future)
     }
 
 }
