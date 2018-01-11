@@ -4,11 +4,13 @@ Microservice for managing authentication and user profiles.
 
 ## Running
 
-    $ make docker compose
+```
+cd docker && docker-compose up
+```
 
 ## Request Flow
 
-* `Application` ⇄ `Router` ⇄ `Facade` ⇄ `Service` ⇄ `Repo`
+* `Application` ⇄ `Router` ⇄ `Service` ⇄ `Repo`
 
 ## API Documentation
 
