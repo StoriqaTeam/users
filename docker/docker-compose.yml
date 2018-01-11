@@ -1,7 +1,10 @@
 version: '3'
 services:
   users:
-    image: rust
+    image: users
+    build:
+      context: .
+      dockerfile: Dockerfile.users
     container_name: users
     working_dir: /app
     command: cargo run
