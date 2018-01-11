@@ -5,7 +5,6 @@ extern crate tokio_core;
 extern crate hyper;
 extern crate regex;
 extern crate serde;
-#[macro_use]
 extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
@@ -75,7 +74,10 @@ pub fn start_server(settings: Settings) {
     // Prepare server
     let threads_count = settings.server.threads_count.clone();
     let address = settings.server.address.parse().expect("Address must be set in configuration");
-    let secret_key = settings.jwt.secret_key.clone();
+    let jwt_settings = settings.jwt.clone();
+    let google_settings = settings.google.clone();
+    let facebook_settings = settings.google.clone();
+
 
     let serve = Http::new().serve_addr_handle(&address, &handle, move || {
         // Prepare database pool
@@ -105,8 +107,11 @@ pub fn start_server(settings: Settings) {
 
         let jwt_service = JWTService {
             users_repo: users_repo.clone(),
-            secret_key: secret_key.clone(),
-            http_client: client_handle.clone()
+            http_client: client_handle.clone(),
+            jwt_settings: jwt_settings.clone(),
+            google_settings: google_settings.clone(),
+            facebook_settings: facebook_settings.clone(),
+
         };
 
         // Prepare facades
