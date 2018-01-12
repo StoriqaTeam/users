@@ -41,7 +41,7 @@ pub fn parse_body<T>(req: Request) -> Box<Future<Item=T, Error=error::Error>>
         T: for<'a> Deserialize<'a> + Validate + 'static
 {
     Box::new(
-        read_body(req)
+        read_body(req.body())
             .map_err(|err| error::Error::from(err))
             .and_then(|body| serde_json::from_str::<T>(&body).map_err(|_| error::Error::UnprocessableEntity))
             .and_then(|payload| match payload.validate() {
@@ -51,10 +51,10 @@ pub fn parse_body<T>(req: Request) -> Box<Future<Item=T, Error=error::Error>>
     )
 }
 
-/// Reads request body and returns it in a Future
-pub fn read_body(request: Request) -> Box<Future<Item=String, Error=hyper::Error>> {
+
+pub fn read_body(body: hyper::Body) -> Box<Future<Item=String, Error=hyper::Error>> {
     Box::new(
-        request.body()
+        body
             .fold(Vec::new(), |mut acc, chunk| {
                 acc.extend_from_slice(&*chunk);
                 future::ok::<_, hyper::Error>(acc)
@@ -66,7 +66,8 @@ pub fn read_body(request: Request) -> Box<Future<Item=String, Error=hyper::Error
                 }
             })
     )
-}
+ }
+
 
 fn response_with_body(body: String) -> Response {
     Response::new()
@@ -86,4 +87,8 @@ pub fn response_with_json(body: String) -> Response {
 pub fn response_with_error(error: error::Error) -> Response {
     error!("{}", error.to_json());
     response_with_body(error.to_json()).with_status(error.to_code())
+}
+
+pub fn response_not_found() -> Response {
+    response_with_body("Not found".to_string()).with_status(StatusCode::NotFound)
 }

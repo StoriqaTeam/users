@@ -9,6 +9,7 @@ use common::{TheError, TheFuture, TheRequest, TheResponse};
 use error::Error as ApiError;
 use services::system::SystemService;
 use services::users::UsersService;
+use services::jwt::JWTService;
 use router::{Route, Router};
 use utils::http::{response_with_error, response_with_json, parse_body};
 use serde_json;
@@ -24,6 +25,7 @@ pub struct Application {
     pub router: Arc<Router>,
     pub system_service: Arc<SystemService>,
     pub users_service: Arc<UsersService>,
+    pub jwt_service: Arc<JWTService>
 }
 
 impl Service for Application {
@@ -80,9 +82,37 @@ impl Application {
                         .and_then(move |update_user| users_service.update(user_id, update_user))
                 )
             }
+            
             // DELETE /users/<user_id>
             (&Delete, Some(Route::User(user_id))) =>
                 serialize_future!(self.users_service.deactivate(user_id)),
+            
+            // POST /jwt/email
+            (&Post, Some(Route::JWTEmail)) => {
+                let jwt_service = self.jwt_service.clone();
+                serialize_future!(
+                    parse_body::<payloads::user::NewUser>(req)
+                        .and_then(move |new_user| jwt_service.create_token_email(new_user))
+                )
+            },
+
+            // POST /jwt/google
+            (&Post, Some(Route::JWTGoogle)) =>  {
+                let jwt_service = self.jwt_service.clone();
+                serialize_future!(
+                    parse_body::<payloads::jwt::ProviderOauth>(req)
+                        .and_then(move |oauth| jwt_service.create_token_google(oauth))
+                )
+            },
+            // POST /jwt/facebook
+            (&Post, Some(Route::JWTFacebook)) => {
+                let jwt_service = self.jwt_service.clone();
+                serialize_future!(
+                    parse_body::<payloads::jwt::ProviderOauth>(req)
+                        .and_then(move |oauth| jwt_service.create_token_facebook(oauth))
+                )
+            },
+            
 
             // Fallback
             _ => Box::new(future::err(ApiError::NotFound))

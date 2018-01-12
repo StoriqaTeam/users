@@ -18,6 +18,8 @@ extern crate r2d2_diesel;
 #[macro_use]
 extern crate validator_derive;
 extern crate validator;
+extern crate jsonwebtoken;
+extern crate hyper_tls;
 
 #[macro_use]
 pub mod macros;
@@ -32,6 +34,7 @@ pub mod responses;
 pub mod services;
 pub mod settings;
 pub mod utils;
+pub mod client;
 
 use std::sync::Arc;
 use std::process;
@@ -48,6 +51,7 @@ use app::Application;
 use repos::users::UsersRepo;
 use services::system::SystemService;
 use services::users::UsersService;
+use services::jwt::JWTService;
 use settings::Settings;
 
 /// Starts new web service from provided `Settings`
@@ -59,20 +63,31 @@ pub fn start_server(settings: Settings) {
     let mut core = Core::new().expect("Unexpected error creating event loop core");
     let handle = Arc::new(core.handle());
 
+    let client = client::Client::new(&settings, &handle);
+    let client_handle = client.handle();
+    let client_stream = client.stream();
+    handle.spawn(
+        client_stream.for_each(|_| Ok(()))
+    );
+
     // Prepare server
-    let threads = settings.threads.clone();
-    let address = settings.address.parse().expect("Address must be set in configuration");
+    let thread_count = settings.server.thread_count.clone();
+    let address = settings.server.address.parse().expect("Address must be set in configuration");
+    let jwt_settings = settings.jwt.clone();
+    let google_settings = settings.google.clone();
+    let facebook_settings = settings.google.clone();
+
 
     let serve = Http::new().serve_addr_handle(&address, &handle, move || {
         // Prepare database pool
-        let database_url: String = settings.database.parse().expect("Database URL must be set in configuration");
+        let database_url: String = settings.server.database.parse().expect("Database URL must be set in configuration");
         let manager = ConnectionManager::<PgConnection>::new(database_url);
         let r2d2_pool = r2d2::Pool::builder()
             .build(manager)
             .expect("Failed to create connection pool");
 
         // Prepare CPU pool
-        let cpu_pool = CpuPool::new(settings.threads);
+        let cpu_pool = CpuPool::new(thread_count);
 
         // Prepare repositories
         let users_repo = UsersRepo {
@@ -80,18 +95,30 @@ pub fn start_server(settings: Settings) {
             cpu_pool: Arc::new(cpu_pool),
         };
 
-        // Prepare services
+         // Prepare services
         let system_service = SystemService{};
 
+        let users_repo = Arc::new(users_repo); 
+
         let users_service = UsersService {
-            users_repo: Arc::new(users_repo)
+            users_repo: users_repo.clone(),
+        };
+
+        let jwt_service = JWTService {
+            users_repo: users_repo.clone(),
+            http_client: client_handle.clone(),
+            jwt_settings: jwt_settings.clone(),
+            google_settings: google_settings.clone(),
+            facebook_settings: facebook_settings.clone(),
+
         };
 
         // Prepare application
         let app = Application {
             router: Arc::new(router::create_router()),
             system_service: Arc::new(system_service),
-            users_service: Arc::new(users_service)
+            users_service: Arc::new(users_service),
+            jwt_service: Arc::new(jwt_service)
         };
 
         Ok(app)
@@ -112,6 +139,6 @@ pub fn start_server(settings: Settings) {
         .map_err(|_| ()),
     );
 
-    info!("Listening on http://{}, threads: {}", address, threads);
+    info!("Listening on http://{}, threads: {}", address, thread_count);
     core.run(future::empty::<(), ()>()).unwrap();
 }

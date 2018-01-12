@@ -1,3 +1,9 @@
+[server]
 address = "0.0.0.0:8000"
 database = "postgresql://users@localhost/users"
-threads = 20
+thread_count = 20
+
+[client]
+http_client_buffer_size=3
+http_client_retries=3
+dns_worker_thread_count=4

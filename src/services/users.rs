@@ -10,7 +10,7 @@ use repos::users::UsersRepo;
 
 /// Users services, responsible for User-related CRUD operations
 pub struct UsersService {
-    pub users_repo: Arc<UsersRepo>
+    pub users_repo: Arc<UsersRepo>,
 }
 
 impl UsersService {
