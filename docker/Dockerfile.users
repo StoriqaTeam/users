@@ -8,3 +8,8 @@ RUN wget -q https://www.postgresql.org/media/keys/ACCC4CF8.asc -O - | apt-key ad
 
 # Install diesel client
 RUN cargo install diesel_cli
+
+# Utils for waiting for some service to be up before starting
+ADD wait_for_it.sh /utils/
+
+VOLUME /usr/local/cargo
