@@ -15,13 +15,14 @@ pub struct Settings {
 pub struct Server {
     pub address: String,
     pub database: String,
-    pub threads_count: usize,
+    pub thread_count: usize,
 }
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Client {
     pub http_client_retries: usize,
-    pub http_client_buffer_size: usize
+    pub http_client_buffer_size: usize,
+    pub dns_worker_thread_count: usize
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -32,7 +33,8 @@ pub struct JWT {
 #[derive(Debug, Deserialize, Clone)]
 pub struct OAuth {
     pub id: String,
-    pub key: String
+    pub key: String,
+    pub url: String
 }
 
 

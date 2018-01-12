@@ -71,7 +71,7 @@ pub fn start_server(settings: Settings) {
     );
 
     // Prepare server
-    let threads_count = settings.server.threads_count.clone();
+    let thread_count = settings.server.thread_count.clone();
     let address = settings.server.address.parse().expect("Address must be set in configuration");
     let jwt_settings = settings.jwt.clone();
     let google_settings = settings.google.clone();
@@ -87,7 +87,7 @@ pub fn start_server(settings: Settings) {
             .expect("Failed to create connection pool");
 
         // Prepare CPU pool
-        let cpu_pool = CpuPool::new(threads_count);
+        let cpu_pool = CpuPool::new(thread_count);
 
         // Prepare repositories
         let users_repo = UsersRepo {
@@ -139,6 +139,6 @@ pub fn start_server(settings: Settings) {
         .map_err(|_| ()),
     );
 
-    info!("Listening on http://{}, threads: {}", address, threads_count);
+    info!("Listening on http://{}, threads: {}", address, thread_count);
     core.run(future::empty::<(), ()>()).unwrap();
 }

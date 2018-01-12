@@ -14,7 +14,6 @@ use jsonwebtoken::{encode, Header};
 use settings::JWT as JWTSettings;
 use settings::OAuth;
 
-
 #[derive(Serialize, Deserialize)]
 struct GoogleIDToken {
     iss: String,
@@ -34,7 +33,6 @@ struct GoogleIDToken {
     #[serde(default)] hd: Option<String>,
 }
 
-
 #[derive(Serialize, Deserialize)]
 struct FacebookIDToken {
     email: String,
@@ -50,9 +48,6 @@ struct FacebookIDToken {
     verified: String,
 }
 
-
-
-
 #[derive(Serialize, Deserialize)]
 struct TokenPayload {
     user_email: String,
@@ -65,7 +60,6 @@ impl TokenPayload {
         }
     }
 }
-
 
 /// JWT services, responsible for JsonWebToken operations
 pub struct JWTService {
@@ -104,7 +98,6 @@ impl JWTService {
                     .and_then(|t| future::ok(JWT { token: t }))
             });
 
-
         Box::new(future)
     }
 
@@ -114,12 +107,10 @@ impl JWTService {
         &self,
         oauth: ProviderOauth,
     ) -> Box<Future<Item = JWT, Error = ApiError>> {
-        let url = format!(
-            "https://www.googleapis.com/oauth2/v3/tokeninfo?id_token={}",
-            oauth.token
-        );
-
         let jwt_secret_key = self.jwt_settings.secret_key.clone();
+        let oauth_url = self.google_settings.url.clone();
+
+        let url = format!("{}?id_token={}", oauth_url, oauth.token);
 
         let future = self.http_client
             .request::<GoogleIDToken>(Method::Get, url, None)
@@ -142,27 +133,25 @@ impl JWTService {
         Box::new(future)
     }
 
-
     /// https://developers.facebook.com/docs/facebook-login/manually-build-a-login-flow
     /// Creates new JWT token by facebook
     pub fn create_token_facebook(
         &self,
         oauth: ProviderOauth,
     ) -> Box<Future<Item = JWT, Error = ApiError>> {
-        let url = format!("https://graph.facebook.com/me?access_token={}", oauth.token);
-
         let jwt_secret_key = self.jwt_settings.secret_key.clone();
+        let oauth_url = self.facebook_settings.url.clone();
+
+        let url = format!("{}?access_token={}", oauth_url, oauth.token);
 
         let future = self.http_client
             .request::<FacebookIDToken>(Method::Get, url, None)
             .and_then(move |token| {
                 let tokenpayload = TokenPayload::new(token.email);
-                Box::new(
-                    encode(&Header::default(), &tokenpayload, jwt_secret_key.as_ref())
-                        .map_err(|_e| ApiError::UnprocessableEntity)
-                        .into_future()
-                        .and_then(|t| future::ok(JWT { token: t })),
-                )
+                encode(&Header::default(), &tokenpayload, jwt_secret_key.as_ref())
+                    .map_err(|_e| ApiError::UnprocessableEntity)
+                    .into_future()
+                    .and_then(|t| future::ok(JWT { token: t }))
             });
 
         Box::new(future)

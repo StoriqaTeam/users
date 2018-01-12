@@ -25,11 +25,11 @@ macro_rules! get_and_parse {
 
 #[macro_export]
 macro_rules! parse_query {
-    ($query: expr, $e:tt -> $t:ty) => ({ let hash = $crate::utils::httpserver::query_params($query); get_and_parse!(hash, $t, $e) });
-    ($query: expr, $e1:tt -> $t1:ty, $e2:tt -> $t2:ty) => ({ let hash = $crate::utils::httpserver::query_params($query); (get_and_parse!(hash, $t1, $e1), get_and_parse!(hash, $t2, $e2)) });
-    ($query: expr, $e1:tt -> $t1:ty, $e2:tt -> $t2:ty, $e3:tt -> $t3:ty) => ({ let hash = $crate::utils::httpserver::query_params($query); (get_and_parse!(hash, $t1, $e1), get_and_parse!(hash, $t2, $e2), get_and_parse!(hash, $t3, $e3)) });
-    ($query: expr, $e1:tt -> $t1:ty, $e2:tt -> $t2:ty, $e3:tt -> $t3:ty, $e4:tt -> $t4:ty) => ({ let hash = $crate::utils::httpserver::query_params($query); (get_and_parse!(hash, $t1, $e1), get_and_parse!(hash, $t2, $e2), get_and_parse!(hash, $t3, $e3), get_and_parse!(hash, $t4, $e4)) });
-    ($query: expr, $e1:tt -> $t1:ty, $e2:tt -> $t2:ty, $e3:tt -> $t3:ty, $e4:tt -> $t4:ty, $e5:tt -> $t5:ty) => ({ let hash = $crate::utils::httpserver::query_params($query); (get_and_parse!(hash, $t1, $e1), get_and_parse!(hash, $t2, $e2), get_and_parse!(hash, $t3, $e3), get_and_parse!(hash, $t4, $e4), get_and_parse!(hash, $t5, $e5)) });
+    ($query: expr, $e:tt -> $t:ty) => ({ let hash = $crate::utils::http::query_params($query); get_and_parse!(hash, $t, $e) });
+    ($query: expr, $e1:tt -> $t1:ty, $e2:tt -> $t2:ty) => ({ let hash = $crate::utils::http::query_params($query); (get_and_parse!(hash, $t1, $e1), get_and_parse!(hash, $t2, $e2)) });
+    ($query: expr, $e1:tt -> $t1:ty, $e2:tt -> $t2:ty, $e3:tt -> $t3:ty) => ({ let hash = $crate::utils::http::query_params($query); (get_and_parse!(hash, $t1, $e1), get_and_parse!(hash, $t2, $e2), get_and_parse!(hash, $t3, $e3)) });
+    ($query: expr, $e1:tt -> $t1:ty, $e2:tt -> $t2:ty, $e3:tt -> $t3:ty, $e4:tt -> $t4:ty) => ({ let hash = $crate::utils::http::query_params($query); (get_and_parse!(hash, $t1, $e1), get_and_parse!(hash, $t2, $e2), get_and_parse!(hash, $t3, $e3), get_and_parse!(hash, $t4, $e4)) });
+    ($query: expr, $e1:tt -> $t1:ty, $e2:tt -> $t2:ty, $e3:tt -> $t3:ty, $e4:tt -> $t4:ty, $e5:tt -> $t5:ty) => ({ let hash = $crate::utils::http::query_params($query); (get_and_parse!(hash, $t1, $e1), get_and_parse!(hash, $t2, $e2), get_and_parse!(hash, $t3, $e3), get_and_parse!(hash, $t4, $e4), get_and_parse!(hash, $t5, $e5)) });
 }
 
 #[cfg(test)]
