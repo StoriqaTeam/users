@@ -14,6 +14,7 @@ use payloads::user::{NewUser, UpdateUser};
 
 /// Users repository, responsible for handling users
 pub struct UsersRepo {
+    // Todo - no need for Arc, since pool is itself an ARC-like structure
     pub r2d2_pool: Arc<ThePool>,
     pub cpu_pool: Arc<CpuPool>
 }
