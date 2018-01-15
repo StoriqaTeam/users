@@ -4,13 +4,16 @@ use diesel;
 use diesel::select;
 use diesel::dsl::exists;
 use diesel::prelude::*;
+use diesel::query_dsl::RunQueryDsl;
+use diesel::query_dsl::LoadQuery;
+use diesel::pg::PgConnection;
 use futures_cpupool::{CpuFuture, CpuPool};
 
 use common::{TheConnection, ThePool};
 use error::Error as ApiError;
-use models::schema::users::dsl::*;
-use models::user::{User};
 use payloads::user::{NewUser, UpdateUser};
+use models::user::{User};
+use models::schema::users::dsl::*;
 
 /// Users repository, responsible for handling users
 pub struct UsersRepo {
@@ -20,31 +23,14 @@ pub struct UsersRepo {
 }
 
 impl UsersRepo {
-    fn get_connection(&self) -> TheConnection {
-        match self.r2d2_pool.get() {
-            Ok(connection) => connection,
-            Err(e) => panic!("Error obtaining connection from pool: {}", e)
-        }
-    }
-
     /// Find specific user by ID
     pub fn find(&self, user_id: i32) -> CpuFuture<User, ApiError> {
-        let conn = self.get_connection();
-        let query = users.find(user_id);
-
-        self.cpu_pool.spawn_fn(move || {
-            query.get_result(&*conn).map_err(|e| ApiError::from(e))
-        })
+        self.execute_query(users.find(user_id))
     }
 
     /// Checks if e-mail is already registered
-    pub fn email_exists(&self, needle: String) -> CpuFuture<bool, ApiError> {
-        let conn = self.get_connection();
-        let query = select(exists(users.filter(email.eq(needle))));
-
-        self.cpu_pool.spawn_fn(move || {
-            query.get_result::<bool>(&*conn).map_err(|e| ApiError::from(e))
-        })
+    pub fn email_exists(&self, email_arg: String) -> CpuFuture<bool, ApiError> {
+        self.execute_query(select(exists(users.filter(email.eq(email_arg)))))
     }
 
     /// Returns list of users, limited by `from` and `count` parameters
@@ -60,12 +46,18 @@ impl UsersRepo {
     /// Creates new user
     // TODO - set e-mail uniqueness in database
     pub fn create(&self, payload: NewUser) -> CpuFuture<User, ApiError> {
-        let conn = self.get_connection();
-
-        self.cpu_pool.spawn_fn(move || {
-            let query = diesel::insert_into(users).values(&payload);
-            query.get_result(&*conn).map_err(|e| ApiError::from(e))
+        // let query = diesel::insert_into(users).values(&payload);
+        // self.execute_query(query)
+        self.execute_query_fn(move || {
+            let pl = payload;
+            diesel::insert_into(users).values(&pl)
         })
+        // let conn = self.get_connection();
+
+        // self.cpu_pool.spawn_fn(move || {
+        //     let query = diesel::insert_into(users).values(&payload);
+        //     query.get_result(&*conn).map_err(|e| ApiError::from(e))
+        // })
     }
 
     /// Updates specific user
@@ -89,4 +81,28 @@ impl UsersRepo {
             query.get_result(&*conn).map_err(|e| ApiError::from(e))
         })
     }
+
+    fn get_connection(&self) -> TheConnection {
+        match self.r2d2_pool.get() {
+            Ok(connection) => connection,
+            Err(e) => panic!("Error obtaining connection from pool: {}", e)
+        }
+    }
+
+    fn execute_query<T: Send + 'static, U: LoadQuery<PgConnection, T> + Send + 'static>(&self, query: U) -> CpuFuture<T, ApiError> {
+        let conn = self.get_connection();
+
+        self.cpu_pool.spawn_fn(move || {
+            query.get_result::<T>(&*conn).map_err(|e| ApiError::from(e))
+        })        
+    }
+
+    fn execute_query_fn<T: Send + 'static, U: LoadQuery<PgConnection, T>, V: FnOnce() -> U + Send + 'static>(&self, query_fn: V) -> CpuFuture<T, ApiError> {
+        let conn = self.get_connection();
+
+        self.cpu_pool.spawn_fn(move || {
+            query_fn().get_result::<T>(&*conn).map_err(|e| ApiError::from(e))
+        })        
+    }
+
 }
