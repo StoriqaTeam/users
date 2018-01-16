@@ -1,9 +1,11 @@
+use validator::ValidationErrors;
+
 use ::repos::error::Error as RepoError;
 
 pub enum Error {
     NotFound,
     Rollback,
-    Validate(String),
+    Validate(ValidationErrors),
     Parse(String),
     Database(String),
     HttpClient(String),

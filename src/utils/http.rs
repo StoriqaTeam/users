@@ -10,7 +10,6 @@ use futures::future::{Future};
 use futures::{future, Stream};
 use serde_json;
 use serde::de::Deserialize;
-use validator::Validate;
 
 use hyper;
 use error;
@@ -38,16 +37,12 @@ pub fn query_params(query: &str) -> HashMap<&str, &str> {
 /// Fails with `error::Error::BadRequest` with message if step 2 fails.
 pub fn parse_body<T>(req: Request) -> Box<Future<Item=T, Error=error::Error>>
     where
-        T: for<'a> Deserialize<'a> + Validate + 'static
+        T: for<'a> Deserialize<'a> + 'static
 {
     Box::new(
         read_body(req.body())
             .map_err(|err| error::Error::from(err))
             .and_then(|body| serde_json::from_str::<T>(&body).map_err(|_| error::Error::UnprocessableEntity))
-            .and_then(|payload| match payload.validate() {
-                Ok(_) => Ok(payload),
-                Err(e) => Err(error::Error::from(e))
-            })
     )
 }
 
