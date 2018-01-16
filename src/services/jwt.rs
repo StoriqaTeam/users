@@ -15,7 +15,7 @@ use settings::JWT as JWTSettings;
 use settings::OAuth;
 
 #[derive(Serialize, Deserialize)]
-struct GoogleIDToken {
+struct GoogleID {
     iss: String,
     sub: String,
     aud: String,
@@ -34,7 +34,16 @@ struct GoogleIDToken {
 }
 
 #[derive(Serialize, Deserialize)]
-struct FacebookIDToken {
+struct GoogleToken
+{
+  access_token: String,
+  refresh_token: String, 
+  token_type: String,
+  expires_in: String
+}
+
+#[derive(Serialize, Deserialize)]
+struct FacebookID {
     email: String,
     first_name: String,
     gender: String,
@@ -49,13 +58,21 @@ struct FacebookIDToken {
 }
 
 #[derive(Serialize, Deserialize)]
-struct TokenPayload {
+struct FacebookToken
+{
+  access_token: String, 
+  token_type: String,
+  expires_in: String
+}
+
+#[derive(Serialize, Deserialize)]
+struct JWTPayload {
     user_email: String,
 }
 
-impl TokenPayload {
+impl JWTPayload {
     fn new<S: Into<String>>(email: S) -> Self {
-        TokenPayload {
+        Self {
             user_email: email.into(),
         }
     }
@@ -91,7 +108,7 @@ impl JWTService {
                 },
             )
             .and_then(move |u| {
-                let tokenpayload = TokenPayload::new(u.email);
+                let tokenpayload = JWTPayload::new(u.email);
                 encode(&Header::default(), &tokenpayload, jwt_secret_key.as_ref())
                     .map_err(|_e| ApiError::UnprocessableEntity)
                     .into_future()
@@ -107,23 +124,37 @@ impl JWTService {
         &self,
         oauth: ProviderOauth,
     ) -> Box<Future<Item = JWT, Error = ApiError>> {
+        
         let jwt_secret_key = self.jwt_settings.secret_key.clone();
-        let oauth_url = self.google_settings.url.clone();
+        let code_to_token_url = self.google_settings.code_to_token_url.clone();
+        let redirect_url = self.google_settings.redirect_url.clone();
+        let client_id = self.google_settings.id.clone();
+        let client_secret = self.google_settings.key.clone();
+        let info_url = self.google_settings.info_url.clone();
+        let http_client = self.http_client.clone();
+        
+        let exchange_code_to_token_url = format!("{}?client_id={}&redirect_uri={}&client_secret={}&code={}&grant_type=authorization_code", 
+            code_to_token_url, 
+            client_id, 
+            redirect_url, 
+            client_secret,
+            oauth.code);
 
-        let url = format!("{}?id_token={}", oauth_url, oauth.token);
-
-        let future = self.http_client
-            .request::<GoogleIDToken>(Method::Get, url, None)
-            .and_then(move |token| -> Box<Future<Item = JWT, Error = ApiError>> {
-                match token.email {
+        let future = 
+            http_client.request::<GoogleToken>(Method::Get, exchange_code_to_token_url, None)
+            .and_then(move |token| {
+                let url = format!("{}?id_token={}", info_url, token.access_token);
+                http_client.request::<GoogleID>(Method::Get, url, None)
+            })
+            .and_then(move |google_id| -> Box<Future<Item=JWT, Error= ApiError>>{
+                match google_id.email {
                     Some(email) => {
-                        let tokenpayload = TokenPayload::new(email);
-
+                        let tokenpayload = JWTPayload::new(email);
                         Box::new(
                             encode(&Header::default(), &tokenpayload, jwt_secret_key.as_ref())
                                 .map_err(|_e| ApiError::UnprocessableEntity)
                                 .into_future()
-                                .and_then(|t| future::ok(JWT { token: t })),
+                                .and_then(|t| future::ok( JWT { token: t })),
                         )
                     }
                     None => Box::new(Err(ApiError::UnprocessableEntity).into_future()),
@@ -139,19 +170,34 @@ impl JWTService {
         &self,
         oauth: ProviderOauth,
     ) -> Box<Future<Item = JWT, Error = ApiError>> {
+        
         let jwt_secret_key = self.jwt_settings.secret_key.clone();
-        let oauth_url = self.facebook_settings.url.clone();
+        let code_to_token_url = self.facebook_settings.code_to_token_url.clone();
+        let redirect_url = self.facebook_settings.redirect_url.clone();
+        let client_id = self.facebook_settings.id.clone();
+        let client_secret = self.facebook_settings.key.clone();
+        let info_url = self.facebook_settings.info_url.clone();
+        let http_client = self.http_client.clone();
+        
+        let exchange_code_to_token_url = format!("{}?client_id={}&redirect_uri={}&client_secret={}&code={}", 
+            code_to_token_url, 
+            client_id, 
+            redirect_url, 
+            client_secret,
+            oauth.code);
 
-        let url = format!("{}?access_token={}", oauth_url, oauth.token);
-
-        let future = self.http_client
-            .request::<FacebookIDToken>(Method::Get, url, None)
+        let future = 
+            http_client.request::<FacebookToken>(Method::Get, exchange_code_to_token_url, None)
             .and_then(move |token| {
-                let tokenpayload = TokenPayload::new(token.email);
+                let url = format!("{}?access_token={}", info_url, token.access_token);
+                http_client.request::<FacebookID>(Method::Get, url, None)
+            })
+            .and_then(move |facebook_id| {
+                let tokenpayload = JWTPayload::new(facebook_id.email);
                 encode(&Header::default(), &tokenpayload, jwt_secret_key.as_ref())
                     .map_err(|_e| ApiError::UnprocessableEntity)
                     .into_future()
-                    .and_then(|t| future::ok(JWT { token: t }))
+                    .and_then(|t| future::ok( JWT { token: t }))
             });
 
         Box::new(future)

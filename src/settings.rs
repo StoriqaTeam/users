@@ -34,7 +34,9 @@ pub struct JWT {
 pub struct OAuth {
     pub id: String,
     pub key: String,
-    pub url: String
+    pub info_url: String,
+    pub redirect_url: String,
+    pub code_to_token_url: String,
 }
 
 

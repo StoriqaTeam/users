@@ -3,10 +3,14 @@ secret_key = "jwt secret key"
 
 [google]
 id = "google id"
-key = "google key"
-url = "https://www.googleapis.com/oauth2/v3/tokeninfo"
+key = "AIzaSyDISo_B1asDFtYFgjp9n-lKuleA93CUlY0"
+info_url = "https://www.googleapis.com/oauth2/v3/tokeninfo"
+code_to_token_url= "https://www.googleapis.com/oauth2/v4/token"
+redirect_url="http://localhost:8080"
 
 [facebook]
-id = "facebook id"
-key = "facebook key"
-url = "https://graph.facebook.com/me"
+id = "487545558306676"
+key = "51560122748786c36caaceb2586f14ba"
+info_url = "https://graph.facebook.com/me"
+code_to_token_url= "https://graph.facebook.com/v2.11/oauth/access_token"
+redirect_url="http://localhost:8080"
