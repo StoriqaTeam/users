@@ -3,7 +3,6 @@ use std::sync::Arc;
 use futures::future;
 use futures::{Future, IntoFuture};
 
-use error::Error as ApiError;
 use models::jwt::JWT;
 use payloads::user::NewUser;
 use payloads::jwt::ProviderOauth;

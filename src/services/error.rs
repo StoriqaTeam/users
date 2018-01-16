@@ -3,6 +3,7 @@ use ::repos::error::Error as RepoError;
 pub enum Error {
     NotFound,
     Rollback,
+    Validate(String),
     Parse(String),
     Database(String),
     HttpClient(String),

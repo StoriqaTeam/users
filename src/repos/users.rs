@@ -75,7 +75,7 @@ impl UsersRepo {
     }
 
     /// Deactivates specific user
-    pub fn deactivate(&self, user_id: i32) -> Box<Future<Item = User, Error = ApiError>> {
+    pub fn deactivate(&self, user_id: i32) -> RepoFuture<User> {
         let filter = users.filter(id.eq(user_id)).filter(is_active.eq(true));
         let query = diesel::update(filter).set(is_active.eq(false));
         self.execute_query(query)
@@ -97,7 +97,7 @@ impl UsersRepo {
         Box::new(
             self.cpu_pool.spawn_fn(move || {
                 query.get_result::<T>(&*conn).map_err(|e| Error::from(e))
-            })        
+            })
         )
     }
 }
