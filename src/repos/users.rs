@@ -12,29 +12,11 @@ use futures::future::Future;
 use futures_cpupool::{CpuFuture, CpuPool};
 
 use common::{TheConnection, ThePool};
-use error::Error as ApiError;
 use payloads::user::{NewUser, UpdateUser};
 use models::user::{User};
 use models::schema::users::dsl::*;
-
-// macro_rules! execute_query {
-//     ($query:expr) => {{
-//         let conn = self.get_connection();
-
-//         self.cpu_pool.spawn_fn(move || {
-//             let query = $query;
-//             query.get_result::<T>(&*conn).map_err(|e| ApiError::from(e))
-//         })
-//     }};
-//     ($query:expr, $param1: ident) => {{
-//         let conn = self.get_connection();
-
-//         self.cpu_pool.spawn_fn(move || {
-//             let query = $query($param1);
-//             query.get_result::<T>(&*conn).map_err(|e| ApiError::from(e))
-//         })
-//     }};
-// }
+use super::error::Error;
+use super::types::RepoFuture;
 
 /// Users repository, responsible for handling users
 pub struct UsersRepo {
@@ -45,45 +27,51 @@ pub struct UsersRepo {
 
 impl UsersRepo {
     /// Find specific user by ID
-    pub fn find(&self, user_id: i32) -> Box<Future<Item = User, Error = ApiError>> {
+    pub fn find(&self, user_id: i32) -> RepoFuture<User> {
         self.execute_query(users.find(user_id))
     }
 
     /// Checks if e-mail is already registered
-    pub fn email_exists(&self, email_arg: String) -> Box<Future<Item = bool, Error = ApiError>> {
+    pub fn email_exists(&self, email_arg: String) -> RepoFuture<bool> {
         self.execute_query(select(exists(users.filter(email.eq(email_arg)))))
     }
 
     /// Returns list of users, limited by `from` and `count` parameters
-    pub fn list(&self, from: i32, count: i64) -> CpuFuture<Vec<User>, ApiError> {
+    pub fn list(&self, from: i32, count: i64) -> RepoFuture<Vec<User>> {
         let conn = self.get_connection();
         let query = users.filter(is_active.eq(true)).filter(id.gt(from)).order(id).limit(count);
 
-        self.cpu_pool.spawn_fn(move || {
-            query.get_results(&*conn).map_err(|e| ApiError::from(e))
-        })
+        Box::new(
+            self.cpu_pool.spawn_fn(move || {
+                query.get_results(&*conn).map_err(|e| Error::from(e))
+            })
+        )
     }
 
     /// Creates new user
     // TODO - set e-mail uniqueness in database
-    pub fn create(&self, payload: NewUser) -> CpuFuture<User, ApiError> {
+    pub fn create(&self, payload: NewUser) -> RepoFuture<User> {
         let conn = self.get_connection();
 
-        self.cpu_pool.spawn_fn(move || {
-            let query = diesel::insert_into(users).values(&payload);
-            query.get_result(&*conn).map_err(|e| ApiError::from(e))
-        })
+        Box::new(
+            self.cpu_pool.spawn_fn(move || {
+                let query = diesel::insert_into(users).values(&payload);
+                query.get_result(&*conn).map_err(|e| Error::from(e))
+            })
+        )
     }
 
     /// Updates specific user
-    pub fn update(&self, user_id: i32, payload: UpdateUser) -> CpuFuture<User, ApiError> {
+    pub fn update(&self, user_id: i32, payload: UpdateUser) -> RepoFuture<User> {
         let conn = self.get_connection();
         let filter = users.filter(id.eq(user_id)).filter(is_active.eq(true));
 
-        self.cpu_pool.spawn_fn(move || {
-            let query = diesel::update(filter).set(email.eq(payload.email));
-            query.get_result::<User>(&*conn).map_err(|e| ApiError::from(e))
-        })
+        Box::new(
+            self.cpu_pool.spawn_fn(move || {
+                let query = diesel::update(filter).set(email.eq(payload.email));
+                query.get_result::<User>(&*conn).map_err(|e| Error::from(e))
+            })
+        )
     }
 
     /// Deactivates specific user
@@ -100,15 +88,15 @@ impl UsersRepo {
         }
     }
 
-    fn execute_query<T: Send + 'static, U: LoadQuery<PgConnection, T> + Send + 'static>(&self, query: U) -> Box<Future<Item = T, Error = ApiError>> {
+    fn execute_query<T: Send + 'static, U: LoadQuery<PgConnection, T> + Send + 'static>(&self, query: U) -> RepoFuture<T> {
         let conn = match self.r2d2_pool.get() {
             Ok(connection) => connection,
-            Err(_) => return Box::new(future::err::<_, ApiError>(ApiError::InternalServerError))
+            Err(_) => return Box::new(future::err(Error::Connection("Cannot connect to users db".to_string())))
         };
 
         Box::new(
             self.cpu_pool.spawn_fn(move || {
-                query.get_result::<T>(&*conn).map_err(|e| ApiError::from(e))
+                query.get_result::<T>(&*conn).map_err(|e| Error::from(e))
             })        
         )
     }
