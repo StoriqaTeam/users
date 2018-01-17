@@ -53,10 +53,10 @@ impl Application {
             // GET /healthcheck
             (&Get, Some(Route::Healthcheck)) => serialize_future!(self.system_service.healthcheck().map_err(|e| ApiError::from(e))),
 
-            // // GET /users/<user_id>
+            // GET /users/<user_id>
             (&Get, Some(Route::User(user_id))) => serialize_future!(self.users_service.get(user_id)),
 
-            // // GET /users
+            // GET /users
             (&Get, Some(Route::Users)) => {
                 if let (Some(from), Some(to)) = parse_query!(req.query().unwrap_or_default(), "from" -> i32, "to" -> i64) {
                     serialize_future!(self.users_service.list(from, to))
@@ -65,7 +65,7 @@ impl Application {
                 }
             },
 
-            // // POST /users
+            // POST /users
             (&Post, Some(Route::Users)) => {
                 let users_service = self.users_service.clone();
                 serialize_future!(
@@ -85,11 +85,11 @@ impl Application {
                 )
             }
 
-            // // DELETE /users/<user_id>
+            // DELETE /users/<user_id>
             (&Delete, Some(Route::User(user_id))) =>
                 serialize_future!(self.users_service.deactivate(user_id)),
 
-            // // POST /jwt/email
+            // POST /jwt/email
             (&Post, Some(Route::JWTEmail)) => {
                 let jwt_service = self.jwt_service.clone();
                 serialize_future!(
@@ -99,7 +99,7 @@ impl Application {
                 )
             },
 
-            // // POST /jwt/google
+            // POST /jwt/google
             (&Post, Some(Route::JWTGoogle)) =>  {
                 let jwt_service = self.jwt_service.clone();
                 serialize_future!(
@@ -108,7 +108,7 @@ impl Application {
                         .and_then(move |oauth| jwt_service.create_token_google(oauth).map_err(|e| ApiError::from(e)))
                 )
             },
-            // // POST /jwt/facebook
+            // POST /jwt/facebook
             (&Post, Some(Route::JWTFacebook)) => {
                 let jwt_service = self.jwt_service.clone();
                 serialize_future!(
