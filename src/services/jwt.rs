@@ -8,7 +8,8 @@ use payloads::user::NewUser;
 use payloads::jwt::ProviderOauth;
 use repos::users::UsersRepo;
 use client::ClientHandle;
-use hyper::Method;
+use hyper::{Method, Headers};
+use hyper::header::{Authorization, Bearer};
 use jsonwebtoken::{encode, Header};
 use settings::JWT as JWTSettings;
 use settings::OAuth;
@@ -17,21 +18,14 @@ use super::error::Error;
 
 #[derive(Serialize, Deserialize)]
 struct GoogleID {
-    iss: String,
-    sub: String,
-    aud: String,
-    iat: String,
-    exp: String,
-
-    #[serde(default)] at_hash: Option<String>,
-    #[serde(default)] email_verified: Option<String>,
-    #[serde(default)] azp: Option<String>,
-    #[serde(default)] email: Option<String>,
-    #[serde(default)] profile: Option<String>,
-    #[serde(default)] picture: Option<String>,
-    #[serde(default)] name: Option<String>,
-    #[serde(default)] nonce: Option<String>,
-    #[serde(default)] hd: Option<String>,
+  family_name: String,
+  name: String,
+  picture: String,
+  email: String,
+  given_name: String,
+  id: String,
+  hd: String,
+  verified_email: String
 }
 
 #[derive(Serialize, Deserialize)]
@@ -145,26 +139,23 @@ impl JWTService {
             oauth.code);
 
         Box::new(
-            http_client.request::<GoogleToken>(Method::Get, exchange_code_to_token_url, None)
+            http_client.request::<GoogleToken>(Method::Get, exchange_code_to_token_url, None, None)
                 .map_err(|_| Error::HttpClient("Failed to connect to google oauth.".to_string()))
                 .and_then(move |token| {
-                    let url = format!("{}?id_token={}", info_url, token.access_token);
-                    http_client.request::<GoogleID>(Method::Get, url, None)
+                    let mut headers = Headers::new();
+                    headers.set( Authorization ( Bearer {
+                                token: token.access_token
+                            }));
+                    http_client.request::<GoogleID>(Method::Get, info_url, None, Some(headers))
                         .map_err(|_| Error::HttpClient("Failed to receive user info from google.".to_string()))
                 })
-                .and_then(move |google_id| -> ServiceFuture<JWT> {
-                    match google_id.email {
-                        Some(email) => {
-                            let tokenpayload = JWTPayload::new(email);
-                            Box::new(
-                                encode(&Header::default(), &tokenpayload, jwt_secret_key.as_ref())
-                                    .map_err(|_| Error::Parse(format!("Couldn't encode jwt: {:?}.", tokenpayload)))
-                                    .into_future()
-                                    .and_then(|t| future::ok( JWT { token: t }))
-                            )},
-                            None => Box::new(Err(Error::Unknown("Google token doesn't contain email".to_string())).into_future()),
-                        }
-                    })
+                .and_then(move |google_id| {
+                    let tokenpayload = JWTPayload::new(google_id.email);
+                    encode(&Header::default(), &tokenpayload, jwt_secret_key.as_ref())
+                        .map_err(|_| Error::Parse(format!("Couldn't encode jwt: {:?}.", tokenpayload)))
+                        .into_future()
+                        .and_then(|t| future::ok( JWT { token: t }))
+                })
         )
     }
 
@@ -191,11 +182,11 @@ impl JWTService {
             oauth.code);
 
         let future = 
-            http_client.request::<FacebookToken>(Method::Get, exchange_code_to_token_url, None)
+            http_client.request::<FacebookToken>(Method::Get, exchange_code_to_token_url, None, None)
                 .map_err(|_| Error::HttpClient("Failed to connect to facebook oauth.".to_string()))
                 .and_then(move |token| {
                     let url = format!("{}?access_token={}", info_url, token.access_token);
-                    http_client.request::<FacebookID>(Method::Get, url, None)
+                    http_client.request::<FacebookID>(Method::Get, url, None, None)
                         .map_err(|_| Error::HttpClient("Failed to receive user info from facebook.".to_string()))
                 })
                 .and_then(move |facebook_id| {

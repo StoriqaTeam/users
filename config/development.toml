@@ -4,7 +4,7 @@ secret_key = "jwt secret key"
 [google]
 id = "855404608988-qpfdqtvf458rpj782leve1728u688nam.apps.googleusercontent.com"
 key = "lMt1UTS22m4DOu8HP3_epIGT"
-info_url = "https://www.googleapis.com/oauth2/v3/tokeninfo"
+info_url = "https://www.googleapis.com/userinfo/v2/me"
 code_to_token_url= "https://www.googleapis.com/oauth2/v4/token"
 redirect_url="http://localhost:8080"
 
