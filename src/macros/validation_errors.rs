@@ -25,6 +25,7 @@ macro_rules! validation_errors {
 #[cfg(test)]
 mod tests {
     use std::vec::Vec;
+    use serde_json;
 
     #[test]
     fn several_errors() {
@@ -32,9 +33,13 @@ mod tests {
             "email" => ("invalid" -> "Invalid email", "exists" -> "Already exists"),
             "password" => ("match" -> "Doesn't match")
         );
-        let errors = errors.inner();
-        let error = errors.get("email").unwrap().nth(0);
-        assert_eq!(error.code.into_owned(), "invalid");
-        // assert_eq!(&errors.get("email").unwrap()[0].message.unwrap().into_owned(), "invalid");
+        let json = serde_json::from_str::<serde_json::Value>(&serde_json::to_string(&errors).unwrap()).unwrap();
+
+        assert_eq!(json["email"][0]["code"], "invalid");
+        assert_eq!(json["email"][0]["message"], "Invalid email");
+        assert_eq!(json["email"][1]["code"], "exists");
+        assert_eq!(json["email"][1]["message"], "Already exists");
+        assert_eq!(json["password"][0]["code"], "match");
+        assert_eq!(json["password"][0]["message"], "Doesn't match");
     }
 }

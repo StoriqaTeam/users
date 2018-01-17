@@ -5,6 +5,7 @@ extern crate tokio_core;
 extern crate hyper;
 extern crate regex;
 extern crate serde;
+#[macro_use]
 extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
@@ -98,7 +99,7 @@ pub fn start_server(settings: Settings) {
          // Prepare services
         let system_service = SystemService{};
 
-        let users_repo = Arc::new(users_repo); 
+        let users_repo = Arc::new(users_repo);
 
         let users_service = UsersService {
             users_repo: users_repo.clone(),
