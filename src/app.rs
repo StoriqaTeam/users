@@ -17,7 +17,7 @@ use serde_json;
 use payloads;
 
 macro_rules! serialize_future {
-    ($e:expr) => (Box::new($e.and_then(|resp| serde_json::to_string(&resp).map_err(|e| ApiError::from(e)))))
+    ($e:expr) => (Box::new($e.map_err(|e| ApiError::from(e)).and_then(|resp| serde_json::to_string(&resp).map_err(|e| ApiError::from(e)))))
 }
 
 /// Application contains all facades, services and `Router`
@@ -51,7 +51,7 @@ impl Application {
     {
         match (req.method(), self.router.test(req.path())) {
             // GET /healthcheck
-            (&Get, Some(Route::Healthcheck)) => serialize_future!(self.system_service.healthcheck()),
+            (&Get, Some(Route::Healthcheck)) => serialize_future!(self.system_service.healthcheck().map_err(|e| ApiError::from(e))),
 
             // GET /users/<user_id>
             (&Get, Some(Route::User(user_id))) => serialize_future!(self.users_service.get(user_id)),
@@ -70,7 +70,8 @@ impl Application {
                 let users_service = self.users_service.clone();
                 serialize_future!(
                     parse_body::<payloads::user::NewUser>(req)
-                        .and_then(move |new_user| users_service.create(new_user))
+                        .map_err(|_| ApiError::UnprocessableEntity)
+                        .and_then(move |new_user| users_service.create(new_user).map_err(|e| ApiError::from(e)))
                 )
             },
 
@@ -79,20 +80,22 @@ impl Application {
                 let users_service = self.users_service.clone();
                 serialize_future!(
                     parse_body::<payloads::user::UpdateUser>(req)
-                        .and_then(move |update_user| users_service.update(user_id, update_user))
+                        .map_err(|_| ApiError::UnprocessableEntity)
+                        .and_then(move |update_user| users_service.update(user_id, update_user).map_err(|e| ApiError::from(e)))
                 )
             }
-            
+
             // DELETE /users/<user_id>
             (&Delete, Some(Route::User(user_id))) =>
                 serialize_future!(self.users_service.deactivate(user_id)),
-            
+
             // POST /jwt/email
             (&Post, Some(Route::JWTEmail)) => {
                 let jwt_service = self.jwt_service.clone();
                 serialize_future!(
                     parse_body::<payloads::user::NewUser>(req)
-                        .and_then(move |new_user| jwt_service.create_token_email(new_user))
+                        .map_err(|_| ApiError::UnprocessableEntity)
+                        .and_then(move |new_user| jwt_service.create_token_email(new_user).map_err(|e| ApiError::from(e)))
                 )
             },
 
@@ -101,7 +104,8 @@ impl Application {
                 let jwt_service = self.jwt_service.clone();
                 serialize_future!(
                     parse_body::<payloads::jwt::ProviderOauth>(req)
-                        .and_then(move |oauth| jwt_service.create_token_google(oauth))
+                        .map_err(|_| ApiError::UnprocessableEntity)
+                        .and_then(move |oauth| jwt_service.create_token_google(oauth).map_err(|e| ApiError::from(e)))
                 )
             },
             // POST /jwt/facebook
@@ -109,15 +113,14 @@ impl Application {
                 let jwt_service = self.jwt_service.clone();
                 serialize_future!(
                     parse_body::<payloads::jwt::ProviderOauth>(req)
-                        .and_then(move |oauth| jwt_service.create_token_facebook(oauth))
+                        .map_err(|_| ApiError::UnprocessableEntity)
+                        .and_then(move |oauth| jwt_service.create_token_facebook(oauth).map_err(|e| ApiError::from(e)))
                 )
             },
-            
+
 
             // Fallback
             _ => Box::new(future::err(ApiError::NotFound))
         }
-
     }
-
 }

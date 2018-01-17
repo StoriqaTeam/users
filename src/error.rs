@@ -4,6 +4,7 @@ use diesel;
 use validator::ValidationErrors;
 
 use responses::error::ErrorMessage;
+use services::error::Error as ServiceError;
 
 /// Error wrapper for `hyper`, `diesel`, `serde`, `validator`
 #[derive(Debug)]
@@ -82,6 +83,20 @@ impl From<ValidationErrors> for Error {
         match message {
             Ok(msg) => Error::BadRequest(msg),
             Err(err) => Error::BadRequest(err.to_string())
+        }
+    }
+}
+
+impl From<ServiceError> for Error {
+    fn from(e: ServiceError) -> Self {
+        match e {
+            ServiceError::NotFound => Error::NotFound,
+            ServiceError::Rollback => Error::BadRequest("Transaction rollback".to_string()),
+            ServiceError::Validate(msg) => Error::BadRequest(msg),
+            ServiceError::Parse(msg) => Error::UnprocessableEntity,
+            ServiceError::Database(_) => Error::InternalServerError,
+            ServiceError::HttpClient(_) => Error::InternalServerError,
+            ServiceError::Unknown(_) => Error::InternalServerError
         }
     }
 }
