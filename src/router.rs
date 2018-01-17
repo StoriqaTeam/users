@@ -19,6 +19,7 @@ pub enum Route {
 }
 
 impl Router {
+    /// Creates new Router
     pub fn new() -> Self {
         Router { regex_and_converters: Vec::new() }
     }
@@ -79,6 +80,7 @@ impl Router {
     }
 }
 
+/// Creates Router for app
 pub fn create_router() -> Router {
     let mut router = Router::new();
 

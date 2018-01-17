@@ -3,8 +3,8 @@ use error::Error;
 /// ErrorMessage - interop structure to serialize `Error` into JSON
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ErrorMessage {
-    code: u16,
-    message: String
+    pub code: u16,
+    pub message: String
 }
 
 impl ErrorMessage {

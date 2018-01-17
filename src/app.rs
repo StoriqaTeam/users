@@ -20,7 +20,7 @@ macro_rules! serialize_future {
     ($e:expr) => (Box::new($e.map_err(|e| ApiError::from(e)).and_then(|resp| serde_json::to_string(&resp).map_err(|e| ApiError::from(e)))))
 }
 
-/// Application contains all facades, services and `Router`
+/// Application contains all services
 pub struct Application {
     pub router: Arc<Router>,
     pub system_service: Arc<SystemService>,

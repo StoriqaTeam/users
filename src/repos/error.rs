@@ -1,5 +1,6 @@
 use diesel::result::Error as DieselError;
 
+/// Repos layer Error
 pub enum Error {
   NotFound,
   Rollback,

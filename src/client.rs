@@ -14,10 +14,15 @@ use hyper_tls;
 use super::utils::http;
 
 use settings::Settings;
+use responses::error::ErrorMessage;
 
+/// Client for https connections
 pub type HyperClient = hyper::Client<hyper_tls::HttpsConnector<hyper::client::HttpConnector>>;
+
+/// Result, transmitted in oneshot channel
 pub type ClientResult = Result<String, Error>;
 
+/// Http client   
 pub struct Client {
     client: HyperClient,
     tx: mpsc::Sender<Payload>,
@@ -26,6 +31,7 @@ pub struct Client {
 }
 
 impl Client {
+    /// Create new http client with settings and handle reference
     pub fn new(settings: &Settings, handle: &Handle) -> Self {
         let max_retries = settings.client.http_client_retries;
         let dns_worker_thread_count = settings.client.dns_worker_thread_count;
@@ -42,7 +48,8 @@ impl Client {
             max_retries,
         }
     }
-
+    
+    /// Fetches stream from client 
     pub fn stream(self) -> Box<Stream<Item = (), Error = ()>> {
         let Self {
             client,
@@ -57,6 +64,7 @@ impl Client {
         }))
     }
 
+    /// Creates ClientHandle using Client channel
     pub fn handle(&self) -> ClientHandle {
         ClientHandle {
             tx: self.tx.clone(),
@@ -131,6 +139,7 @@ impl Client {
     }
 }
 
+/// Client handle for sending data to http client
 #[derive(Clone)]
 pub struct ClientHandle {
     tx: mpsc::Sender<Payload>,
@@ -138,6 +147,7 @@ pub struct ClientHandle {
 }
 
 impl ClientHandle {
+    /// Sends http request with use of Method, url, body, headers
     pub fn request<T>(
         &self,
         method: hyper::Method,
@@ -259,10 +269,4 @@ struct Payload {
     pub body: Option<String>,
     pub headers: Option<hyper::Headers>,
     pub callback: oneshot::Sender<ClientResult>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct ErrorMessage {
-    pub code: u16,
-    pub message: String,
 }

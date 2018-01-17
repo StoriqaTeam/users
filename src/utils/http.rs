@@ -51,7 +51,7 @@ pub fn parse_body<T>(req: Request) -> Box<Future<Item=T, Error=error::Error>>
     )
 }
 
-
+/// Reads body of request and response in Future format
 pub fn read_body(body: hyper::Body) -> Box<Future<Item=String, Error=hyper::Error>> {
     Box::new(
         body
@@ -89,6 +89,7 @@ pub fn response_with_error(error: error::Error) -> Response {
     response_with_body(error.to_json()).with_status(error.to_code())
 }
 
+/// Responds with 'not found' JSON error and status code
 pub fn response_not_found() -> Response {
     response_with_body("Not found".to_string()).with_status(StatusCode::NotFound)
 }

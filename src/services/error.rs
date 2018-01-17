@@ -1,5 +1,6 @@
 use ::repos::error::Error as RepoError;
 
+/// Service layer Error
 pub enum Error {
     NotFound,
     Rollback,
