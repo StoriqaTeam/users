@@ -60,3 +60,12 @@ impl Settings {
         s.try_into()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use ::Settings;
+    #[test]
+    fn can_load_settings() {
+        let _ = Settings::new();
+    }
+}

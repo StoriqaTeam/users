@@ -8,7 +8,7 @@ pub struct Router {
 }
 
 /// List of all routes with params for the app
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Route {
     Healthcheck,
     Users,
@@ -57,6 +57,16 @@ impl Router {
 
     /// Tests string router for matches
     /// Returns Some(route) if there's a match
+    /// #Examples
+    ///
+    /// ```
+    /// use users_lib::router::*;
+    ///
+    /// let mut router = Router::new();
+    /// router.add_route(r"^/users$", Route::Users);
+    /// let route = router.test("/users").unwrap();
+    /// assert_eq!(route, Route::Users);
+    /// ```
     pub fn test(&self, route: &str) -> Option<Route> {
         self.regex_and_converters.iter().fold(None, |acc, ref regex_and_converter| {
             if acc.is_some() { return acc }

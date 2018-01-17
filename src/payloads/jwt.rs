@@ -1,3 +1,4 @@
+#![allow(unused)]
 use validator::Validate;
 
 /// Payload for creating JWT token by provider
