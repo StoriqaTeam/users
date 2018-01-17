@@ -8,8 +8,7 @@ use diesel::query_dsl::RunQueryDsl;
 use diesel::query_dsl::LoadQuery;
 use diesel::pg::PgConnection;
 use futures::future;
-use futures::future::Future;
-use futures_cpupool::{CpuFuture, CpuPool};
+use futures_cpupool::CpuPool;
 
 use common::{TheConnection, ThePool};
 use payloads::user::{NewUser, UpdateUser};

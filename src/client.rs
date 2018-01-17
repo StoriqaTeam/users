@@ -1,3 +1,5 @@
+use std::mem;
+
 use tokio_core::reactor::Handle;
 use hyper;
 use futures::future::IntoFuture;
@@ -67,6 +69,7 @@ impl Client {
             url,
             method,
             body: maybe_body,
+            headers: maybe_headers,
             callback,
         } = payload;
 
@@ -90,6 +93,11 @@ impl Client {
             }
         };
         let mut req = hyper::Request::new(method, uri);
+
+        if let Some(headers) = maybe_headers {
+            mem::replace(req.headers_mut(), headers);
+        }
+        
         for body in maybe_body.iter() {
             req.set_body(body.clone());
         }
@@ -135,12 +143,13 @@ impl ClientHandle {
         method: hyper::Method,
         url: String,
         body: Option<String>,
+        headers: Option<hyper::Headers>,
     ) -> Box<Future<Item = T, Error = Error>>
     where
         T: for<'a> Deserialize<'a> + 'static,
     {
         Box::new(
-            self.send_request_with_retries(method, url, body, None, self.max_retries)
+            self.send_request_with_retries(method, url, body, headers, None, self.max_retries)
                 .and_then(|response| {
                     serde_json::from_str::<T>(&response)
                         .map_err(|err| Error::BadRequest(format!("{}", err)))
@@ -153,6 +162,7 @@ impl ClientHandle {
         method: hyper::Method,
         url: String,
         body: Option<String>,
+        headers: Option<hyper::Headers>,
         last_err: Option<Error>,
         retries: usize,
     ) -> Box<Future<Item = String, Error = Error>> {
@@ -165,9 +175,10 @@ impl ClientHandle {
             let self_clone = self.clone();
             let method_clone = method.clone();
             let body_clone = body.clone();
+            let headers_clone = headers.clone();
             let url_clone = url.clone();
             Box::new(
-                self.send_request(method, url, body)
+                self.send_request(method, url, body, headers)
                     .or_else(move |err| match err {
                         Error::BadRequest(err) => {
                             warn!(
@@ -178,6 +189,7 @@ impl ClientHandle {
                                 method_clone,
                                 url_clone,
                                 body_clone,
+                                headers_clone,
                                 Some(Error::BadRequest(err)),
                                 retries - 1,
                             )
@@ -193,12 +205,14 @@ impl ClientHandle {
         method: hyper::Method,
         url: String,
         body: Option<String>,
+        headers: Option<hyper::Headers>,
     ) -> Box<Future<Item = String, Error = Error>> {
         info!(
-            "Starting outbound http request: {} {} with body {}",
+            "Starting outbound http request: {} {} with body {} with headers {}",
             method,
             url,
-            body.clone().unwrap_or_default()
+            body.clone().unwrap_or_default(),
+            headers.clone().unwrap_or_default(),
         );
         let url_clone = url.clone();
         let method_clone = method.clone();
@@ -208,6 +222,7 @@ impl ClientHandle {
             url,
             method,
             body,
+            headers,
             callback: tx,
         };
 
@@ -242,6 +257,7 @@ struct Payload {
     pub url: String,
     pub method: hyper::Method,
     pub body: Option<String>,
+    pub headers: Option<hyper::Headers>,
     pub callback: oneshot::Sender<ClientResult>,
 }
 
