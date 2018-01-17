@@ -1,5 +1,5 @@
 macro_rules! validation_errors {
-    ($($field:tt => ($($code:tt -> $value:expr),+)),*) => {{
+    ({$($field:tt: [$($code:tt -> $value:expr),+]),*}) => {{
         use validator;
         use std::borrow::Cow;
         use std::collections::HashMap;
@@ -29,10 +29,10 @@ mod tests {
 
     #[test]
     fn several_errors() {
-        let errors = validation_errors!(
-            "email" => ("invalid" -> "Invalid email", "exists" -> "Already exists"),
-            "password" => ("match" -> "Doesn't match")
-        );
+        let errors = validation_errors!({
+            "email": ["invalid" -> "Invalid email", "exists" -> "Already exists"],
+            "password": ["match" -> "Doesn't match"]
+        });
         let json = serde_json::from_str::<serde_json::Value>(&serde_json::to_string(&errors).unwrap()).unwrap();
 
         assert_eq!(json["email"][0]["code"], "invalid");
