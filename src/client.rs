@@ -224,7 +224,7 @@ impl ClientHandle {
             body,
             headers,
             callback: tx,
-        }; // check it!
+        };
 
         let future = self.tx
             .clone()
