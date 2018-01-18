@@ -69,7 +69,7 @@ impl Application {
             (&Post, Some(Route::Users)) => {
                 let users_service = self.users_service.clone();
                 serialize_future!(
-                    parse_body::<payloads::user::NewUser>(req)
+                    parse_body::<payloads::user::NewUser>(req.body())
                         .map_err(|_| ApiError::UnprocessableEntity)
                         .and_then(move |new_user| users_service.create(new_user).map_err(|e| ApiError::from(e)))
                 )
@@ -79,7 +79,7 @@ impl Application {
             (&Put, Some(Route::User(user_id))) => {
                 let users_service = self.users_service.clone();
                 serialize_future!(
-                    parse_body::<payloads::user::UpdateUser>(req)
+                    parse_body::<payloads::user::UpdateUser>(req.body())
                         .map_err(|_| ApiError::UnprocessableEntity)
                         .and_then(move |update_user| users_service.update(user_id, update_user).map_err(|e| ApiError::from(e)))
                 )
@@ -93,7 +93,7 @@ impl Application {
             (&Post, Some(Route::JWTEmail)) => {
                 let jwt_service = self.jwt_service.clone();
                 serialize_future!(
-                    parse_body::<payloads::user::NewUser>(req)
+                    parse_body::<payloads::user::NewUser>(req.body())
                         .map_err(|_| ApiError::UnprocessableEntity)
                         .and_then(move |new_user| jwt_service.create_token_email(new_user).map_err(|e| ApiError::from(e)))
                 )
@@ -103,7 +103,7 @@ impl Application {
             (&Post, Some(Route::JWTGoogle)) =>  {
                 let jwt_service = self.jwt_service.clone();
                 serialize_future!(
-                    parse_body::<payloads::jwt::ProviderOauth>(req)
+                    parse_body::<payloads::jwt::ProviderOauth>(req.body())
                         .map_err(|_| ApiError::UnprocessableEntity)
                         .and_then(move |oauth| jwt_service.create_token_google(oauth).map_err(|e| ApiError::from(e)))
                 )
@@ -112,7 +112,7 @@ impl Application {
             (&Post, Some(Route::JWTFacebook)) => {
                 let jwt_service = self.jwt_service.clone();
                 serialize_future!(
-                    parse_body::<payloads::jwt::ProviderOauth>(req)
+                    parse_body::<payloads::jwt::ProviderOauth>(req.body())
                         .map_err(|_| ApiError::UnprocessableEntity)
                         .and_then(move |oauth| jwt_service.create_token_facebook(oauth).map_err(|e| ApiError::from(e)))
                 )

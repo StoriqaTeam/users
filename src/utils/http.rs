@@ -4,7 +4,7 @@ use std::iter::FromIterator;
 use hyper::{StatusCode};
 use hyper::mime;
 use hyper::header::{ContentLength, ContentType};
-use hyper::server::{Request, Response};
+use hyper::server::{Response};
 use hyper::error::Error;
 use futures::future::{Future};
 use futures::{future, Stream};
@@ -36,12 +36,12 @@ pub fn query_params(query: &str) -> HashMap<&str, &str> {
 /// Fails with `error::Error::UnprocessableEntity` if step 1 fails.
 ///
 /// Fails with `error::Error::BadRequest` with message if step 2 fails.
-pub fn parse_body<T>(req: Request) -> Box<Future<Item=T, Error=error::Error>>
+pub fn parse_body<T>(body: hyper::Body) -> Box<Future<Item=T, Error=error::Error>>
     where
         T: for<'a> Deserialize<'a> + Validate + 'static
 {
     Box::new(
-        read_body(req.body())
+        read_body(body)
             .map_err(|err| error::Error::from(err))
             .and_then(|body| serde_json::from_str::<T>(&body).map_err(|_| error::Error::UnprocessableEntity))
             .and_then(|payload| match payload.validate() {
@@ -92,4 +92,59 @@ pub fn response_with_error(error: error::Error) -> Response {
 /// Responds with 'not found' JSON error and status code
 pub fn response_not_found() -> Response {
     response_with_body("Not found".to_string()).with_status(StatusCode::NotFound)
+}
+
+#[cfg(test)]
+mod tests {
+    use hyper::StatusCode;
+    use serde_json;
+    use tokio_core::reactor::Core;
+
+    use ::error::Error;
+    use ::responses::status::StatusMessage;
+    use ::payloads::user::NewUser;
+    use super::{response_not_found, response_with_error, response_with_json, read_body, parse_body};
+
+    #[test]
+    fn test_response_not_found() {
+        let res = response_not_found();
+        assert_eq!(res.status(),StatusCode::NotFound);
+    }
+
+    #[test]
+    fn test_response_with_error() {
+        let res = response_with_error(Error::InternalServerError);
+        assert_eq!(res.status(), Error::InternalServerError.to_code());
+    }
+
+    #[test]
+    fn test_response_with_json() {
+        let message =  StatusMessage::new("OK");
+        let message_str = serde_json::to_string(&message).unwrap();
+        let res = response_with_json(message_str);
+        assert_eq!(res.status(), StatusCode::Ok);
+    }
+
+    #[test]
+    fn test_read_body() {
+        let message =  StatusMessage::new("OK");
+        let message_str = serde_json::to_string(&message).unwrap();
+        let res = response_with_json(message_str.clone());
+        let body = res.body();
+        let mut core = Core::new().unwrap();
+        let work = read_body(body);
+        let result = core.run(work).unwrap();
+        assert_eq!(result, message_str);
+    }
+    
+    #[test]
+    fn test_parse_body() {
+        let message =  NewUser { email: "aaa@mail.com".to_string(), password: "password".to_string()};
+        let message_str = serde_json::to_string(&message).unwrap();
+        let res = response_with_json(message_str.clone());
+        let mut core = Core::new().unwrap();
+        let work = parse_body::<NewUser>(res.body());
+        let result = core.run(work).unwrap();
+        assert_eq!(result.email, message.email);
+    }
 }
