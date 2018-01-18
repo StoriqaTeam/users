@@ -150,7 +150,7 @@ impl JWTService {
         Box::new(
             self.http_client
                 .request::<FacebookIDToken>(Method::Get, url, None)
-                .map_err(|e| Error::HttpClient("Failed to connect to facebook oauth".to_string()))
+                .map_err(|_| Error::HttpClient("Failed to connect to facebook oauth".to_string()))
                 .and_then(move |token| {
                     let tokenpayload = TokenPayload::new(token.email);
                     encode(&Header::default(), &tokenpayload, jwt_secret_key.as_ref())

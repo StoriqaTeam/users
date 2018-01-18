@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use futures::Future;
 use futures::future;
+use hyper;
 use hyper::{Get, Post, Put, Delete};
 use hyper::server::{Service, Request};
 
-use common::{TheError, TheFuture, TheRequest, TheResponse};
 use error::Error as ApiError;
 use services::system::SystemService;
 use services::users::UsersService;
@@ -15,6 +15,7 @@ use utils::http::{response_with_error, response_with_json, parse_body};
 use serde_json;
 
 use payloads;
+use types::{AppFuture, ServerFuture};
 
 macro_rules! serialize_future {
     ($e:expr) => (Box::new($e.map_err(|e| ApiError::from(e)).and_then(|resp| serde_json::to_string(&resp).map_err(|e| ApiError::from(e)))))
@@ -29,12 +30,12 @@ pub struct Application {
 }
 
 impl Service for Application {
-    type Request = TheRequest;
-    type Response = TheResponse;
-    type Error = TheError;
-    type Future = TheFuture;
+    type Request = hyper::Request;
+    type Response = hyper::Response;
+    type Error = hyper::Error;
+    type Future = ServerFuture;
 
-    fn call(&self, req: Request) -> Box<Future<Item = TheResponse, Error = TheError>> {
+    fn call(&self, req: Request) -> ServerFuture {
         info!("{:?}", req);
 
         Box::new(
@@ -47,7 +48,7 @@ impl Service for Application {
 }
 
 impl Application {
-    fn call_service(&self, req: Request) -> Box<Future<Item = String, Error = ApiError>>
+    fn call_service(&self, req: Request) -> AppFuture
     {
         match (req.method(), self.router.test(req.path())) {
             // GET /healthcheck
