@@ -12,7 +12,6 @@ services:
       - ..:/app
       - users_cargo_cache:/usr/local/cargo
     environment:
-      - RUN_MODE=docker
       - DATABASE_URL=postgresql://users:users@users-pg/users
     expose:
       - 8000
