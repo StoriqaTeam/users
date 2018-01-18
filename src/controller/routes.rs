@@ -1,12 +1,5 @@
 use regex::{Regex};
 
-type ParamsConverter = Fn(Vec<&str>) -> Option<Route>;
-
-/// Router class maps regex to type-safe list of routes, defined by `enum Route`
-pub struct Router {
-    regex_and_converters: Vec<(Regex, Box<ParamsConverter>)>,
-}
-
 /// List of all routes with params for the app
 #[derive(Clone)]
 pub enum Route {
@@ -18,9 +11,16 @@ pub enum Route {
     JWTFacebook,
 }
 
-impl Router {
+/// RouteParser class maps regex to type-safe list of routes, defined by `enum Route`
+pub struct RouteParser {
+    regex_and_converters: Vec<(Regex, Box<ParamsConverter>)>,
+}
+
+type ParamsConverter = Fn(Vec<&str>) -> Option<Route>;
+
+impl RouteParser {
     pub fn new() -> Self {
-        Router { regex_and_converters: Vec::new() }
+        RouterParser { regex_and_converters: Vec::new() }
     }
 
     /// Adds mapping between regex and route
@@ -79,7 +79,7 @@ impl Router {
     }
 }
 
-pub fn create_router() -> Router {
+pub fn create_route_parser() -> RouteParser {
     let mut router = Router::new();
 
     // Healthcheck
@@ -87,13 +87,13 @@ pub fn create_router() -> Router {
 
     // Users Routes
     router.add_route(r"^/users$", Route::Users);
-    
+
     // JWT email route
     router.add_route(r"^/jwt/email$", Route::JWTEmail);
 
     // JWT google route
     router.add_route(r"^/jwt/google$", Route::JWTGoogle);
-    
+
     // JWT facebook route
     router.add_route(r"^/jwt/facebook$", Route::JWTFacebook);
 

@@ -25,8 +25,8 @@ extern crate hyper_tls;
 #[macro_use]
 pub mod macros;
 pub mod app;
+pub mod controller;
 pub mod error;
-pub mod router;
 pub mod models;
 pub mod payloads;
 pub mod repos;
@@ -34,8 +34,7 @@ pub mod responses;
 pub mod services;
 pub mod settings;
 pub mod types;
-pub mod utils;
-pub mod client;
+pub mod http;
 
 use std::sync::Arc;
 use std::process;
