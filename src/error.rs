@@ -17,6 +17,33 @@ pub enum Error {
 
 impl Error {
     /// Converts `Error` to HTTP Status Code
+    /// # Examples
+    ///
+    /// ```
+    /// # extern crate hyper;
+    /// # extern crate users_lib;
+    /// 
+    /// # use users_lib::error::Error;
+    /// # use hyper::StatusCode;
+    /// 
+    /// # fn main() {
+    ///     let mut error = Error::NotFound;
+    ///     let mut status_code = error.to_code();
+    ///     assert_eq!(status_code, StatusCode::NotFound);
+    /// 
+    ///     error = Error::BadRequest("bad".to_string());
+    ///     status_code = error.to_code();
+    ///     assert_eq!(status_code, StatusCode::BadRequest);
+    /// 
+    ///     error = Error::UnprocessableEntity;
+    ///     status_code = error.to_code();
+    ///     assert_eq!(status_code, StatusCode::UnprocessableEntity);
+    /// 
+    ///     error = Error::InternalServerError;
+    ///     status_code = error.to_code();
+    ///     assert_eq!(status_code, StatusCode::InternalServerError);
+    /// # }
+    /// ```
     pub fn to_code(&self) -> hyper::StatusCode {
         use error::Error::*;
         use hyper::StatusCode;

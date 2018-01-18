@@ -20,11 +20,26 @@ pub enum Route {
 
 impl Router {
     /// Creates new Router
+    /// #Examples
+    ///
+    /// ```
+    /// use users_lib::router::Router;
+    ///
+    /// let router = Router::new();
+    /// ```
     pub fn new() -> Self {
         Router { regex_and_converters: Vec::new() }
     }
 
     /// Adds mapping between regex and route
+    /// #Examples
+    ///
+    /// ```
+    /// use users_lib::router::{Router, Route};
+    ///
+    /// let mut router = Router::new();
+    /// router.add_route(r"^/users$", Route::Users);
+    /// ```
     pub fn add_route(&mut self, regex_pattern: &str, route: Route) -> &Self {
         self.add_route_with_params(regex_pattern, move |_| {
             Some(route.clone())
@@ -109,6 +124,7 @@ pub fn create_router() -> Router {
     // JWT facebook route
     router.add_route(r"^/jwt/facebook$", Route::JWTFacebook);
 
+    // Users/:id route
     router.add_route_with_params(r"^/users/(\d+)$", |params| {
         params.get(0)
             .and_then(|string_id| string_id.parse::<i32>().ok())

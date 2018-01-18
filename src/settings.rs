@@ -46,6 +46,12 @@ pub struct OAuth {
 
 impl Settings {
     /// Creates new app settings struct
+    /// #Examples
+    /// ```
+    /// use users_lib::settings::*;
+    /// 
+    /// let settings = Settings::new();
+    /// ```
     pub fn new() -> Result<Self, ConfigError> {
         let mut s = Config::new();
         s.merge(File::with_name("config/base"))?;
@@ -58,14 +64,5 @@ impl Settings {
         s.merge(Environment::with_prefix("STQ_USERS"))?;
 
         s.try_into()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use ::Settings;
-    #[test]
-    fn can_load_settings() {
-        let _ = Settings::new();
     }
 }
