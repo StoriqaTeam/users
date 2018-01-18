@@ -17,7 +17,6 @@ pub enum Error {
 
 impl Error {
     /// Converts `Error` to HTTP Status Code
-    /// # Examples
     ///
     /// ```
     /// # extern crate hyper;
@@ -27,21 +26,17 @@ impl Error {
     /// # use hyper::StatusCode;
     /// 
     /// # fn main() {
-    ///     let mut error = Error::NotFound;
-    ///     let mut status_code = error.to_code();
-    ///     assert_eq!(status_code, StatusCode::NotFound);
+    ///     let mut error = Error::NotFound.to_code();
+    ///     assert_eq!(error, StatusCode::NotFound);
     /// 
-    ///     error = Error::BadRequest("bad".to_string());
-    ///     status_code = error.to_code();
-    ///     assert_eq!(status_code, StatusCode::BadRequest);
+    ///     error = Error::BadRequest("bad".to_string()).to_code();
+    ///     assert_eq!(error, StatusCode::BadRequest);
     /// 
-    ///     error = Error::UnprocessableEntity;
-    ///     status_code = error.to_code();
-    ///     assert_eq!(status_code, StatusCode::UnprocessableEntity);
+    ///     error = Error::UnprocessableEntity.to_code();
+    ///     assert_eq!(error, StatusCode::UnprocessableEntity);
     /// 
-    ///     error = Error::InternalServerError;
-    ///     status_code = error.to_code();
-    ///     assert_eq!(status_code, StatusCode::InternalServerError);
+    ///     error = Error::InternalServerError.to_code();
+    ///     assert_eq!(error, StatusCode::InternalServerError);
     /// # }
     /// ```
     pub fn to_code(&self) -> hyper::StatusCode {
@@ -57,6 +52,22 @@ impl Error {
     }
 
     /// Converts `Error` to string
+    /// 
+    /// ```
+    /// use users_lib::error::Error;
+    /// 
+    /// let mut error = Error::NotFound.to_string();
+    /// assert_eq!(error, "Entity not found".to_string());
+    /// 
+    /// error = Error::BadRequest("bad".to_string()).to_string();
+    /// assert_eq!(error, "bad".to_string());
+    /// 
+    /// error = Error::UnprocessableEntity.to_string();
+    /// assert_eq!(error, "Serialization error".to_string());
+    /// 
+    /// error = Error::InternalServerError.to_string();
+    /// assert_eq!(error, "Internal server error".to_string());
+    /// ```
     pub fn to_string(&self) -> String {
         use error::Error::*;
 
@@ -69,6 +80,22 @@ impl Error {
     }
 
     /// Converts `Error` to JSON response body
+    /// 
+    /// ```
+    /// use users_lib::error::Error;
+    ///
+    /// let mut error = Error::NotFound.to_json();
+    /// assert_eq!(error, "{\"code\":404,\"message\":\"Entity not found\"}".to_string());
+    ///
+    /// error = Error::BadRequest("bad".to_string()).to_json();
+    /// assert_eq!(error, "{\"code\":400,\"message\":\"bad\"}".to_string());
+    ///
+    /// error = Error::UnprocessableEntity.to_json();
+    /// assert_eq!(error, "{\"code\":422,\"message\":\"Serialization error\"}".to_string());
+    ///
+    /// error = Error::InternalServerError.to_json();
+    /// assert_eq!(error, "{\"code\":500,\"message\":\"Internal server error\"}".to_string());
+    /// ```
     pub fn to_json(&self) -> String {
         let message = ErrorMessage::new(self);
         serde_json::to_string(&message).unwrap()
