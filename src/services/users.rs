@@ -41,7 +41,7 @@ impl UsersService {
                 .map_err(|e| Error::from(e))
                 .and_then(|(payload, exists)| match exists {
                     false => future::ok(payload),
-                    true => future::err(Error::Validate(validation_errors!({"email": ["email" -> "Email already exists"]})))
+                    true => future::err(Error::Validate(validation_errors!({"email": ["email" => "Email already exists"]})))
                 })
                 .and_then(move |user| {
                     insert_repo.create(user).map_err(|e| Error::from(e))
