@@ -50,8 +50,8 @@ use tokio_core::reactor::Core;
 use app::Application;
 use repos::users::UsersRepoImpl;
 use services::system::SystemService;
-use services::users::UsersService;
-use services::jwt::JWTService;
+use services::users::UsersServiceImpl;
+use services::jwt::JWTServiceImpl;
 use settings::Settings;
 
 /// Starts new web service from provided `Settings`
@@ -100,11 +100,11 @@ pub fn start_server(settings: Settings) {
 
         let users_repo = Arc::new(users_repo); 
 
-        let users_service = UsersService {
+        let users_service = UsersServiceImpl {
             users_repo: users_repo.clone(),
         };
 
-        let jwt_service = JWTService {
+        let jwt_service = JWTServiceImpl {
             users_repo: users_repo.clone(),
             http_client: client_handle.clone(),
             jwt_settings: jwt_settings.clone(),

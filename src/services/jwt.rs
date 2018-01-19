@@ -73,8 +73,20 @@ impl JWTPayload {
     }
 }
 
+pub trait JWTService {
+
+    /// Creates new JWT token by email
+    fn create_token_email(&self, payload: NewUser) -> ServiceFuture<JWT>;
+
+    /// Creates new JWT token by google
+    fn create_token_google(&self, oauth: ProviderOauth) -> ServiceFuture<JWT>;
+
+    /// Creates new JWT token by facebook
+    fn create_token_facebook(&self, oauth: ProviderOauth) -> ServiceFuture<JWT>;
+
+}
 /// JWT services, responsible for JsonWebToken operations
-pub struct JWTService <U:'static + UsersRepo> {
+pub struct JWTServiceImpl <U:'static + UsersRepo> {
     pub users_repo: Arc<U>,
     pub http_client: ClientHandle,
     pub google_settings: OAuth,
@@ -82,9 +94,9 @@ pub struct JWTService <U:'static + UsersRepo> {
     pub jwt_settings: JWTSettings,
 }
 
-impl<U: UsersRepo>  JWTService<U> {
+impl<U: UsersRepo> JWTService for JWTServiceImpl<U> {
     /// Creates new JWT token by email
-    pub fn create_token_email(
+     fn create_token_email(
         &self,
         payload: NewUser,
     ) -> ServiceFuture<JWT> {
@@ -118,7 +130,7 @@ impl<U: UsersRepo>  JWTService<U> {
 
     /// https://developers.google.com/identity/protocols/OpenIDConnect#validatinganidtoken
     /// Creates new JWT token by google
-    pub fn create_token_google(
+     fn create_token_google(
         &self,
         oauth: ProviderOauth,
     ) -> ServiceFuture<JWT> {
@@ -161,7 +173,7 @@ impl<U: UsersRepo>  JWTService<U> {
 
     /// https://developers.facebook.com/docs/facebook-login/manually-build-a-login-flow
     /// Creates new JWT token by facebook
-    pub fn create_token_facebook(
+     fn create_token_facebook(
         &self,
         oauth: ProviderOauth,
     ) -> ServiceFuture<JWT> {

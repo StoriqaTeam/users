@@ -9,29 +9,51 @@ use repos::users::UsersRepo;
 use super::types::ServiceFuture;
 use super::error::Error;
 
+
+pub trait UsersService {
+    /// Returns user by ID
+    fn get(&self, user_id: i32) -> ServiceFuture<User>;
+    /// Lists users limited by `from` and `count` parameters
+    fn list(&self, from: i32, count: i64) -> ServiceFuture<Vec<User>>;
+    /// Deactivates specific user
+    fn deactivate(&self, user_id: i32) -> ServiceFuture<User>;
+    /// Creates new user
+    fn create(&self, payload: NewUser) -> ServiceFuture<User>;
+    /// Updates specific user
+    fn update(&self, user_id: i32, payload: UpdateUser) -> ServiceFuture<User>;
+}
+
 /// Users services, responsible for User-related CRUD operations
-pub struct UsersService <U:'static + UsersRepo> {
+pub struct UsersServiceImpl<U: 'static + UsersRepo> {
     pub users_repo: Arc<U>,
 }
 
-impl<U: UsersRepo> UsersService<U> {
+impl<U: UsersRepo> UsersService for UsersServiceImpl<U> {
     /// Returns user by ID
-    pub fn get(&self, user_id: i32) -> ServiceFuture<User> {
+    fn get(&self, user_id: i32) -> ServiceFuture<User> {
         Box::new(self.users_repo.find(user_id).map_err(|e| Error::from(e)))
     }
 
     /// Lists users limited by `from` and `count` parameters
-    pub fn list(&self, from: i32, count: i64) -> ServiceFuture<Vec<User>> {
-        Box::new(self.users_repo.list(from, count).map_err(|e| Error::from(e)))
+    fn list(&self, from: i32, count: i64) -> ServiceFuture<Vec<User>> {
+        Box::new(
+            self.users_repo
+                .list(from, count)
+                .map_err(|e| Error::from(e)),
+        )
     }
 
     /// Deactivates specific user
-    pub fn deactivate(&self, user_id: i32) -> ServiceFuture<User> {
-        Box::new(self.users_repo.deactivate(user_id).map_err(|e| Error::from(e)))
+    fn deactivate(&self, user_id: i32) -> ServiceFuture<User> {
+        Box::new(
+            self.users_repo
+                .deactivate(user_id)
+                .map_err(|e| Error::from(e)),
+        )
     }
 
     /// Creates new user
-    pub fn create(&self, payload: NewUser) -> ServiceFuture<User> {
+    fn create(&self, payload: NewUser) -> ServiceFuture<User> {
         let users_repo = self.users_repo.clone();
 
         Box::new(
@@ -41,22 +63,23 @@ impl<U: UsersRepo> UsersService<U> {
                 .map_err(|e| Error::from(e))
                 .and_then(|(payload, exists)| match exists {
                     false => future::ok(payload),
-                    true => future::err(Error::Validate("E-mail already registered".to_string()))
+                    true => future::err(Error::Validate("E-mail already registered".to_string())),
                 })
                 .and_then(move |user| {
                     users_repo.create(user).map_err(|e| Error::from(e))
-                })
+                }),
         )
     }
 
     /// Updates specific user
-    pub fn update(&self, user_id: i32, payload: UpdateUser) -> ServiceFuture<User> {
+    fn update(&self, user_id: i32, payload: UpdateUser) -> ServiceFuture<User> {
         let update_repo = self.users_repo.clone();
 
         Box::new(
-            update_repo.find(user_id)
+            update_repo
+                .find(user_id)
                 .and_then(move |_user| update_repo.update(user_id, payload))
-                .map_err(|e| Error::from(e))
+                .map_err(|e| Error::from(e)),
         )
     }
 }
