@@ -4,7 +4,7 @@ use config::{Config, ConfigError, Environment, File};
 /// Basic settings - HTTP binding address and database DSN
 #[derive(Debug, Deserialize, Clone)]
 pub struct Settings {
-    pub server: Server,    
+    pub server: Server,
     pub client: Client,
     pub jwt: JWT,
     pub google: OAuth,
@@ -34,7 +34,9 @@ pub struct JWT {
 pub struct OAuth {
     pub id: String,
     pub key: String,
-    pub url: String
+    pub info_url: String,
+    pub redirect_url: String,
+    pub code_to_token_url: String,
 }
 
 
