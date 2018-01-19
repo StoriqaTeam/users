@@ -5,7 +5,6 @@ extern crate tokio_core;
 extern crate hyper;
 extern crate regex;
 extern crate serde;
-#[macro_use]
 extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
@@ -26,7 +25,6 @@ extern crate hyper_tls;
 pub mod macros;
 pub mod app;
 pub mod controller;
-pub mod error;
 pub mod models;
 pub mod payloads;
 pub mod repos;

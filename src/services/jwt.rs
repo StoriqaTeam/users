@@ -117,7 +117,7 @@ impl JWTService {
         Box::new(
             self.http_client
                 .request::<GoogleIDToken>(Method::Get, url, None)
-                .map_err(|e| Error::HttpClient("Failed to connect to google oauth".to_string()))
+                .map_err(|_| Error::HttpClient("Failed to connect to google oauth".to_string()))
                 .and_then(move |token| -> ServiceFuture<JWT> {
                     match token.email {
                         Some(email) => {

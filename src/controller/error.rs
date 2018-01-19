@@ -1,7 +1,5 @@
 use hyper;
 use serde_json;
-use diesel;
-use validator::ValidationErrors;
 
 use services::error::Error as ServiceError;
 
@@ -25,7 +23,7 @@ impl From<ServiceError> for Error {
             ServiceError::NotFound => Error::NotFound,
             ServiceError::Rollback => Error::BadRequest("Transaction rollback".to_string()),
             ServiceError::Validate(msg) => Error::BadRequest(format!("{}", msg)),
-            ServiceError::Parse(msg) => Error::UnprocessableEntity,
+            ServiceError::Parse(_) => Error::UnprocessableEntity,
             ServiceError::Database(_) => Error::InternalServerError,
             ServiceError::HttpClient(_) => Error::InternalServerError,
             ServiceError::Unknown(_) => Error::InternalServerError

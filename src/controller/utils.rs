@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::iter::FromIterator;
 
 use hyper;
-use hyper::server::{Request, Response};
+use hyper::server::Request;
 use futures::future::{Future};
 use futures::{future, Stream};
 use serde_json;

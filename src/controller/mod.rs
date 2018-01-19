@@ -7,9 +7,8 @@ use std::sync::Arc;
 
 use futures::Future;
 use futures::future;
-use hyper;
 use hyper::{Get, Post, Put, Delete};
-use hyper::server::{Service, Request};
+use hyper::server::Request;
 
 use self::error::Error;
 use services::system::SystemService;
