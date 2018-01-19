@@ -7,13 +7,13 @@ use services::error::Error as ServiceError;
 pub enum Error {
     NotFound,
     BadRequest(String),
-    UnprocessableEntity,
+    UnprocessableEntity(String),
     InternalServerError,
 }
 
 impl From<serde_json::error::Error> for Error {
-    fn from(_e: serde_json::error::Error) -> Self {
-        Error::UnprocessableEntity
+    fn from(e: serde_json::error::Error) -> Self {
+        Error::UnprocessableEntity(format!("{}", e).to_string())
     }
 }
 
@@ -23,7 +23,7 @@ impl From<ServiceError> for Error {
             ServiceError::NotFound => Error::NotFound,
             ServiceError::Rollback => Error::BadRequest("Transaction rollback".to_string()),
             ServiceError::Validate(msg) => Error::BadRequest(format!("{}", msg)),
-            ServiceError::Parse(_) => Error::UnprocessableEntity,
+            ServiceError::Parse(e) => Error::UnprocessableEntity(format!("Parse error: {}", e)),
             ServiceError::Database(_) => Error::InternalServerError,
             ServiceError::HttpClient(_) => Error::InternalServerError,
             ServiceError::Unknown(_) => Error::InternalServerError
@@ -39,7 +39,7 @@ impl Error {
         match self {
             &NotFound => StatusCode::NotFound,
             &BadRequest(_) => StatusCode::BadRequest,
-            &UnprocessableEntity => StatusCode::UnprocessableEntity,
+            &UnprocessableEntity(_) => StatusCode::UnprocessableEntity,
             &InternalServerError => StatusCode::InternalServerError,
         }
     }
@@ -50,7 +50,7 @@ impl Error {
         match self {
             &NotFound => "Not found".to_string(),
             &BadRequest(ref msg) => msg.to_string(),
-            &UnprocessableEntity => "Unprocessable Entity".to_string(),
+            &UnprocessableEntity(ref msg) => msg.to_string(),
             &InternalServerError => "Internal server Error".to_string(),
         }
     }
