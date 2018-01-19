@@ -51,7 +51,7 @@ impl Error {
 
         match self {
             &NotFound => "Not found".to_string(),
-            &BadRequest(msg) => msg,
+            &BadRequest(ref msg) => msg.to_string(),
             &UnprocessableEntity => "Unprocessable Entity".to_string(),
             &InternalServerError => "Internal server Error".to_string(),
         }

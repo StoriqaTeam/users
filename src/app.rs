@@ -1,4 +1,5 @@
 use future;
+use futures::future::Future;
 use hyper;
 use hyper::server::{Request, Service, Response};
 use types::ServerFuture;
@@ -11,7 +12,7 @@ use controller;
 use controller::Controller;
 
 pub struct Application {
-    controller: Controller,
+    pub controller: Controller,
 }
 
 impl Service for Application {
