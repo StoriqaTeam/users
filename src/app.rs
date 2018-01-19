@@ -10,6 +10,7 @@ use error::Error as ApiError;
 use services::system::SystemService;
 use services::users::UsersService;
 use services::jwt::JWTService;
+use repos::users::UsersRepoImpl;
 use router::{Route, Router};
 use utils::http::{response_with_error, response_with_json, parse_body};
 use serde_json;
@@ -24,8 +25,8 @@ macro_rules! serialize_future {
 pub struct Application {
     pub router: Arc<Router>,
     pub system_service: Arc<SystemService>,
-    pub users_service: Arc<UsersService>,
-    pub jwt_service: Arc<JWTService>
+    pub users_service: Arc<UsersService<UsersRepoImpl>>,
+    pub jwt_service: Arc<JWTService<UsersRepoImpl>>
 }
 
 impl Service for Application {

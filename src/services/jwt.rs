@@ -74,15 +74,15 @@ impl JWTPayload {
 }
 
 /// JWT services, responsible for JsonWebToken operations
-pub struct JWTService {
-    pub users_repo: Arc<UsersRepo>,
+pub struct JWTService <U:'static + UsersRepo> {
+    pub users_repo: Arc<U>,
     pub http_client: ClientHandle,
     pub google_settings: OAuth,
     pub facebook_settings: OAuth,
     pub jwt_settings: JWTSettings,
 }
 
-impl JWTService {
+impl<U: UsersRepo>  JWTService<U> {
     /// Creates new JWT token by email
     pub fn create_token_email(
         &self,

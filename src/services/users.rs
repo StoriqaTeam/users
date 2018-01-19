@@ -10,11 +10,11 @@ use super::types::ServiceFuture;
 use super::error::Error;
 
 /// Users services, responsible for User-related CRUD operations
-pub struct UsersService {
-    pub users_repo: Arc<UsersRepo>,
+pub struct UsersService <U:'static + UsersRepo> {
+    pub users_repo: Arc<U>,
 }
 
-impl UsersService {
+impl<U: UsersRepo> UsersService<U> {
     /// Returns user by ID
     pub fn get(&self, user_id: i32) -> ServiceFuture<User> {
         Box::new(self.users_repo.find(user_id).map_err(|e| Error::from(e)))
@@ -32,10 +32,10 @@ impl UsersService {
 
     /// Creates new user
     pub fn create(&self, payload: NewUser) -> ServiceFuture<User> {
-        let insert_repo = self.users_repo.clone();
+        let users_repo = self.users_repo.clone();
 
         Box::new(
-            self.users_repo
+            users_repo
                 .email_exists(payload.email.to_string())
                 .map(|exists| (payload, exists))
                 .map_err(|e| Error::from(e))
@@ -44,7 +44,7 @@ impl UsersService {
                     true => future::err(Error::Validate("E-mail already registered".to_string()))
                 })
                 .and_then(move |user| {
-                    insert_repo.create(user).map_err(|e| Error::from(e))
+                    users_repo.create(user).map_err(|e| Error::from(e))
                 })
         )
     }
@@ -54,7 +54,7 @@ impl UsersService {
         let update_repo = self.users_repo.clone();
 
         Box::new(
-            self.users_repo.find(user_id)
+            update_repo.find(user_id)
                 .and_then(move |_user| update_repo.update(user_id, payload))
                 .map_err(|e| Error::from(e))
         )
