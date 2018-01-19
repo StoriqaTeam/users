@@ -1,4 +1,4 @@
-extern crate config;
+extern crate config as config_crate;
 extern crate futures;
 extern crate futures_cpupool;
 extern crate tokio_core;
@@ -29,7 +29,7 @@ pub mod models;
 pub mod repos;
 pub mod responses;
 pub mod services;
-pub mod settings;
+pub mod config;
 pub mod types;
 pub mod http;
 
@@ -49,10 +49,10 @@ use repos::users::UsersRepo;
 use services::system::SystemService;
 use services::users::UsersService;
 use services::jwt::JWTService;
-use settings::Settings;
+use config::Config;
 
-/// Starts new web service from provided `Settings`
-pub fn start_server(settings: Settings) {
+/// Starts new web service from provided `Config`
+pub fn start_server(settings: Config) {
     // Prepare logger
     env_logger::init().unwrap();
 

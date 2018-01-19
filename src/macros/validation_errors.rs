@@ -58,7 +58,6 @@ macro_rules! validation_errors {
 
 #[cfg(test)]
 mod tests {
-    use std::vec::Vec;
     use serde_json;
     use validator::Validator;
 
