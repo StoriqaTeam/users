@@ -11,7 +11,7 @@ use futures::sink::Sink;
 use serde_json;
 use serde::de::Deserialize;
 
-use ::settings::Settings;
+use ::config::Config;
 
 pub type ClientResult = Result<String, Error>;
 
@@ -23,7 +23,7 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(config: &Settings, handle: &Handle) -> Self {
+    pub fn new(config: &Config, handle: &Handle) -> Self {
         let max_retries = config.client.http_client_retries;
         let (tx, rx) = mpsc::channel::<Payload>(config.client.http_client_buffer_size);
         let client = hyper::Client::new(handle);

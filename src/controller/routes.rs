@@ -38,9 +38,9 @@ impl RouteParser {
     /// #Examples
     ///
     /// ```
-    /// use users_lib::router::{Router, Route};
+    /// use users_lib::controller::routes::{RouteParser, Route};
     ///
-    /// let mut router = Router::new();
+    /// let mut router = RouteParser::new();
     /// router.add_route_with_params(r"^/users/(\d+)$", |params| {
     ///     params.get(0)
     ///        .and_then(|string_id| string_id.parse::<i32>().ok())

@@ -3,16 +3,15 @@ use std::sync::Arc;
 use futures::future;
 use futures::{Future, IntoFuture};
 
-use models::jwt::JWT;
-use payloads::user::NewUser;
-use payloads::jwt::ProviderOauth;
+use models::jwt::{JWT, ProviderOauth};
+use models::user::NewUser;
 use repos::users::UsersRepo;
 use http::client::ClientHandle;
 use hyper::{Method, Headers};
 use hyper::header::{Authorization, Bearer};
 use jsonwebtoken::{encode, Header};
-use settings::JWT as JWTSettings;
-use settings::OAuth;
+use config::JWT as JWTConfig;
+use config::OAuth;
 use super::types::ServiceFuture;
 use super::error::Error;
 
@@ -79,7 +78,7 @@ pub struct JWTService {
     pub http_client: ClientHandle,
     pub google_settings: OAuth,
     pub facebook_settings: OAuth,
-    pub jwt_settings: JWTSettings,
+    pub jwt_settings: JWTConfig,
 }
 
 impl JWTService {

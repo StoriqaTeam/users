@@ -14,10 +14,9 @@ use self::error::Error;
 use services::system::SystemService;
 use services::users::UsersService;
 use services::jwt::JWTService;
-
 use serde_json;
 
-use payloads;
+use models;
 use self::utils::parse_body;
 use self::types::ControllerFuture;
 use self::routes::{Route, RouteParser};
@@ -65,7 +64,7 @@ impl Controller {
                 if let (Some(from), Some(to)) = parse_query!(req.query().unwrap_or_default(), "from" => i32, "to" => i64) {
                     serialize_future!(self.users_service.list(from, to))
                 } else {
-                    Box::new(future::err(Error::UnprocessableEntity))
+                    Box::new(future::err(Error::UnprocessableEntity("Error parsing request body".to_string())))
                 }
             },
 
@@ -73,8 +72,8 @@ impl Controller {
             (&Post, Some(Route::Users)) => {
                 let users_service = self.users_service.clone();
                 serialize_future!(
-                    parse_body::<payloads::user::NewUser>(req)
-                        .map_err(|_| Error::UnprocessableEntity)
+                    parse_body::<models::user::NewUser>(req)
+                        .map_err(|_| Error::UnprocessableEntity("Error parsing request body".to_string()))
                         .and_then(move |new_user| users_service.create(new_user).map_err(|e| Error::from(e)))
                 )
             },
@@ -83,8 +82,8 @@ impl Controller {
             (&Put, Some(Route::User(user_id))) => {
                 let users_service = self.users_service.clone();
                 serialize_future!(
-                    parse_body::<payloads::user::UpdateUser>(req)
-                        .map_err(|_| Error::UnprocessableEntity)
+                    parse_body::<models::user::UpdateUser>(req)
+                        .map_err(|_| Error::UnprocessableEntity("Error parsing request body".to_string()))
                         .and_then(move |update_user| users_service.update(user_id, update_user).map_err(|e| Error::from(e)))
                 )
             }
@@ -97,8 +96,8 @@ impl Controller {
             (&Post, Some(Route::JWTEmail)) => {
                 let jwt_service = self.jwt_service.clone();
                 serialize_future!(
-                    parse_body::<payloads::user::NewUser>(req)
-                        .map_err(|_| Error::UnprocessableEntity)
+                    parse_body::<models::user::NewUser>(req)
+                        .map_err(|_| Error::UnprocessableEntity("Error parsing request body".to_string()))
                         .and_then(move |new_user| jwt_service.create_token_email(new_user).map_err(|e| Error::from(e)))
                 )
             },
@@ -107,8 +106,8 @@ impl Controller {
             (&Post, Some(Route::JWTGoogle)) =>  {
                 let jwt_service = self.jwt_service.clone();
                 serialize_future!(
-                    parse_body::<payloads::jwt::ProviderOauth>(req)
-                        .map_err(|_| Error::UnprocessableEntity)
+                    parse_body::<models::jwt::ProviderOauth>(req)
+                        .map_err(|_| Error::UnprocessableEntity("Error parsing request body".to_string()))
                         .and_then(move |oauth| jwt_service.create_token_google(oauth).map_err(|e| Error::from(e)))
                 )
             },
@@ -116,8 +115,8 @@ impl Controller {
             (&Post, Some(Route::JWTFacebook)) => {
                 let jwt_service = self.jwt_service.clone();
                 serialize_future!(
-                    parse_body::<payloads::jwt::ProviderOauth>(req)
-                        .map_err(|_| Error::UnprocessableEntity)
+                    parse_body::<models::jwt::ProviderOauth>(req)
+                        .map_err(|_| Error::UnprocessableEntity("Error parsing request body".to_string()))
                         .and_then(move |oauth| jwt_service.create_token_facebook(oauth).map_err(|e| Error::from(e)))
                 )
             },
