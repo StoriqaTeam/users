@@ -7,7 +7,7 @@ use models::jwt::JWT;
 use payloads::user::NewUser;
 use payloads::jwt::ProviderOauth;
 use repos::users::UsersRepo;
-use client::ClientHandle;
+use http::client::ClientHandle;
 use hyper::Method;
 use jsonwebtoken::{encode, Header};
 use settings::JWT as JWTSettings;

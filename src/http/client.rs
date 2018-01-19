@@ -10,7 +10,7 @@ use futures::sink::Sink;
 use serde_json;
 use serde::de::Deserialize;
 
-use ::config::Config;
+use ::settings::Settings;
 
 pub type ClientResult = Result<String, Error>;
 
@@ -22,9 +22,9 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(config: &Config, handle: &Handle) -> Self {
-        let max_retries = config.gateway.http_client_retries;
-        let (tx, rx) = mpsc::channel::<Payload>(config.gateway.http_client_buffer_size);
+    pub fn new(config: &Settings, handle: &Handle) -> Self {
+        let max_retries = config.client.http_client_retries;
+        let (tx, rx) = mpsc::channel::<Payload>(config.client.http_client_buffer_size);
         let client = hyper::Client::new(handle);
         Client { client, tx, rx, max_retries }
     }
@@ -65,7 +65,7 @@ impl Client {
         .and_then(move |res| {
             let status = res.status();
             let body_future: Box<future::Future<Item = String, Error = Error>> =
-            Box::new(utils::read_body(res.body()).map_err(|err| Error::Network(err)));
+            Box::new(Self::read_body(res.body()).map_err(|err| Error::Network(err)));
             match status {
             hyper::StatusCode::Ok =>
                 body_future,
@@ -86,6 +86,21 @@ impl Client {
         Box::new(task)
     }
 
+    fn read_body(body: hyper::Body) -> Box<Future<Item=String, Error=hyper::Error>> {
+        Box::new(
+            body
+                .fold(Vec::new(), |mut acc, chunk| {
+                    acc.extend_from_slice(&*chunk);
+                    future::ok::<_, hyper::Error>(acc)
+                })
+                .and_then(|bytes| {
+                    match String::from_utf8(bytes) {
+                        Ok(data) => future::ok(data),
+                        Err(err) => future::err(hyper::Error::Utf8(err.utf8_error()))
+                    }
+                })
+        )
+    }
 }
 
 #[derive(Clone)]

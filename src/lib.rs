@@ -63,7 +63,7 @@ pub fn start_server(settings: Settings) {
     let mut core = Core::new().expect("Unexpected error creating event loop core");
     let handle = Arc::new(core.handle());
 
-    let client = client::Client::new(&settings, &handle);
+    let client = http::client::Client::new(&settings, &handle);
     let client_handle = client.handle();
     let client_stream = client.stream();
     handle.spawn(
@@ -113,7 +113,7 @@ pub fn start_server(settings: Settings) {
 
         };
 
-        let controller = controller::Controller::new(system_service, users_service, jwt_service);
+        let controller = controller::Controller::new(Arc::new(system_service), Arc::new(users_service), Arc::new(jwt_service));
 
         // Prepare application
         let app = Application {

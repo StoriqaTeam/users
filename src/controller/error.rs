@@ -3,7 +3,6 @@ use serde_json;
 use diesel;
 use validator::ValidationErrors;
 
-use responses::error::ErrorMessage;
 use services::error::Error as ServiceError;
 
 #[derive(Debug)]
