@@ -22,7 +22,7 @@ impl From<ServiceError> for Error {
         match e {
             ServiceError::NotFound => Error::NotFound,
             ServiceError::Rollback => Error::BadRequest("Transaction rollback".to_string()),
-            ServiceError::Validate(msg) => Error::BadRequest(format!("{}", msg)),
+            ServiceError::Validate(msg) => Error::BadRequest(serde_json::to_string(&msg).unwrap_or("Unable to serialize validation errors".to_string())),
             ServiceError::Parse(e) => Error::UnprocessableEntity(format!("Parse error: {}", e)),
             ServiceError::Database(_) => Error::InternalServerError,
             ServiceError::HttpClient(_) => Error::InternalServerError,
