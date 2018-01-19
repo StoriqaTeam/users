@@ -33,3 +33,28 @@ impl From<ServiceError> for Error {
         }
     }
 }
+
+impl Error {
+    pub fn code(&self) -> hyper::StatusCode {
+        use super::error::Error::*;
+        use hyper::StatusCode;
+
+        match self {
+            &NotFound => StatusCode::NotFound,
+            &BadRequest(_) => StatusCode::BadRequest,
+            &UnprocessableEntity => StatusCode::UnprocessableEntity,
+            &InternalServerError => StatusCode::InternalServerError,
+        }
+    }
+
+    pub fn message(&self) -> String {
+        use super::error::Error::*;
+
+        match self {
+            &NotFound => "Not found".to_string(),
+            &BadRequest(msg) => msg,
+            &UnprocessableEntity => "Unprocessable Entity".to_string(),
+            &InternalServerError => "Internal server Error".to_string(),
+        }
+    }
+}

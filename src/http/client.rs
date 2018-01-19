@@ -9,9 +9,7 @@ use futures::stream::{Stream};
 use futures::sink::Sink;
 use serde_json;
 use serde::de::Deserialize;
-use juniper::FieldError;
 
-use super::utils;
 use ::config::Config;
 
 pub type ClientResult = Result<String, Error>;

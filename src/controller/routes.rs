@@ -20,7 +20,7 @@ type ParamsConverter = Fn(Vec<&str>) -> Option<Route>;
 
 impl RouteParser {
     pub fn new() -> Self {
-        RouterParser { regex_and_converters: Vec::new() }
+        Self { regex_and_converters: Vec::new() }
     }
 
     /// Adds mapping between regex and route
@@ -59,7 +59,7 @@ impl RouteParser {
     pub fn test(&self, route: &str) -> Option<Route> {
         self.regex_and_converters.iter().fold(None, |acc, ref regex_and_converter| {
             if acc.is_some() { return acc }
-            Router::get_matches(&regex_and_converter.0, route)
+            RouteParser::get_matches(&regex_and_converter.0, route)
                 .and_then(|params| regex_and_converter.1(params))
         })
     }
@@ -80,7 +80,7 @@ impl RouteParser {
 }
 
 pub fn create_route_parser() -> RouteParser {
-    let mut router = Router::new();
+    let mut router = RouteParser::new();
 
     // Healthcheck
     router.add_route(r"^/healthcheck$", Route::Healthcheck);

@@ -113,12 +113,11 @@ pub fn start_server(settings: Settings) {
 
         };
 
+        let controller = controller::Controller::new(system_service, users_service, jwt_service);
+
         // Prepare application
         let app = Application {
-            router: Arc::new(router::create_router()),
-            system_service: Arc::new(system_service),
-            users_service: Arc::new(users_service),
-            jwt_service: Arc::new(jwt_service)
+            controller,
         };
 
         Ok(app)
