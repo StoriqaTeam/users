@@ -24,17 +24,15 @@ extern crate hyper_tls;
 #[macro_use]
 pub mod macros;
 pub mod app;
-pub mod common;
-pub mod error;
-pub mod router;
+pub mod controller;
 pub mod models;
 pub mod payloads;
 pub mod repos;
 pub mod responses;
 pub mod services;
 pub mod settings;
-pub mod utils;
-pub mod client;
+pub mod types;
+pub mod http;
 
 use std::sync::Arc;
 use std::process;
@@ -63,7 +61,7 @@ pub fn start_server(settings: Settings) {
     let mut core = Core::new().expect("Unexpected error creating event loop core");
     let handle = Arc::new(core.handle());
 
-    let client = client::Client::new(&settings, &handle);
+    let client = http::client::Client::new(&settings, &handle);
     let client_handle = client.handle();
     let client_stream = client.stream();
     handle.spawn(
@@ -98,7 +96,7 @@ pub fn start_server(settings: Settings) {
          // Prepare services
         let system_service = SystemService{};
 
-        let users_repo = Arc::new(users_repo); 
+        let users_repo = Arc::new(users_repo);
 
         let users_service = UsersService {
             users_repo: users_repo.clone(),
@@ -113,12 +111,11 @@ pub fn start_server(settings: Settings) {
 
         };
 
+        let controller = controller::Controller::new(Arc::new(system_service), Arc::new(users_service), Arc::new(jwt_service));
+
         // Prepare application
         let app = Application {
-            router: Arc::new(router::create_router()),
-            system_service: Arc::new(system_service),
-            users_service: Arc::new(users_service),
-            jwt_service: Arc::new(jwt_service)
+            controller,
         };
 
         Ok(app)

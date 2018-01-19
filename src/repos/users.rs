@@ -10,17 +10,16 @@ use diesel::pg::PgConnection;
 use futures::future;
 use futures_cpupool::CpuPool;
 
-use common::{TheConnection, ThePool};
 use payloads::user::{NewUser, UpdateUser};
 use models::user::{User};
 use models::schema::users::dsl::*;
 use super::error::Error;
-use super::types::RepoFuture;
+use super::types::{RepoFuture, DbConnection, DbPool};
 
 /// Users repository, responsible for handling users
 pub struct UsersRepo {
     // Todo - no need for Arc, since pool is itself an ARC-like structure
-    pub r2d2_pool: Arc<ThePool>,
+    pub r2d2_pool: Arc<DbPool>,
     pub cpu_pool: Arc<CpuPool>
 }
 
@@ -80,7 +79,7 @@ impl UsersRepo {
         self.execute_query(query)
     }
 
-    fn get_connection(&self) -> TheConnection {
+    fn get_connection(&self) -> DbConnection {
         match self.r2d2_pool.get() {
             Ok(connection) => connection,
             Err(e) => panic!("Error obtaining connection from pool: {}", e)

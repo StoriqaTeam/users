@@ -7,7 +7,7 @@ use models::jwt::JWT;
 use payloads::user::NewUser;
 use payloads::jwt::ProviderOauth;
 use repos::users::UsersRepo;
-use client::ClientHandle;
+use http::client::ClientHandle;
 use hyper::{Method, Headers};
 use hyper::header::{Authorization, Bearer};
 use jsonwebtoken::{encode, Header};
@@ -32,7 +32,7 @@ struct GoogleID {
 struct GoogleToken
 {
   access_token: String,
-  refresh_token: String, 
+  refresh_token: String,
   token_type: String,
   expires_in: String
 }
@@ -55,7 +55,7 @@ struct FacebookID {
 #[derive(Serialize, Deserialize)]
 struct FacebookToken
 {
-  access_token: String, 
+  access_token: String,
   token_type: String,
   expires_in: String
 }
@@ -122,7 +122,7 @@ impl JWTService {
         &self,
         oauth: ProviderOauth,
     ) -> ServiceFuture<JWT> {
-        
+
         let jwt_secret_key = self.jwt_settings.secret_key.clone();
         let code_to_token_url = self.google_settings.code_to_token_url.clone();
         let redirect_url = self.google_settings.redirect_url.clone();
@@ -130,11 +130,11 @@ impl JWTService {
         let client_secret = self.google_settings.key.clone();
         let info_url = self.google_settings.info_url.clone();
         let http_client = self.http_client.clone();
-        
-        let exchange_code_to_token_url = format!("{}?client_id={}&redirect_uri={}&client_secret={}&code={}&grant_type=authorization_code", 
-            code_to_token_url, 
-            client_id, 
-            redirect_url, 
+
+        let exchange_code_to_token_url = format!("{}?client_id={}&redirect_uri={}&client_secret={}&code={}&grant_type=authorization_code",
+            code_to_token_url,
+            client_id,
+            redirect_url,
             client_secret,
             oauth.code);
 
@@ -165,7 +165,7 @@ impl JWTService {
         &self,
         oauth: ProviderOauth,
     ) -> ServiceFuture<JWT> {
-        
+
         let jwt_secret_key = self.jwt_settings.secret_key.clone();
         let code_to_token_url = self.facebook_settings.code_to_token_url.clone();
         let redirect_url = self.facebook_settings.redirect_url.clone();
@@ -173,15 +173,15 @@ impl JWTService {
         let client_secret = self.facebook_settings.key.clone();
         let info_url = self.facebook_settings.info_url.clone();
         let http_client = self.http_client.clone();
-        
-        let exchange_code_to_token_url = format!("{}?client_id={}&redirect_uri={}&client_secret={}&code={}", 
-            code_to_token_url, 
-            client_id, 
-            redirect_url, 
+
+        let exchange_code_to_token_url = format!("{}?client_id={}&redirect_uri={}&client_secret={}&code={}",
+            code_to_token_url,
+            client_id,
+            redirect_url,
             client_secret,
             oauth.code);
 
-        let future = 
+        let future =
             http_client.request::<FacebookToken>(Method::Get, exchange_code_to_token_url, None, None)
                 .map_err(|_| Error::HttpClient("Failed to connect to facebook oauth.".to_string()))
                 .and_then(move |token| {
