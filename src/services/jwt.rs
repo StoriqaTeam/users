@@ -3,9 +3,8 @@ use std::sync::Arc;
 use futures::future;
 use futures::{Future, IntoFuture};
 
-use models::jwt::JWT;
-use payloads::user::NewUser;
-use payloads::jwt::ProviderOauth;
+use models::jwt::{JWT, ProviderOauth};
+use models::user::NewUser;
 use repos::users::UsersRepo;
 use http::client::ClientHandle;
 use hyper::{Method, Headers};

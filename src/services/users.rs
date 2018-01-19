@@ -3,8 +3,7 @@ use std::sync::Arc;
 use futures::future;
 use futures::Future;
 
-use models::user::User;
-use payloads::user::{NewUser, UpdateUser};
+use models::user::{User, NewUser, UpdateUser};
 use repos::users::UsersRepo;
 use super::types::ServiceFuture;
 use super::error::Error;

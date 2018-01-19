@@ -10,7 +10,7 @@ use diesel::pg::PgConnection;
 use futures::future;
 use futures_cpupool::CpuPool;
 
-use payloads::user::{NewUser, UpdateUser};
+use models::user::{NewUser, UpdateUser};
 use models::user::{User};
 use models::schema::users::dsl::*;
 use super::error::Error;

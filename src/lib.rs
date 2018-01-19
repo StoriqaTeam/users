@@ -26,7 +26,6 @@ pub mod macros;
 pub mod app;
 pub mod controller;
 pub mod models;
-pub mod payloads;
 pub mod repos;
 pub mod responses;
 pub mod services;
