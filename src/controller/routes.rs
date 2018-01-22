@@ -24,9 +24,9 @@ impl RouteParser {
     /// #Examples
     ///
     /// ```
-    /// use users_lib::router::Router;
+    /// use users_lib::controller::routes::RouteParser;
     ///
-    /// let router = Router::new();
+    /// let router = RouteParser::new();
     /// ```
     pub fn new() -> Self {
         Self { regex_and_converters: Vec::new() }
@@ -36,9 +36,9 @@ impl RouteParser {
     /// #Examples
     ///
     /// ```
-    /// use users_lib::router::{Router, Route};
+    /// use users_lib::controller::routes::{RouteParser, Route};
     ///
-    /// let mut router = Router::new();
+    /// let mut router = RouteParser::new();
     /// router.add_route(r"^/users$", Route::Users);
     /// ```
     pub fn add_route(&mut self, regex_pattern: &str, route: Route) -> &Self {
@@ -76,9 +76,9 @@ impl RouteParser {
     /// #Examples
     ///
     /// ```
-    /// use users_lib::router::*;
+    /// use users_lib::controller::routes::*;
     ///
-    /// let mut router = Router::new();
+    /// let mut router = RouteParser::new();
     /// router.add_route(r"^/users$", Route::Users);
     /// let route = router.test("/users").unwrap();
     /// assert_eq!(route, Route::Users);

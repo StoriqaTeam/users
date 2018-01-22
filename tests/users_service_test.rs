@@ -3,8 +3,6 @@ extern crate serde_json;
 extern crate tokio_core;
 extern crate users_lib;
 extern crate futures;
-#[macro_use]
-extern crate lazy_static;
 
 use std::sync::Arc;
 
@@ -53,53 +51,59 @@ impl UsersRepo for UsersRepoMock {
     }
 }
 
-const MOCK : UsersRepoMock = UsersRepoMock{};
-lazy_static! {
-    static ref SERVICE : UsersServiceImpl<UsersRepoMock> = UsersServiceImpl { users_repo : Arc::new(MOCK) };
-    static ref MOCK_EMAIL: String = "example@mail.com".to_string();
-    static ref MOCK_PASSWORD: String = "password".to_string();
+fn create_service () -> UsersServiceImpl<UsersRepoMock> {
+    UsersServiceImpl { users_repo : Arc::new(MOCK) } 
 }
+
+const MOCK : UsersRepoMock = UsersRepoMock{};
+static MOCK_EMAIL: &'static str = "example@mail.com";
+static MOCK_PASSWORD: &'static str = "password";
 
 
 #[test]
 fn test_get_user() {
+    let service = create_service();
     let mut core = Core::new().unwrap();
-    let work = SERVICE.get(1);
+    let work = service.get(1);
     let result = core.run(work).unwrap();
     assert_eq!(result.id, 1);
 }
 
 #[test]
 fn test_list() {
+    let service = create_service();
     let mut core = Core::new().unwrap();
-    let work = SERVICE.list(1, 5);
+    let work = service.list(1, 5);
     let result = core.run(work).unwrap();
     assert_eq!(result.len(), 5);
 }
 
 #[test]
 fn test_create_allready_existed() {
+    let service = create_service();
     let mut core = Core::new().unwrap();
     let new_user = NewUser { email: MOCK_EMAIL.to_string(), password: MOCK_PASSWORD.to_string() };
-    let work = SERVICE.create(new_user);
+    let work = service.create(new_user);
     let result = core.run(work);
     assert_eq!(result.is_err(), true);
 }
 
 #[test]
 fn test_create_user() {
+    let service = create_service();
     let mut core = Core::new().unwrap();
     let new_user = NewUser { email: "new_user@mail.com".to_string(), password: MOCK_PASSWORD.to_string() };
-    let work = SERVICE.create(new_user);
+    let work = service.create(new_user);
     let result = core.run(work).unwrap();
     assert_eq!(result.email, "new_user@mail.com".to_string());
 }
 
 #[test]
 fn test_update() {
+    let service = create_service();
     let mut core = Core::new().unwrap();
     let update_user = UpdateUser {email: MOCK_EMAIL.to_string()};
-    let work = SERVICE.update(1, update_user);
+    let work = service.update(1, update_user);
     let result = core.run(work).unwrap();
     assert_eq!(result.id, 1);
     assert_eq!(result.email, MOCK_EMAIL.to_string());
@@ -107,8 +111,9 @@ fn test_update() {
 
 #[test]
 fn test_deactivate() {
+    let service = create_service();
     let mut core = Core::new().unwrap();
-    let work = SERVICE.deactivate(1);
+    let work = service.deactivate(1);
     let result = core.run(work).unwrap();
     assert_eq!(result.id, 1);
     assert_eq!(result.is_active, false);
