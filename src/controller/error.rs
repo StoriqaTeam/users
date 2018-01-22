@@ -32,6 +32,7 @@ impl From<ServiceError> for Error {
 }
 
 impl Error {
+    /// Converts `Error` to HTTP Status Code
     pub fn code(&self) -> hyper::StatusCode {
         use super::error::Error::*;
         use hyper::StatusCode;
@@ -44,6 +45,8 @@ impl Error {
         }
     }
 
+
+    /// Converts `Error` to string
     pub fn message(&self) -> String {
         use super::error::Error::*;
 
@@ -53,5 +56,37 @@ impl Error {
             &UnprocessableEntity(ref msg) => msg.to_string(),
             &InternalServerError => "Internal server Error".to_string(),
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+
+    use super::Error;
+    use hyper::StatusCode;
+
+    #[test]
+    fn error_to_code_test () {
+        let mut error = Error::NotFound.code();
+        assert_eq!(error, StatusCode::NotFound);
+        error = Error::BadRequest("bad".to_string()).code();
+        assert_eq!(error, StatusCode::BadRequest);
+        error = Error::UnprocessableEntity("bad".to_string()).code();
+        assert_eq!(error, StatusCode::UnprocessableEntity);
+        error = Error::InternalServerError.code();
+        assert_eq!(error, StatusCode::InternalServerError);
+    }
+
+    #[test]
+    fn error_to_message_test () {
+        let mut error = Error::NotFound.message();
+        assert_eq!(error, "Not found".to_string());
+        error = Error::BadRequest("bad".to_string()).message();
+        assert_eq!(error, "bad".to_string());
+        error = Error::UnprocessableEntity("bad".to_string()).message();
+        assert_eq!(error, "bad".to_string());
+        error = Error::InternalServerError.message();
+        assert_eq!(error, "Internal server Error".to_string());
     }
 }

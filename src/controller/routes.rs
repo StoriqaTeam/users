@@ -1,7 +1,7 @@
 use regex::{Regex};
 
 /// List of all routes with params for the app
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Route {
     Healthcheck,
     Users,
@@ -19,11 +19,28 @@ pub struct RouteParser {
 type ParamsConverter = Fn(Vec<&str>) -> Option<Route>;
 
 impl RouteParser {
+
+    /// Creates new Router
+    /// #Examples
+    ///
+    /// ```
+    /// use users_lib::controller::routes::RouteParser;
+    ///
+    /// let router = RouteParser::new();
+    /// ```
     pub fn new() -> Self {
         Self { regex_and_converters: Vec::new() }
     }
 
     /// Adds mapping between regex and route
+    /// #Examples
+    ///
+    /// ```
+    /// use users_lib::controller::routes::{RouteParser, Route};
+    ///
+    /// let mut router = RouteParser::new();
+    /// router.add_route(r"^/users$", Route::Users);
+    /// ```
     pub fn add_route(&mut self, regex_pattern: &str, route: Route) -> &Self {
         self.add_route_with_params(regex_pattern, move |_| {
             Some(route.clone())
@@ -56,6 +73,16 @@ impl RouteParser {
 
     /// Tests string router for matches
     /// Returns Some(route) if there's a match
+    /// #Examples
+    ///
+    /// ```
+    /// use users_lib::controller::routes::*;
+    ///
+    /// let mut router = RouteParser::new();
+    /// router.add_route(r"^/users$", Route::Users);
+    /// let route = router.test("/users").unwrap();
+    /// assert_eq!(route, Route::Users);
+    /// ```
     pub fn test(&self, route: &str) -> Option<Route> {
         self.regex_and_converters.iter().fold(None, |acc, ref regex_and_converter| {
             if acc.is_some() { return acc }
@@ -97,6 +124,7 @@ pub fn create_route_parser() -> RouteParser {
     // JWT facebook route
     router.add_route(r"^/jwt/facebook$", Route::JWTFacebook);
 
+    // Users/:id route
     router.add_route_with_params(r"^/users/(\d+)$", |params| {
         params.get(0)
             .and_then(|string_id| string_id.parse::<i32>().ok())

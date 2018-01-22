@@ -11,6 +11,7 @@ pub struct Config {
     pub facebook: OAuth,
 }
 
+/// Common server settings
 #[derive(Debug, Deserialize, Clone)]
 pub struct Server {
     pub address: String,
@@ -18,6 +19,7 @@ pub struct Server {
     pub thread_count: usize,
 }
 
+/// Http client settings
 #[derive(Debug, Deserialize, Clone)]
 pub struct Client {
     pub http_client_retries: usize,
@@ -25,11 +27,13 @@ pub struct Client {
     pub dns_worker_thread_count: usize
 }
 
+/// Json Web Token seettings
 #[derive(Debug, Deserialize, Clone)]
 pub struct JWT {
     pub secret_key: String,
 }
 
+/// Oauth 2.0 basic settings
 #[derive(Debug, Deserialize, Clone)]
 pub struct OAuth {
     pub id: String,
@@ -40,6 +44,13 @@ pub struct OAuth {
 }
 
 
+/// Creates new app config struct
+/// #Examples
+/// ```
+/// use users_lib::config::*;
+/// 
+/// let config = Config::new();
+/// ```
 impl Config {
     pub fn new() -> Result<Self, ConfigError> {
         let mut s = RawConfig::new();

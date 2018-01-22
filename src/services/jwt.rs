@@ -38,17 +38,12 @@ struct GoogleToken
 
 #[derive(Serialize, Deserialize)]
 struct FacebookID {
-    email: String,
-    first_name: String,
-    gender: String,
     id: String,
+    email: String,
+    gender: String,
+    first_name: String,
     last_name: String,
-    link: String,
-    locale: String,
     name: String,
-    timezone: String,
-    updated_time: String,
-    verified: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -56,7 +51,7 @@ struct FacebookToken
 {
   access_token: String,
   token_type: String,
-  expires_in: String
+  expires_in: i32
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -72,18 +67,30 @@ impl JWTPayload {
     }
 }
 
+pub trait JWTService {
+
+    /// Creates new JWT token by email
+    fn create_token_email(&self, payload: NewUser) -> ServiceFuture<JWT>;
+
+    /// Creates new JWT token by google
+    fn create_token_google(&self, oauth: ProviderOauth) -> ServiceFuture<JWT>;
+
+    /// Creates new JWT token by facebook
+    fn create_token_facebook(&self, oauth: ProviderOauth) -> ServiceFuture<JWT>;
+
+}
 /// JWT services, responsible for JsonWebToken operations
-pub struct JWTService {
-    pub users_repo: Arc<UsersRepo>,
+pub struct JWTServiceImpl <U:'static + UsersRepo> {
+    pub users_repo: Arc<U>,
     pub http_client: ClientHandle,
     pub google_settings: OAuth,
     pub facebook_settings: OAuth,
     pub jwt_settings: JWTConfig,
 }
 
-impl JWTService {
+impl<U: UsersRepo> JWTService for JWTServiceImpl<U> {
     /// Creates new JWT token by email
-    pub fn create_token_email(
+     fn create_token_email(
         &self,
         payload: NewUser,
     ) -> ServiceFuture<JWT> {
@@ -117,7 +124,7 @@ impl JWTService {
 
     /// https://developers.google.com/identity/protocols/OpenIDConnect#validatinganidtoken
     /// Creates new JWT token by google
-    pub fn create_token_google(
+     fn create_token_google(
         &self,
         oauth: ProviderOauth,
     ) -> ServiceFuture<JWT> {
@@ -136,10 +143,11 @@ impl JWTService {
             redirect_url,
             client_secret,
             oauth.code);
+        
 
         Box::new(
             http_client.request::<GoogleToken>(Method::Get, exchange_code_to_token_url, None, None)
-                .map_err(|_| Error::HttpClient("Failed to connect to google oauth.".to_string()))
+                .map_err(|e| Error::HttpClient(format!("Failed to connect to google oauth. {}", e.to_string())))
                 .and_then(move |token| {
                     let mut headers = Headers::new();
                     headers.set( Authorization ( Bearer {
@@ -160,7 +168,7 @@ impl JWTService {
 
     /// https://developers.facebook.com/docs/facebook-login/manually-build-a-login-flow
     /// Creates new JWT token by facebook
-    pub fn create_token_facebook(
+     fn create_token_facebook(
         &self,
         oauth: ProviderOauth,
     ) -> ServiceFuture<JWT> {
@@ -182,11 +190,11 @@ impl JWTService {
 
         let future =
             http_client.request::<FacebookToken>(Method::Get, exchange_code_to_token_url, None, None)
-                .map_err(|_| Error::HttpClient("Failed to connect to facebook oauth.".to_string()))
+                .map_err(|e| Error::HttpClient(format!("Failed to connect to facebook oauth. {}", e.to_string())))
                 .and_then(move |token| {
-                    let url = format!("{}?access_token={}", info_url, token.access_token);
+                    let url = format!("{}?fields=first_name,last_name,gender,email,name&access_token={}", info_url, token.access_token);
                     http_client.request::<FacebookID>(Method::Get, url, None, None)
-                        .map_err(|_| Error::HttpClient("Failed to receive user info from facebook.".to_string()))
+                        .map_err(|e| Error::HttpClient(format!("Failed to receive user info from facebook. {}", e.to_string())))
                 })
                 .and_then(move |facebook_id| {
                     let tokenpayload = JWTPayload::new(facebook_id.email);

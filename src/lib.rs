@@ -45,10 +45,10 @@ use r2d2_diesel::ConnectionManager;
 use tokio_core::reactor::Core;
 
 use app::Application;
-use repos::users::UsersRepo;
+use repos::users::UsersRepoImpl;
 use services::system::SystemService;
-use services::users::UsersService;
-use services::jwt::JWTService;
+use services::users::UsersServiceImpl;
+use services::jwt::JWTServiceImpl;
 use config::Config;
 
 /// Starts new web service from provided `Config`
@@ -72,7 +72,7 @@ pub fn start_server(settings: Config) {
     let address = settings.server.address.parse().expect("Address must be set in configuration");
     let jwt_settings = settings.jwt.clone();
     let google_settings = settings.google.clone();
-    let facebook_settings = settings.google.clone();
+    let facebook_settings = settings.facebook.clone();
 
 
     let serve = Http::new().serve_addr_handle(&address, &handle, move || {
@@ -87,7 +87,7 @@ pub fn start_server(settings: Config) {
         let cpu_pool = CpuPool::new(thread_count);
 
         // Prepare repositories
-        let users_repo = UsersRepo {
+        let users_repo = UsersRepoImpl {
             r2d2_pool: Arc::new(r2d2_pool),
             cpu_pool: Arc::new(cpu_pool),
         };
@@ -97,11 +97,11 @@ pub fn start_server(settings: Config) {
 
         let users_repo = Arc::new(users_repo);
 
-        let users_service = UsersService {
+        let users_service = UsersServiceImpl {
             users_repo: users_repo.clone(),
         };
 
-        let jwt_service = JWTService {
+        let jwt_service = JWTServiceImpl {
             users_repo: users_repo.clone(),
             http_client: client_handle.clone(),
             jwt_settings: jwt_settings.clone(),
