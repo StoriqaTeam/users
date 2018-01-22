@@ -1,3 +1,5 @@
+//! Config module contains the top-level config for the app.
+
 use std::env;
 use config_crate::{Config as RawConfig, ConfigError, Environment, File};
 
@@ -48,7 +50,7 @@ pub struct OAuth {
 /// #Examples
 /// ```
 /// use users_lib::config::*;
-/// 
+///
 /// let config = Config::new();
 /// ```
 impl Config {

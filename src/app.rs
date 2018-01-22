@@ -1,3 +1,5 @@
+//! Application module contains the top-level config for the app.
+
 use future;
 use futures::future::Future;
 use hyper;

@@ -1,4 +1,12 @@
 //! Users is a microservice responsible for authentication and managing user profiles.
+//! The layered structure of the app is
+//!
+//! `Application -> Controller -> Service -> Repo + HttpClient`
+//!
+//! Each layer can only face exceptions in its base layers and can only expose its own errors.
+//! E.g. `Service` layer will only deal with `Repo` and `HttpClient` errors and will only return
+//! `ServiceError`. That way Controller will only have to deal with ServiceError, but not with `Repo`
+//! or `HttpClient` repo.
 
 extern crate config as config_crate;
 extern crate futures;
