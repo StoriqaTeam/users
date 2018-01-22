@@ -1,3 +1,5 @@
+//! Users is a microservice responsible for authentication and managing user profiles.
+
 extern crate config as config_crate;
 extern crate futures;
 extern crate futures_cpupool;
@@ -27,7 +29,6 @@ pub mod app;
 pub mod controller;
 pub mod models;
 pub mod repos;
-pub mod responses;
 pub mod services;
 pub mod config;
 pub mod types;

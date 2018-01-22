@@ -1,3 +1,8 @@
+//! `Controller` is a top layer that handles all http-related
+//! stuff like reading bodies, parsing params, forming a response.
+//! Basically it provides inputs to `Service` layer and converts outputs
+//! of `Service` layer to http responses
+
 pub mod error;
 pub mod routes;
 pub mod types;
@@ -21,7 +26,7 @@ use self::utils::parse_body;
 use self::types::ControllerFuture;
 use self::routes::{Route, RouteParser};
 
-/// Controller contains all services and `Router`
+/// Controller handles route parsing and calling `Service` layer
 pub struct Controller {
     pub route_parser: Arc<RouteParser>,
     pub system_service: Arc<SystemService>,
@@ -34,6 +39,7 @@ macro_rules! serialize_future {
 }
 
 impl Controller {
+    /// Create a new controller based on services
     pub fn new(
         system_service: Arc<SystemService>,
         users_service: Arc<UsersService>,
@@ -48,6 +54,7 @@ impl Controller {
         }
     }
 
+    /// Handle a request and get future response
     pub fn call(&self, req: Request) -> ControllerFuture
     {
         match (req.method(), self.route_parser.test(req.path())) {

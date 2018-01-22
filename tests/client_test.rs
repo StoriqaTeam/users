@@ -18,7 +18,6 @@ use futures::sync::oneshot;
 
 use users_lib::http::client::{Client, Error};
 use users_lib::config::Config;
-use users_lib::responses::status::StatusMessage;
 
 
 #[test]
@@ -28,7 +27,7 @@ fn test_request() {
     let mut core = Core::new().unwrap();
     let handle = Arc::new(core.handle());
     let (tx, rx) = oneshot::channel();
-    let thread = thread::Builder::new().name(format!("tcp-server<StatusMessage>"));
+    let thread = thread::Builder::new().name(format!("tcp-server<String>"));
     thread
         .spawn(move || {
             let mut inc = server.accept().unwrap().0;
@@ -37,7 +36,7 @@ fn test_request() {
             let mut buf = [0; 4096];
             let mut n = 0;
 
-            let message = StatusMessage::new("OK");
+            let message = "OK";
             let message_str = serde_json::to_string(&message).unwrap();
 
             while n < buf.len() && n < message_str.len() {
@@ -67,10 +66,10 @@ fn test_request() {
     let client_stream = client.stream();
     handle.spawn(client_stream.for_each(|_| Ok(())));
     let res =
-        client_handle.request::<StatusMessage>(Method::Get, format!("http://{}", addr), None, None);
+        client_handle.request::<String>(Method::Get, format!("http://{}", addr), None, None);
     let rx = rx.map_err(|e| Error::Unknown(e.to_string()));
     let work = res.join(rx).map(|r| r.0);
     let result = core.run(work).unwrap();
 
-    assert_eq!(result.status, "OK");
+    assert_eq!(result, "OK");
 }
