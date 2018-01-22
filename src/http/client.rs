@@ -30,6 +30,7 @@ impl Client {
         let (tx, rx) = mpsc::channel::<Payload>(config.client.http_client_buffer_size);
         let client = hyper::Client::configure()
             .connector(hyper_tls::HttpsConnector::new(4, &handle).unwrap())
+            .no_proto()
             .build(&handle);
 
         Client { client, tx, rx, max_retries }

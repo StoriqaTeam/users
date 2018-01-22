@@ -38,17 +38,12 @@ struct GoogleToken
 
 #[derive(Serialize, Deserialize)]
 struct FacebookID {
-    email: String,
-    first_name: String,
-    gender: String,
     id: String,
+    email: String,
+    gender: String,
+    first_name: String,
     last_name: String,
-    link: String,
-    locale: String,
     name: String,
-    timezone: String,
-    updated_time: String,
-    verified: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -56,7 +51,7 @@ struct FacebookToken
 {
   access_token: String,
   token_type: String,
-  expires_in: String
+  expires_in: i32
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -148,6 +143,7 @@ impl<U: UsersRepo> JWTService for JWTServiceImpl<U> {
             redirect_url,
             client_secret,
             oauth.code);
+        
 
         Box::new(
             http_client.request::<GoogleToken>(Method::Get, exchange_code_to_token_url, None, None)
@@ -196,9 +192,9 @@ impl<U: UsersRepo> JWTService for JWTServiceImpl<U> {
             http_client.request::<FacebookToken>(Method::Get, exchange_code_to_token_url, None, None)
                 .map_err(|e| Error::HttpClient(format!("Failed to connect to facebook oauth. {}", e.to_string())))
                 .and_then(move |token| {
-                    let url = format!("{}?access_token={}", info_url, token.access_token);
+                    let url = format!("{}?fields=first_name,last_name,gender,email,name&access_token={}", info_url, token.access_token);
                     http_client.request::<FacebookID>(Method::Get, url, None, None)
-                        .map_err(|_| Error::HttpClient("Failed to receive user info from facebook.".to_string()))
+                        .map_err(|e| Error::HttpClient(format!("Failed to receive user info from facebook. {}", e.to_string())))
                 })
                 .and_then(move |facebook_id| {
                     let tokenpayload = JWTPayload::new(facebook_id.email);

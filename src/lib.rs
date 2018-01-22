@@ -72,7 +72,7 @@ pub fn start_server(settings: Config) {
     let address = settings.server.address.parse().expect("Address must be set in configuration");
     let jwt_settings = settings.jwt.clone();
     let google_settings = settings.google.clone();
-    let facebook_settings = settings.google.clone();
+    let facebook_settings = settings.facebook.clone();
 
 
     let serve = Http::new().serve_addr_handle(&address, &handle, move || {
