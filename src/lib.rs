@@ -34,6 +34,7 @@ extern crate hyper_tls;
 #[macro_use]
 pub mod macros;
 pub mod app;
+pub mod authorization;
 pub mod controller;
 pub mod models;
 pub mod repos;
