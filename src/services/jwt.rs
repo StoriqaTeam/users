@@ -94,23 +94,18 @@ impl<U: UsersRepo> JWTService for JWTServiceImpl<U> {
         &self,
         payload: NewUser,
     ) -> ServiceFuture<JWT> {
-        let insert_repo = self.users_repo.clone();
         let jwt_secret_key = self.jwt_settings.secret_key.clone();
 
         Box::new(
             self.users_repo
-                .email_exists(payload.email.to_string())
-                .map_err(|e| Error::from(e))
+                .verify_password(payload.email.to_string(), payload.password.clone())
+                .map_err(Error::from)
                 .map(|exists| (exists, payload))
                 .and_then(
                     move |(exists, user)| -> ServiceFuture<NewUser> {
                         match exists {
-                            false => Box::new(insert_repo.create(user.clone())
-                                        .map(|_| user)
-                                        .map_err(|e| Error::from(e))),
-                            true => Box::new(insert_repo.verify_password(user.email.clone(), user.password.clone())
-                                        .map(|_| user)
-                                        .map_err(|e| Error::from(e))),
+                            false => Box::new(future::err(Error::Validate(validation_errors!({"email": ["email" => "Email or password are incorrect"]})))),
+                            true => Box::new(future::ok(user)),
                         }
                     }
                 )

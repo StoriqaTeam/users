@@ -56,8 +56,8 @@ impl UsersRepo for UsersRepoMock {
         Box::new(futures::future::ok(user))
     }
 
-    fn verify_password(&self, _email_arg: String, _password_arg: String) -> RepoFuture<bool> {
-        Box::new(futures::future::ok(true))
+    fn verify_password(&self, email_arg: String, password_arg: String) -> RepoFuture<bool> {
+        Box::new(futures::future::ok(email_arg == MOCK_EMAIL.to_string() && password_arg == MOCK_PASSWORD.to_string()))
     }
 }
 
@@ -97,6 +97,24 @@ fn test_jwt_email() {
     let work = service.create_token_email(new_user);
     let result = core.run(work).unwrap();
     assert_eq!(result.token, "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2VtYWlsIjoiZXhhbXBsZUBtYWlsLmNvbSJ9.EiRpbadz8jGW0_wGPKXKhlmrWC9QJNIDv8eRWp0-VG0");
+}
+
+#[test]
+fn test_jwt_email_not_found() {
+    let (mut core, service) = create_service();
+    let new_user = NewUser { email: "not found email".to_string(), password: MOCK_PASSWORD.to_string() };
+    let work = service.create_token_email(new_user);
+    let result = core.run(work);
+    assert_eq!(result.is_err(), true);
+}
+
+#[test]
+fn test_jwt_password_incorrect() {
+    let (mut core, service) = create_service();
+    let new_user = NewUser { email: MOCK_EMAIL.to_string(), password: "wrong password".to_string() };
+    let work = service.create_token_email(new_user);
+    let result = core.run(work);
+    assert_eq!(result.is_err(), true);
 }
 
 // this test is ignored because of expired access code from google 
