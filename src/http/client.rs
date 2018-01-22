@@ -10,13 +10,15 @@ use futures::stream::{Stream};
 use futures::sink::Sink;
 use serde_json;
 use serde::de::Deserialize;
+use hyper_tls;
 
 use ::config::Config;
 
 pub type ClientResult = Result<String, Error>;
+pub type HyperClient = hyper::Client<hyper_tls::HttpsConnector<hyper::client::HttpConnector>>;
 
 pub struct Client {
-    client: hyper::Client<hyper::client::HttpConnector>,
+    client: HyperClient,
     tx: mpsc::Sender<Payload>,
     rx: mpsc::Receiver<Payload>,
     max_retries: usize,
@@ -26,7 +28,10 @@ impl Client {
     pub fn new(config: &Config, handle: &Handle) -> Self {
         let max_retries = config.client.http_client_retries;
         let (tx, rx) = mpsc::channel::<Payload>(config.client.http_client_buffer_size);
-        let client = hyper::Client::new(handle);
+        let client = hyper::Client::configure()
+            .connector(hyper_tls::HttpsConnector::new(4, &handle).unwrap())
+            .build(&handle);
+
         Client { client, tx, rx, max_retries }
     }
 
@@ -46,7 +51,7 @@ impl Client {
         }
     }
 
-    fn send_request(client: &hyper::Client<hyper::client::HttpConnector>, payload: Payload) -> Box<Future<Item=(), Error=()>> {
+    fn send_request(client: &HyperClient, payload: Payload) -> Box<Future<Item=(), Error=()>> {
         let Payload { url, method, body: maybe_body, headers: maybe_headers, callback } = payload;
 
         let uri = match url.parse() {

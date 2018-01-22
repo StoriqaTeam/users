@@ -151,7 +151,7 @@ impl<U: UsersRepo> JWTService for JWTServiceImpl<U> {
 
         Box::new(
             http_client.request::<GoogleToken>(Method::Get, exchange_code_to_token_url, None, None)
-                .map_err(|_| Error::HttpClient("Failed to connect to google oauth.".to_string()))
+                .map_err(|e| Error::HttpClient(format!("Failed to connect to google oauth. {}", e.to_string())))
                 .and_then(move |token| {
                     let mut headers = Headers::new();
                     headers.set( Authorization ( Bearer {
@@ -194,7 +194,7 @@ impl<U: UsersRepo> JWTService for JWTServiceImpl<U> {
 
         let future =
             http_client.request::<FacebookToken>(Method::Get, exchange_code_to_token_url, None, None)
-                .map_err(|_| Error::HttpClient("Failed to connect to facebook oauth.".to_string()))
+                .map_err(|e| Error::HttpClient(format!("Failed to connect to facebook oauth. {}", e.to_string())))
                 .and_then(move |token| {
                     let url = format!("{}?access_token={}", info_url, token.access_token);
                     http_client.request::<FacebookID>(Method::Get, url, None, None)
