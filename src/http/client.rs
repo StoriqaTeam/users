@@ -251,13 +251,12 @@ mod tests {
     use tokio_core::reactor::Core;
     use serde_json;
 
-    use ::responses::status::StatusMessage;
     use ::models::user::NewUser;
     use ::controller::utils::{parse_body, read_body};
 
     #[test]
     fn test_read_body() {
-        let message = StatusMessage::new("OK");
+        let message = "Ok".to_string();
         let message_str = serde_json::to_string(&message).unwrap();
         let res = response_with_body(message_str.clone());
         let body = res.body();
