@@ -1,3 +1,6 @@
+//! Users is a microservice responsible for authentication and managing user profiles.
+//! This create is for running the service from `users_lib`. See `users_lib` for details.
+
 extern crate users_lib;
 
 fn main() {
