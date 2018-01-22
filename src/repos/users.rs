@@ -41,6 +41,10 @@ pub trait UsersRepo {
 
     /// Deactivates specific user
     fn deactivate(&self, user_id: i32) -> RepoFuture<User>;
+
+    /// Verifies password
+    fn verify_password(&self, email_arg: String, password_arg: String) -> RepoFuture<bool>;
+    
 }
 
 impl UsersRepoImpl {
@@ -77,7 +81,7 @@ impl UsersRepo for UsersRepoImpl {
     }
 
     /// Verifies password
-    pub fn verify_password(&self, email_arg: String, password_arg: String) -> RepoFuture<bool> {
+    fn verify_password(&self, email_arg: String, password_arg: String) -> RepoFuture<bool> {
         self.execute_query(select(exists(users.filter(email.eq(email_arg)).filter(password.eq(password_arg)))))
     }
 

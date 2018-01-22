@@ -49,6 +49,10 @@ impl UsersRepo for UsersRepoMock {
         let user = User {  id: user_id, email: MOCK_EMAIL.to_string(), password: MOCK_PASSWORD.to_string(), is_active: false };
         Box::new(futures::future::ok(user))
     }
+
+    fn verify_password(&self, _email_arg: String, _password_arg: String) -> RepoFuture<bool> {
+        Box::new(futures::future::ok(true))
+    }
 }
 
 fn create_service () -> UsersServiceImpl<UsersRepoMock> {
