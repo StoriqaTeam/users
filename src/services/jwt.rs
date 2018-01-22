@@ -108,7 +108,9 @@ impl<U: UsersRepo> JWTService for JWTServiceImpl<U> {
                             false => Box::new(insert_repo.create(user.clone())
                                         .map(|_| user)
                                         .map_err(|e| Error::from(e))),
-                            true => Box::new(future::ok(user)),
+                            true => Box::new(insert_repo.verify_password(user.email.clone(), user.password.clone())
+                                        .map(|_| user)
+                                        .map_err(|e| Error::from(e))),
                         }
                     }
                 )

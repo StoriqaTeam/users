@@ -76,6 +76,11 @@ impl UsersRepo for UsersRepoImpl {
         self.execute_query(select(exists(users.filter(email.eq(email_arg)))))
     }
 
+    /// Verifies password
+    pub fn verify_password(&self, email_arg: String, password_arg: String) -> RepoFuture<bool> {
+        self.execute_query(select(exists(users.filter(email.eq(email_arg)).filter(password.eq(password_arg)))))
+    }
+
     /// Returns list of users, limited by `from` and `count` parameters
     fn list(&self, from: i32, count: i64) -> RepoFuture<Vec<User>> {
         let conn = self.get_connection();
