@@ -3,8 +3,7 @@ use std::sync::Arc;
 use futures::future;
 use futures::Future;
 
-use models::user::User;
-use payloads::user::{NewUser, UpdateUser};
+use models::user::{User, NewUser, UpdateUser};
 use repos::users::UsersRepo;
 use super::types::ServiceFuture;
 use super::error::Error;
@@ -63,7 +62,7 @@ impl<U: UsersRepo> UsersService for UsersServiceImpl<U> {
                 .map_err(|e| Error::from(e))
                 .and_then(|(payload, exists)| match exists {
                     false => future::ok(payload),
-                    true => future::err(Error::Validate("E-mail already registered".to_string())),
+                    true => future::err(Error::Validate(validation_errors!({"email": ["email" => "Email already exists"]})))
                 })
                 .and_then(move |user| {
                     users_repo.create(user).map_err(|e| Error::from(e))

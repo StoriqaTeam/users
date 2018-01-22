@@ -10,11 +10,10 @@ use std::sync::Arc;
 
 use tokio_core::reactor::Core;
 
-use users_lib::models::user::User;
 use users_lib::repos::users::UsersRepo;
 use users_lib::repos::types::RepoFuture;
 use users_lib::services::users::{UsersServiceImpl, UsersService};
-use users_lib::payloads::user::{NewUser, UpdateUser};
+use users_lib::models::user::{NewUser, UpdateUser, User};
 
 struct UsersRepoMock;
 
@@ -79,12 +78,12 @@ fn test_list() {
 }
 
 #[test]
-#[should_panic]
 fn test_create_allready_existed() {
     let mut core = Core::new().unwrap();
     let new_user = NewUser { email: MOCK_EMAIL.to_string(), password: MOCK_PASSWORD.to_string() };
     let work = SERVICE.create(new_user);
-    core.run(work).unwrap();
+    let result = core.run(work);
+    assert_eq!(result.is_err(), true);
 }
 
 #[test]

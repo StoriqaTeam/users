@@ -10,18 +10,17 @@ use diesel::pg::PgConnection;
 use futures::future;
 use futures_cpupool::CpuPool;
 
-use common::{TheConnection, ThePool};
-use payloads::user::{NewUser, UpdateUser};
-use models::user::User;
+use models::user::{NewUser, UpdateUser};
+use models::user::{User};
 use models::schema::users::dsl::*;
 use super::error::Error;
-use super::types::RepoFuture;
+use super::types::{RepoFuture, DbConnection, DbPool};
 
 /// Users repository, responsible for handling users
 pub struct UsersRepoImpl {
     // Todo - no need for Arc, since pool is itself an ARC-like structure
-    pub r2d2_pool: Arc<ThePool>,
-    pub cpu_pool: Arc<CpuPool>,
+    pub r2d2_pool: Arc<DbPool>,
+    pub cpu_pool: Arc<CpuPool>
 }
 
 pub trait UsersRepo {
@@ -45,29 +44,24 @@ pub trait UsersRepo {
 }
 
 impl UsersRepoImpl {
-    fn get_connection(&self) -> TheConnection {
+    fn get_connection(&self) -> DbConnection {
         match self.r2d2_pool.get() {
             Ok(connection) => connection,
             Err(e) => panic!("Error obtaining connection from pool: {}", e),
         }
     }
 
-    fn execute_query<T: Send + 'static, U: LoadQuery<PgConnection, T> + Send + 'static>(
-        &self,
-        query: U,
-    ) -> RepoFuture<T> {
+fn execute_query<T: Send + 'static, U: LoadQuery<PgConnection, T> + Send + 'static>(&self, query: U) -> RepoFuture<T> {
         let conn = match self.r2d2_pool.get() {
             Ok(connection) => connection,
-            Err(_) => {
-                return Box::new(future::err(
-                    Error::Connection("Cannot connect to users db".to_string()),
-                ))
-            }
+            Err(_) => return Box::new(future::err(Error::Connection("Cannot connect to users db".to_string())))
         };
 
-        Box::new(self.cpu_pool.spawn_fn(move || {
-            query.get_result::<T>(&*conn).map_err(|e| Error::from(e))
-        }))
+        Box::new(
+            self.cpu_pool.spawn_fn(move || {
+                query.get_result::<T>(&*conn).map_err(|e| Error::from(e))
+            })
+        )
     }
 }
 
@@ -124,4 +118,5 @@ impl UsersRepo for UsersRepoImpl {
         let query = diesel::update(filter).set(is_active.eq(false));
         self.execute_query(query)
     }
+
 }

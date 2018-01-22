@@ -1,10 +1,10 @@
 use std::env;
-use config::{Config, ConfigError, Environment, File};
+use config_crate::{Config as RawConfig, ConfigError, Environment, File};
 
 /// Basic settings - HTTP binding address and database DSN
 #[derive(Debug, Deserialize, Clone)]
-pub struct Settings {
-    pub server: Server,    
+pub struct Config {
+    pub server: Server,
     pub client: Client,
     pub jwt: JWT,
     pub google: OAuth,
@@ -44,16 +44,16 @@ pub struct OAuth {
 }
 
 
-impl Settings {
-    /// Creates new app settings struct
-    /// #Examples
-    /// ```
-    /// use users_lib::settings::*;
-    /// 
-    /// let settings = Settings::new();
-    /// ```
+/// Creates new app config struct
+/// #Examples
+/// ```
+/// use users_lib::config::*;
+/// 
+/// let config = Config::new();
+/// ```
+impl Config {
     pub fn new() -> Result<Self, ConfigError> {
-        let mut s = Config::new();
+        let mut s = RawConfig::new();
         s.merge(File::with_name("config/base"))?;
 
         // Note that this file is _optional_

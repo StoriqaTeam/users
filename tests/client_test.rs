@@ -16,10 +16,10 @@ use tokio_core::reactor::Core;
 use futures::{Future, Stream};
 use futures::sync::oneshot;
 
-use users_lib::client::Client;
-use users_lib::settings::Settings;
+use users_lib::http::client::{Client, Error};
+use users_lib::config::Config;
 use users_lib::responses::status::StatusMessage;
-use users_lib::error::Error;
+
 
 #[test]
 fn test_request() {
@@ -61,14 +61,14 @@ fn test_request() {
         })
         .unwrap();
 
-    let settings = Settings::new().unwrap();
-    let client = Client::new(&settings, &handle);
+    let config = Config::new().unwrap();
+    let client = Client::new(&config, &handle);
     let client_handle = client.handle();
     let client_stream = client.stream();
     handle.spawn(client_stream.for_each(|_| Ok(())));
     let res =
         client_handle.request::<StatusMessage>(Method::Get, format!("http://{}", addr), None, None);
-    let rx = rx.map_err(|e| Error::BadRequest(e.to_string()));
+    let rx = rx.map_err(|e| Error::Unknown(e.to_string()));
     let work = res.join(rx).map(|r| r.0);
     let result = core.run(work).unwrap();
 
