@@ -251,7 +251,7 @@ mod tests {
     use tokio_core::reactor::Core;
     use serde_json;
 
-    use ::models::user::NewUser;
+    use ::models::user::{NewUser, Provider};
     use ::controller::utils::{parse_body, read_body};
 
     #[test]
@@ -269,15 +269,16 @@ mod tests {
     #[test]
     fn test_parse_body() {
         let message = NewUser {
-            email: "aaa@mail.com".to_string(),
-            password: "password".to_string(),
+            user_email: "aaa@mail.com".to_string(),
+            user_password: "password".to_string(),
+            provider: Provider::UnverifiedEmail
         };
         let message_str = serde_json::to_string(&message).unwrap();
         let res = response_with_body(message_str.clone());
         let mut core = Core::new().unwrap();
         let work = parse_body::<NewUser>(res.body());
         let result = core.run(work).unwrap();
-        assert_eq!(result.email, message.email);
+        assert_eq!(result.user_email, message.user_email);
     }
 
     fn response_with_body(body: String) -> Response {

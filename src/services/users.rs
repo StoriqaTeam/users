@@ -55,11 +55,12 @@ impl<U: UsersRepo> UsersService for UsersServiceImpl<U> {
     fn create(&self, payload: NewUser) -> ServiceFuture<User> {
         let users_repo = self.users_repo.clone();
 
+
         Box::new(
             users_repo
-                .email_exists(payload.email.to_string())
+                .email_exists(payload.user_email.to_string())
                 .map(|exists| (payload, exists))
-                .map_err(|e| Error::from(e))
+                .map_err(Error::from)
                 .and_then(|(payload, exists)| match exists {
                     false => future::ok(payload),
                     true => future::err(Error::Validate(validation_errors!({"email": ["email" => "Email already exists"]})))

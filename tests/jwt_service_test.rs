@@ -5,16 +5,16 @@ extern crate users_lib;
 extern crate futures;
 
 use std::sync::Arc;
+use std::time::SystemTime;
 
 use tokio_core::reactor::Core;
 use futures::Stream;
 
-use users_lib::models::user::User;
 use users_lib::config::Config;
 use users_lib::repos::users::UsersRepo;
 use users_lib::repos::types::RepoFuture;
 use users_lib::services::jwt::{JWTServiceImpl, JWTService};
-use users_lib::models::user::{NewUser, UpdateUser};
+use users_lib::models::user::{NewUser, UpdateUser, User, Gender, Provider};
 use users_lib::models::jwt::ProviderOauth;
 use users_lib::http::client::Client;
 
@@ -24,7 +24,7 @@ struct UsersRepoMock;
 impl UsersRepo for UsersRepoMock {
 
     fn find(&self, user_id: i32) -> RepoFuture<User> {
-        let user = User {  id: user_id, email: MOCK_EMAIL.to_string(), password: MOCK_PASSWORD.to_string(), is_active: true };
+        let user = create_user(user_id, MOCK_EMAIL.to_string());
         Box::new(futures::future::ok(user))
     }
 
@@ -35,24 +35,25 @@ impl UsersRepo for UsersRepoMock {
     fn list(&self, from: i32, count: i64) -> RepoFuture<Vec<User>> {
         let mut users = vec![];
         for i in from..(from + count as i32) {
-            let user = User {  id: i, email: MOCK_EMAIL.to_string(), password: MOCK_PASSWORD.to_string(), is_active: true };
+            let user = create_user(i, MOCK_EMAIL.to_string());
             users.push(user);
         }
         Box::new(futures::future::ok(users))
     }
 
     fn create(&self, payload: NewUser) -> RepoFuture<User> {
-        let user = User {  id: 1, email: payload.email, password: payload.password, is_active: true };
+        let user = create_user(1, payload.user_email);
         Box::new(futures::future::ok(user))
     }
 
     fn update(&self, user_id: i32, payload: UpdateUser) -> RepoFuture<User> {
-        let user = User {  id: user_id, email: payload.email, password: MOCK_PASSWORD.to_string(), is_active: true };
+        let user = create_user(user_id, payload.email);
         Box::new(futures::future::ok(user))
     }
 
     fn deactivate(&self, user_id: i32) -> RepoFuture<User> {
-        let user = User {  id: user_id, email: MOCK_EMAIL.to_string(), password: MOCK_PASSWORD.to_string(), is_active: false };
+        let mut user = create_user(user_id, MOCK_EMAIL.to_string());
+        user.is_active = false;
         Box::new(futures::future::ok(user))
     }
 
@@ -84,6 +85,35 @@ fn create_service () -> (Core, JWTServiceImpl<UsersRepoMock>) {
     (core, service)
 }
 
+
+fn create_user(id: i32, email: String) -> User {
+    User {
+        id: id,
+        email: email,
+        email_verified: false,
+        phone: None,
+        phone_verified: false,
+        is_active: true,
+        first_name: None,
+        last_name: None,
+        middle_name: None,
+        gender: Gender::Male,
+        birthdate: None,
+        last_login_at: SystemTime::now(), 
+        created_at: SystemTime::now(), 
+        updated_at: SystemTime::now()
+    }
+}
+
+fn create_new_user(email: String, password: String) -> NewUser {
+    NewUser {
+        user_email: email,
+        user_password: password,
+        provider: Provider::UnverifiedEmail,
+    }
+}
+
+
 const MOCK : UsersRepoMock = UsersRepoMock{};
 static MOCK_EMAIL: &'static str = "example@mail.com";
 static MOCK_PASSWORD: &'static str = "password";
@@ -93,7 +123,8 @@ static FACEBOOK_CODE: &'static str = "AQDr-FG4bmYyrhYGk9ZJg1liqTRBfKfRbXopSd72_Q
 #[test]
 fn test_jwt_email() {
     let (mut core, service) = create_service();
-    let new_user = NewUser { email: MOCK_EMAIL.to_string(), password: MOCK_PASSWORD.to_string() };
+    let new_user = create_new_user (MOCK_EMAIL.to_string(), MOCK_PASSWORD.to_string());
+
     let work = service.create_token_email(new_user);
     let result = core.run(work).unwrap();
     assert_eq!(result.token, "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2VtYWlsIjoiZXhhbXBsZUBtYWlsLmNvbSJ9.EiRpbadz8jGW0_wGPKXKhlmrWC9QJNIDv8eRWp0-VG0");
@@ -102,7 +133,7 @@ fn test_jwt_email() {
 #[test]
 fn test_jwt_email_not_found() {
     let (mut core, service) = create_service();
-    let new_user = NewUser { email: "not found email".to_string(), password: MOCK_PASSWORD.to_string() };
+    let new_user = create_new_user ("not found email".to_string(), MOCK_PASSWORD.to_string());
     let work = service.create_token_email(new_user);
     let result = core.run(work);
     assert_eq!(result.is_err(), true);
@@ -111,7 +142,7 @@ fn test_jwt_email_not_found() {
 #[test]
 fn test_jwt_password_incorrect() {
     let (mut core, service) = create_service();
-    let new_user = NewUser { email: MOCK_EMAIL.to_string(), password: "wrong password".to_string() };
+    let new_user = create_new_user (MOCK_EMAIL.to_string(), "wrong password".to_string());
     let work = service.create_token_email(new_user);
     let result = core.run(work);
     assert_eq!(result.is_err(), true);

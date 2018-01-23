@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::convert::From;
 
 use diesel;
 use diesel::select;
@@ -10,9 +11,9 @@ use diesel::pg::PgConnection;
 use futures::future;
 use futures_cpupool::CpuPool;
 
-use models::user::{NewUser, UpdateUser};
-use models::user::{User};
+use models::user::{User, NewUser, UpdateUser, Identity};
 use models::schema::users::dsl::*;
+use models::schema::identity::dsl::*;
 use super::error::Error;
 use super::types::{RepoFuture, DbConnection, DbPool};
 
@@ -71,18 +72,18 @@ fn execute_query<T: Send + 'static, U: LoadQuery<PgConnection, T> + Send + 'stat
 
 impl UsersRepo for UsersRepoImpl {
     /// Find specific user by ID
-    fn find(&self, user_id: i32) -> RepoFuture<User> {
-        self.execute_query(users.find(user_id))
+    fn find(&self, user_id_arg: i32) -> RepoFuture<User> {
+        self.execute_query(users.find(user_id_arg))
     }
 
     /// Checks if e-mail is already registered
     fn email_exists(&self, email_arg: String) -> RepoFuture<bool> {
-        self.execute_query(select(exists(users.filter(email.eq(email_arg)))))
+        self.execute_query(select(exists(identity.filter(user_email.eq(email_arg)))))
     }
 
     /// Verifies password
     fn verify_password(&self, email_arg: String, password_arg: String) -> RepoFuture<bool> {
-        self.execute_query(select(exists(users.filter(email.eq(email_arg)).filter(password.eq(password_arg)))))
+        self.execute_query(select(exists(identity.filter(user_email.eq(email_arg)).filter(user_password.eq(password_arg)))))
     }
 
     /// Returns list of users, limited by `from` and `count` parameters
@@ -105,15 +106,24 @@ impl UsersRepo for UsersRepoImpl {
         let conn = self.get_connection();
 
         Box::new(self.cpu_pool.spawn_fn(move || {
-            let query = diesel::insert_into(users).values(&payload);
-            query.get_result(&*conn).map_err(|e| Error::from(e))
+            let update_user = UpdateUser::from(payload.clone());
+            let query_user = diesel::insert_into(users).values(&update_user); 
+            query_user.get_result::<User>(&*conn)
+                .map_err(Error::from)
+                .and_then(move |user| { 
+                    let identity_arg = Identity {user_id : user.id, user_email: user.email.clone(), provider: payload.provider, user_password: Some(payload.user_password)};
+                    let ident_query = diesel::insert_into(identity).values(&identity_arg);
+                    ident_query.get_result::<Identity>(&*conn)
+                        .map_err(Error::from)
+                        .and_then(|_| Ok(user))
+                })
         }))
     }
 
     /// Updates specific user
-    fn update(&self, user_id: i32, payload: UpdateUser) -> RepoFuture<User> {
+    fn update(&self, user_id_arg: i32, payload: UpdateUser) -> RepoFuture<User> {
         let conn = self.get_connection();
-        let filter = users.filter(id.eq(user_id)).filter(is_active.eq(true));
+        let filter = users.filter(id.eq(user_id_arg)).filter(is_active.eq(true));
 
         Box::new(self.cpu_pool.spawn_fn(move || {
             let query = diesel::update(filter).set(email.eq(payload.email));
@@ -122,8 +132,8 @@ impl UsersRepo for UsersRepoImpl {
     }
 
     /// Deactivates specific user
-    fn deactivate(&self, user_id: i32) -> RepoFuture<User> {
-        let filter = users.filter(id.eq(user_id)).filter(is_active.eq(true));
+    fn deactivate(&self, user_id_arg: i32) -> RepoFuture<User> {
+        let filter = users.filter(id.eq(user_id_arg)).filter(is_active.eq(true));
         let query = diesel::update(filter).set(is_active.eq(false));
         self.execute_query(query)
     }

@@ -963,6 +963,7 @@ dependencies = [
 name = "users"
 version = "0.1.0"
 dependencies = [
+ "chrono 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "config 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "diesel 1.0.0-beta1 (registry+https://github.com/rust-lang/crates.io-index)",
  "diesel_infer_schema 1.0.0-beta1 (registry+https://github.com/rust-lang/crates.io-index)",
