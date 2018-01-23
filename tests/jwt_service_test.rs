@@ -28,6 +28,11 @@ impl UsersRepo for UsersRepoMock {
         Box::new(futures::future::ok(user))
     }
 
+    fn find_by_email(&self, email_arg: String) -> RepoFuture<User>{
+        let user = User {  id: 1, email: email_arg.to_string(), password: MOCK_PASSWORD.to_string(), is_active: true };
+        Box::new(futures::future::ok(user))
+    }
+
     fn email_exists(&self, email_arg: String) -> RepoFuture<bool> {
         Box::new(futures::future::ok(email_arg == MOCK_EMAIL.to_string()))
     }

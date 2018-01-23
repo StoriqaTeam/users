@@ -27,6 +27,9 @@ pub trait UsersRepo {
     /// Find specific user by ID
     fn find(&self, user_id: i32) -> RepoFuture<User>;
 
+    /// Find specific user by email
+    fn find_by_email(&self, email_arg: String) -> RepoFuture<User>;
+
     /// Checks if e-mail is already registered
     fn email_exists(&self, email_arg: String) -> RepoFuture<bool>;
 
@@ -73,6 +76,17 @@ impl UsersRepo for UsersRepoImpl {
     /// Find specific user by ID
     fn find(&self, user_id: i32) -> RepoFuture<User> {
         self.execute_query(users.find(user_id))
+    }
+
+    /// Find specific user by email
+    fn find_by_email(&self, email_arg: String) -> RepoFuture<User>{
+        let conn = self.get_connection();
+        let query = users
+            .filter(email.eq(email_arg));
+
+        Box::new(self.cpu_pool.spawn_fn(move || {
+            query.first::<User>(&*conn).map_err(|e| Error::from(e))
+        }))
     }
 
     /// Checks if e-mail is already registered

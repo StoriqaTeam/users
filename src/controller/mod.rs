@@ -7,6 +7,7 @@ pub mod error;
 pub mod routes;
 pub mod types;
 pub mod utils;
+pub mod context;
 
 use std::sync::Arc;
 
@@ -14,17 +15,19 @@ use futures::Future;
 use futures::future;
 use hyper::{Get, Post, Put, Delete};
 use hyper::server::Request;
+use hyper::header::Authorization;
+use serde_json;
 
 use self::error::Error;
 use services::system::SystemService;
 use services::users::UsersService;
 use services::jwt::JWTService;
-use serde_json;
 
 use models;
 use self::utils::parse_body;
 use self::types::ControllerFuture;
 use self::routes::{Route, RouteParser};
+use self::context::Context;
 
 /// Controller handles route parsing and calling `Service` layer
 pub struct Controller {
@@ -57,19 +60,32 @@ impl Controller {
     /// Handle a request and get future response
     pub fn call(&self, req: Request) -> ControllerFuture
     {
+        let headers = req.headers().clone();
+        let auth_header = headers.get::<Authorization<String>>();
+        let token_payload = auth_header.map (move |auth| {
+                auth.0.clone()
+            });
+        let context = Context {user_email : token_payload};
+
         match (req.method(), self.route_parser.test(req.path())) {
             // GET /healthcheck
             (&Get, Some(Route::Healthcheck)) =>
                 serialize_future!(self.system_service.healthcheck().map_err(|e| Error::from(e))),
 
             // GET /users/<user_id>
-            (&Get, Some(Route::User(user_id))) =>
-                serialize_future!(self.users_service.get(user_id)),
+            (&Get, Some(Route::User(user_id))) => {
+                serialize_future!(self.users_service.get(context, user_id))
+            },
+
+            // GET /users/current
+            (&Get, Some(Route::Current)) => {
+                serialize_future!(self.users_service.current(context))
+            },
 
             // GET /users
             (&Get, Some(Route::Users)) => {
                 if let (Some(from), Some(to)) = parse_query!(req.query().unwrap_or_default(), "from" => i32, "to" => i64) {
-                    serialize_future!(self.users_service.list(from, to))
+                    serialize_future!(self.users_service.list(context, from, to))
                 } else {
                     Box::new(future::err(Error::UnprocessableEntity("Error parsing request body".to_string())))
                 }

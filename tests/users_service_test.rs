@@ -12,6 +12,7 @@ use users_lib::repos::users::UsersRepo;
 use users_lib::repos::types::RepoFuture;
 use users_lib::services::users::{UsersServiceImpl, UsersService};
 use users_lib::models::user::{NewUser, UpdateUser, User};
+use users_lib::controller::context::Context;
 
 struct UsersRepoMock;
 
@@ -19,6 +20,11 @@ impl UsersRepo for UsersRepoMock {
 
     fn find(&self, user_id: i32) -> RepoFuture<User> {
         let user = User {  id: user_id, email: MOCK_EMAIL.to_string(), password: MOCK_PASSWORD.to_string(), is_active: true };
+        Box::new(futures::future::ok(user))
+    }
+
+    fn find_by_email(&self, email_arg: String) -> RepoFuture<User>{
+        let user = User {  id: 1, email: email_arg.to_string(), password: MOCK_PASSWORD.to_string(), is_active: true };
         Box::new(futures::future::ok(user))
     }
 
@@ -62,22 +68,44 @@ fn create_service () -> UsersServiceImpl<UsersRepoMock> {
 const MOCK : UsersRepoMock = UsersRepoMock{};
 static MOCK_EMAIL: &'static str = "example@mail.com";
 static MOCK_PASSWORD: &'static str = "password";
+const CONTEXT_WITHOUT_EMAIL : Context = Context { user_email: None };
 
 
 #[test]
 fn test_get_user() {
     let service = create_service();
+    let context : Context = Context { user_email: Some(MOCK_EMAIL.to_string()) };
     let mut core = Core::new().unwrap();
-    let work = service.get(1);
+    let work = service.get(context, 1);
     let result = core.run(work).unwrap();
     assert_eq!(result.id, 1);
 }
 
 #[test]
-fn test_list() {
+fn test_current_user() {
+    let service = create_service();
+    let context : Context = Context { user_email: Some(MOCK_EMAIL.to_string()) };
+    let mut core = Core::new().unwrap();
+    let work = service.current(context);
+    let result = core.run(work).unwrap();
+    assert_eq!(result.email, MOCK_EMAIL.to_string());
+}
+
+#[test]
+fn test_current_user_without_context() {
     let service = create_service();
     let mut core = Core::new().unwrap();
-    let work = service.list(1, 5);
+    let work = service.current(CONTEXT_WITHOUT_EMAIL);
+    let result = core.run(work);
+    assert_eq!(result.is_err(), true);
+}
+
+#[test]
+fn test_list() {
+    let service = create_service();
+    let context : Context = Context { user_email: Some(MOCK_EMAIL.to_string()) };
+    let mut core = Core::new().unwrap();
+    let work = service.list(context, 1, 5);
     let result = core.run(work).unwrap();
     assert_eq!(result.len(), 5);
 }
