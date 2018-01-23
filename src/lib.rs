@@ -55,7 +55,7 @@ use tokio_core::reactor::Core;
 
 use app::Application;
 use repos::users::UsersRepoImpl;
-use services::system::SystemService;
+use services::system::SystemServiceImpl;
 use services::users::UsersServiceImpl;
 use services::jwt::JWTServiceImpl;
 use config::Config;
@@ -102,7 +102,7 @@ pub fn start_server(settings: Config) {
         };
 
          // Prepare services
-        let system_service = SystemService{};
+        let system_service = SystemServiceImpl{};
 
         let users_repo = Arc::new(users_repo);
 
