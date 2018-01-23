@@ -28,7 +28,7 @@ impl UsersRepo for UsersRepoMock {
         Box::new(futures::future::ok(user))
     }
 
-    fn email_exists(&self, email_arg: String) -> RepoFuture<bool> {
+    fn email_provider_exists(&self, email_arg: String, provider_arg: Provider) -> RepoFuture<bool> {
         Box::new(futures::future::ok(email_arg == MOCK_EMAIL.to_string()))
     }
 
@@ -109,7 +109,6 @@ fn create_new_user(email: String, password: String) -> NewUser {
     NewUser {
         user_email: email,
         user_password: password,
-        provider: Provider::UnverifiedEmail,
     }
 }
 

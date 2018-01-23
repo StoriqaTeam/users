@@ -251,7 +251,7 @@ mod tests {
     use tokio_core::reactor::Core;
     use serde_json;
 
-    use ::models::user::{NewUser, Provider};
+    use ::models::user::{NewUser};
     use ::controller::utils::{parse_body, read_body};
 
     #[test]
@@ -271,7 +271,6 @@ mod tests {
         let message = NewUser {
             user_email: "aaa@mail.com".to_string(),
             user_password: "password".to_string(),
-            provider: Provider::UnverifiedEmail
         };
         let message_str = serde_json::to_string(&message).unwrap();
         let res = response_with_body(message_str.clone());

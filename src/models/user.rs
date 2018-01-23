@@ -189,7 +189,6 @@ pub struct NewUser {
     pub user_email: String,
     #[validate(length(min = "6", max = "30", message = "Password should be between 6 and 30 symbols"))]
     pub user_password: String,
-    pub provider: Provider,
 }
 
 /// Payload for updating users

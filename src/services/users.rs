@@ -3,7 +3,7 @@ use std::sync::Arc;
 use futures::future;
 use futures::Future;
 
-use models::user::{User, NewUser, UpdateUser};
+use models::user::{User, NewUser, UpdateUser, Provider};
 use repos::users::UsersRepo;
 use super::types::ServiceFuture;
 use super::error::Error;
@@ -58,7 +58,7 @@ impl<U: UsersRepo> UsersService for UsersServiceImpl<U> {
 
         Box::new(
             users_repo
-                .email_exists(payload.user_email.to_string())
+                .email_provider_exists(payload.user_email.to_string(), Provider::Email)
                 .map(|exists| (payload, exists))
                 .map_err(Error::from)
                 .and_then(|(payload, exists)| match exists {

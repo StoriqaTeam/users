@@ -11,7 +11,7 @@ use diesel::pg::PgConnection;
 use futures::future;
 use futures_cpupool::CpuPool;
 
-use models::user::{User, NewUser, UpdateUser, Identity};
+use models::user::{User, NewUser, UpdateUser, Identity, Provider};
 use models::schema::users::dsl::*;
 use models::schema::identity::dsl::*;
 use super::error::Error;
@@ -29,7 +29,7 @@ pub trait UsersRepo {
     fn find(&self, user_id: i32) -> RepoFuture<User>;
 
     /// Checks if e-mail is already registered
-    fn email_exists(&self, email_arg: String) -> RepoFuture<bool>;
+    fn email_provider_exists(&self, email_arg: String, provider: Provider) -> RepoFuture<bool>;
 
     /// Returns list of users, limited by `from` and `count` parameters
     fn list(&self, from: i32, count: i64) -> RepoFuture<Vec<User>>;
@@ -77,8 +77,8 @@ impl UsersRepo for UsersRepoImpl {
     }
 
     /// Checks if e-mail is already registered
-    fn email_exists(&self, email_arg: String) -> RepoFuture<bool> {
-        self.execute_query(select(exists(identity.filter(user_email.eq(email_arg)))))
+    fn email_provider_exists(&self, email_arg: String, provider_arg: Provider) -> RepoFuture<bool> {
+        self.execute_query(select(exists(identity.filter(user_email.eq(email_arg)).filter(provider.eq(provider_arg)))))
     }
 
     /// Verifies password
@@ -111,7 +111,7 @@ impl UsersRepo for UsersRepoImpl {
             query_user.get_result::<User>(&*conn)
                 .map_err(Error::from)
                 .and_then(move |user| { 
-                    let identity_arg = Identity {user_id : user.id, user_email: user.email.clone(), provider: payload.provider, user_password: Some(payload.user_password)};
+                    let identity_arg = Identity {user_id : user.id, user_email: user.email.clone(), provider: Provider::Email, user_password: Some(payload.user_password)};
                     let ident_query = diesel::insert_into(identity).values(&identity_arg);
                     ident_query.get_result::<Identity>(&*conn)
                         .map_err(Error::from)
