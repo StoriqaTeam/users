@@ -70,7 +70,7 @@ impl UsersRepo for UsersRepoMock {
     }
 }
 
-fn create_controller() -> (Core, Controller) {
+fn create_controller() -> (Core, Controller<UsersRepoMock>) {
     let config = Config::new().unwrap();
     let core = Core::new().expect("Unexpected error creating event loop core");
     let handle = Arc::new(core.handle());
@@ -91,10 +91,8 @@ fn create_controller() -> (Core, Controller) {
             facebook_settings: facebook_settings,
             jwt_settings: jwt_settings,
     });
-    let users_service = Arc::new(UsersServiceImpl { users_repo : Arc::new(MOCK) });
-    let system_service = Arc::new(SystemServiceImpl{});
-        
-    let controller = Controller::new(system_service, users_service, jwt_service);
+
+    let controller = Controller::new(Arc::new(MOCK), jwt_service);
 
     (core, controller)
 }

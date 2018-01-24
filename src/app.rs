@@ -12,9 +12,10 @@ use hyper::header::{ContentLength, ContentType};
 
 use controller;
 use controller::Controller;
+use repos::users::UsersRepoImpl;
 
 pub struct Application {
-    pub controller: Controller,
+    pub controller: Controller<UsersRepoImpl>,
 }
 
 impl Service for Application {

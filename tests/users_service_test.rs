@@ -12,7 +12,7 @@ use users_lib::repos::users::UsersRepo;
 use users_lib::repos::types::RepoFuture;
 use users_lib::services::users::{UsersServiceImpl, UsersService};
 use users_lib::models::user::{NewUser, UpdateUser, User};
-use users_lib::controller::context::Context;
+use users_lib::services::context::Context;
 
 struct UsersRepoMock;
 
@@ -61,8 +61,8 @@ impl UsersRepo for UsersRepoMock {
     }
 }
 
-fn create_service () -> UsersServiceImpl<UsersRepoMock> {
-    UsersServiceImpl { users_repo : Arc::new(MOCK) } 
+fn create_service (context: Context) -> UsersServiceImpl<UsersRepoMock> {
+    UsersServiceImpl::new( Arc::new(MOCK), context ) 
 }
 
 const MOCK : UsersRepoMock = UsersRepoMock{};
@@ -73,46 +73,48 @@ const CONTEXT_WITHOUT_EMAIL : Context = Context { user_email: None };
 
 #[test]
 fn test_get_user() {
-    let service = create_service();
-    let context : Context = Context { user_email: Some(MOCK_EMAIL.to_string()) };
+    let context = Context { user_email: Some(MOCK_EMAIL.to_string()) };
+    let service = create_service(context);
     let mut core = Core::new().unwrap();
-    let work = service.get(context, 1);
+    let work = service.get(1);
     let result = core.run(work).unwrap();
     assert_eq!(result.id, 1);
 }
 
 #[test]
 fn test_current_user() {
-    let service = create_service();
-    let context : Context = Context { user_email: Some(MOCK_EMAIL.to_string()) };
+    let context = Context { user_email: Some(MOCK_EMAIL.to_string()) };
+    let service = create_service(context);
     let mut core = Core::new().unwrap();
-    let work = service.current(context);
+    let work = service.current();
     let result = core.run(work).unwrap();
     assert_eq!(result.email, MOCK_EMAIL.to_string());
 }
 
 #[test]
-fn test_current_user_without_context() {
-    let service = create_service();
+fn test_current_user_without_user_email() {
+    let context = CONTEXT_WITHOUT_EMAIL;
+    let service = create_service(context);
     let mut core = Core::new().unwrap();
-    let work = service.current(CONTEXT_WITHOUT_EMAIL);
+    let work = service.current();
     let result = core.run(work);
     assert_eq!(result.is_err(), true);
 }
 
 #[test]
 fn test_list() {
-    let service = create_service();
-    let context : Context = Context { user_email: Some(MOCK_EMAIL.to_string()) };
+    let context = Context { user_email: Some(MOCK_EMAIL.to_string()) };
+    let service = create_service(context);
     let mut core = Core::new().unwrap();
-    let work = service.list(context, 1, 5);
+    let work = service.list(1, 5);
     let result = core.run(work).unwrap();
     assert_eq!(result.len(), 5);
 }
 
 #[test]
 fn test_create_allready_existed() {
-    let service = create_service();
+    let context = Context { user_email: Some(MOCK_EMAIL.to_string()) };
+    let service = create_service(context);
     let mut core = Core::new().unwrap();
     let new_user = NewUser { email: MOCK_EMAIL.to_string(), password: MOCK_PASSWORD.to_string() };
     let work = service.create(new_user);
@@ -122,7 +124,8 @@ fn test_create_allready_existed() {
 
 #[test]
 fn test_create_user() {
-    let service = create_service();
+    let context = Context { user_email: Some(MOCK_EMAIL.to_string()) };
+    let service = create_service(context);
     let mut core = Core::new().unwrap();
     let new_user = NewUser { email: "new_user@mail.com".to_string(), password: MOCK_PASSWORD.to_string() };
     let work = service.create(new_user);
@@ -132,7 +135,8 @@ fn test_create_user() {
 
 #[test]
 fn test_update() {
-    let service = create_service();
+    let context = Context { user_email: Some(MOCK_EMAIL.to_string()) };
+    let service = create_service(context);
     let mut core = Core::new().unwrap();
     let update_user = UpdateUser {email: MOCK_EMAIL.to_string()};
     let work = service.update(1, update_user);
@@ -143,7 +147,8 @@ fn test_update() {
 
 #[test]
 fn test_deactivate() {
-    let service = create_service();
+    let context = Context { user_email: Some(MOCK_EMAIL.to_string()) };
+    let service = create_service(context);
     let mut core = Core::new().unwrap();
     let work = service.deactivate(1);
     let result = core.run(work).unwrap();

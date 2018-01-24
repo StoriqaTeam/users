@@ -7,7 +7,6 @@ pub mod error;
 pub mod routes;
 pub mod types;
 pub mod utils;
-pub mod context;
 
 use std::sync::Arc;
 
@@ -19,41 +18,39 @@ use hyper::header::Authorization;
 use serde_json;
 
 use self::error::Error;
-use services::system::SystemService;
-use services::users::UsersService;
+use services::system::{SystemServiceImpl, SystemService};
+use services::users::{UsersServiceImpl, UsersService};
 use services::jwt::JWTService;
+use repos::users::{UsersRepo};
 
 use models;
 use self::utils::parse_body;
 use self::types::ControllerFuture;
 use self::routes::{Route, RouteParser};
-use self::context::Context;
+use services::context::Context;
 
 /// Controller handles route parsing and calling `Service` layer
-pub struct Controller {
+pub struct Controller<U: UsersRepo + 'static> {
     pub route_parser: Arc<RouteParser>,
-    pub system_service: Arc<SystemService>,
-    pub users_service: Arc<UsersService>,
-    pub jwt_service: Arc<JWTService>
+    pub jwt_service: Arc<JWTService>,
+    pub users_repo: Arc<U>
 }
 
 macro_rules! serialize_future {
     ($e:expr) => (Box::new($e.map_err(|e| Error::from(e)).and_then(|resp| serde_json::to_string(&resp).map_err(|e| Error::from(e)))))
 }
 
-impl Controller {
+impl<U: UsersRepo + 'static> Controller<U> {
     /// Create a new controller based on services
     pub fn new(
-        system_service: Arc<SystemService>,
-        users_service: Arc<UsersService>,
+        users_repo: Arc<U>,
         jwt_service: Arc<JWTService>
     ) -> Self {
         let route_parser = Arc::new(routes::create_route_parser());
-        Controller {
+        Self {
             route_parser,
-            system_service,
-            users_service,
             jwt_service,
+            users_repo,
         }
     }
 
@@ -70,22 +67,28 @@ impl Controller {
         match (req.method(), self.route_parser.test(req.path())) {
             // GET /healthcheck
             (&Get, Some(Route::Healthcheck)) =>
-                serialize_future!(self.system_service.healthcheck().map_err(|e| Error::from(e))),
+                {
+                    let system_service = SystemServiceImpl::new();
+                    serialize_future!(system_service.healthcheck().map_err(|e| Error::from(e)))
+                },
 
             // GET /users/<user_id>
             (&Get, Some(Route::User(user_id))) => {
-                serialize_future!(self.users_service.get(context, user_id))
+                let users_service = UsersServiceImpl::new(self.users_repo.clone(), context);
+                serialize_future!(users_service.get(user_id))
             },
 
             // GET /users/current
             (&Get, Some(Route::Current)) => {
-                serialize_future!(self.users_service.current(context))
+                let users_service = UsersServiceImpl::new(self.users_repo.clone(), context);
+                serialize_future!(users_service.current())
             },
 
             // GET /users
             (&Get, Some(Route::Users)) => {
                 if let (Some(from), Some(to)) = parse_query!(req.query().unwrap_or_default(), "from" => i32, "to" => i64) {
-                    serialize_future!(self.users_service.list(context, from, to))
+                    let users_service = UsersServiceImpl::new(self.users_repo.clone(), context);
+                    serialize_future!(users_service.list(from, to))
                 } else {
                     Box::new(future::err(Error::UnprocessableEntity("Error parsing request body".to_string())))
                 }
@@ -93,7 +96,7 @@ impl Controller {
 
             // POST /users
             (&Post, Some(Route::Users)) => {
-                let users_service = self.users_service.clone();
+                let users_service = UsersServiceImpl::new(self.users_repo.clone(), context);
                 serialize_future!(
                     parse_body::<models::user::NewUser>(req.body())
                         .map_err(|_| Error::UnprocessableEntity("Error parsing request body".to_string()))
@@ -103,7 +106,7 @@ impl Controller {
 
             // PUT /users/<user_id>
             (&Put, Some(Route::User(user_id))) => {
-                let users_service = self.users_service.clone();
+                let users_service = UsersServiceImpl::new(self.users_repo.clone(), context);
                 serialize_future!(
                     parse_body::<models::user::UpdateUser>(req.body())
                         .map_err(|_| Error::UnprocessableEntity("Error parsing request body".to_string()))
@@ -113,7 +116,10 @@ impl Controller {
 
             // DELETE /users/<user_id>
             (&Delete, Some(Route::User(user_id))) =>
-                serialize_future!(self.users_service.deactivate(user_id)),
+                {
+                    let users_service = UsersServiceImpl::new(self.users_repo.clone(), context);
+                    serialize_future!(users_service.deactivate(user_id))
+                },
 
             // POST /jwt/email
             (&Post, Some(Route::JWTEmail)) => {

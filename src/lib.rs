@@ -55,8 +55,6 @@ use tokio_core::reactor::Core;
 
 use app::Application;
 use repos::users::UsersRepoImpl;
-use services::system::SystemServiceImpl;
-use services::users::UsersServiceImpl;
 use services::jwt::JWTServiceImpl;
 use config::Config;
 
@@ -101,15 +99,9 @@ pub fn start_server(settings: Config) {
             cpu_pool: Arc::new(cpu_pool),
         };
 
-         // Prepare services
-        let system_service = SystemServiceImpl{};
-
         let users_repo = Arc::new(users_repo);
 
-        let users_service = UsersServiceImpl {
-            users_repo: users_repo.clone(),
-        };
-
+         // Prepare services
         let jwt_service = JWTServiceImpl {
             users_repo: users_repo.clone(),
             http_client: client_handle.clone(),
@@ -119,7 +111,7 @@ pub fn start_server(settings: Config) {
 
         };
 
-        let controller = controller::Controller::new(Arc::new(system_service), Arc::new(users_service), Arc::new(jwt_service));
+        let controller = controller::Controller::new(users_repo, Arc::new(jwt_service));
 
         // Prepare application
         let app = Application {

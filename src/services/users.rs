@@ -7,16 +7,16 @@ use models::user::{User, NewUser, UpdateUser};
 use repos::users::UsersRepo;
 use super::types::ServiceFuture;
 use super::error::Error;
-use controller::context::Context;
+use super::context::Context;
 
 
 pub trait UsersService {
     /// Returns user by ID
-    fn get(&self, context: Context, user_id: i32) -> ServiceFuture<User>;
+    fn get(&self, user_id: i32) -> ServiceFuture<User>;
     /// Returns current user
-    fn current(&self, context: Context) -> ServiceFuture<User>;
+    fn current(&self) -> ServiceFuture<User>;
     /// Lists users limited by `from` and `count` parameters
-    fn list(&self, context: Context, from: i32, count: i64) -> ServiceFuture<Vec<User>>;
+    fn list(&self, from: i32, count: i64) -> ServiceFuture<Vec<User>>;
     /// Deactivates specific user
     fn deactivate(&self, user_id: i32) -> ServiceFuture<User>;
     /// Creates new user
@@ -28,16 +28,27 @@ pub trait UsersService {
 /// Users services, responsible for User-related CRUD operations
 pub struct UsersServiceImpl<U: 'static + UsersRepo> {
     pub users_repo: Arc<U>,
+    context: Context,
+}
+
+impl<U: 'static + UsersRepo> UsersServiceImpl<U> {
+    pub fn new(users_repo: Arc<U>, context: Context) -> Self {
+        Self {
+            users_repo,
+            context
+        }
+    }
 }
 
 impl<U: UsersRepo> UsersService for UsersServiceImpl<U> {
     /// Returns user by ID
-    fn get(&self, _context: Context, user_id: i32) -> ServiceFuture<User> {
+    fn get(&self, user_id: i32) -> ServiceFuture<User> {
         Box::new(self.users_repo.find(user_id).map_err(Error::from))
     }
 
     /// Returns current user
-    fn current(&self, context: Context) -> ServiceFuture<User>{
+    fn current(&self) -> ServiceFuture<User>{
+        let context = self.context.clone();
         if let Some(email) = context.user_email {
             Box::new(self.users_repo.find_by_email(email).map_err(Error::from))
         } else {
@@ -46,7 +57,7 @@ impl<U: UsersRepo> UsersService for UsersServiceImpl<U> {
     }
     
     /// Lists users limited by `from` and `count` parameters
-    fn list(&self, _context: Context, from: i32, count: i64) -> ServiceFuture<Vec<User>> {
+    fn list(&self, from: i32, count: i64) -> ServiceFuture<Vec<User>> {
         Box::new(
             self.users_repo
                 .list(from, count)

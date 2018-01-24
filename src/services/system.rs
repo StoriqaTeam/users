@@ -17,3 +17,9 @@ impl SystemService for SystemServiceImpl {
         Box::new(future::ok("Ok".to_string()))
     }
 }
+
+impl SystemServiceImpl {
+    pub fn new() -> Self {
+        Self{}
+    }
+}
