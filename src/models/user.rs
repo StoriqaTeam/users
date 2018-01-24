@@ -177,7 +177,7 @@ mod impls_for_insert_and_query {
 
     impl HasSqlType<GenderType> for Pg {
         fn metadata(lookup: &Self::MetadataLookup) -> Self::TypeMetadata {
-            lookup.lookup_type("Gender_type")
+            lookup.lookup_type("gender_type")
         }
     }
 
