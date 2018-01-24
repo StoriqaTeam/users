@@ -4,15 +4,12 @@ extern crate tokio_core;
 extern crate users_lib;
 extern crate futures;
 
-use std::sync::Arc;
-
 use tokio_core::reactor::Core;
 
 use users_lib::repos::users::UsersRepo;
 use users_lib::repos::types::RepoFuture;
 use users_lib::services::users::{UsersServiceImpl, UsersService};
 use users_lib::models::user::{NewUser, UpdateUser, User};
-use users_lib::services::context::Context;
 
 #[derive(Clone)]
 struct UsersRepoMock;

@@ -6,4 +6,3 @@ pub mod jwt;
 pub mod system;
 pub mod error;
 pub mod types;
-pub mod context;
