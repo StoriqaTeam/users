@@ -58,7 +58,7 @@ impl<U: UsersRepo> UsersService for UsersServiceImpl<U> {
 
         Box::new(
             users_repo
-                .email_provider_exists(payload.user_email.to_string(), Provider::Email)
+                .email_provider_exists(payload.email.to_string(), Provider::Email)
                 .map(|exists| (payload, exists))
                 .map_err(Error::from)
                 .and_then(|(payload, exists)| match exists {
@@ -66,7 +66,7 @@ impl<U: UsersRepo> UsersService for UsersServiceImpl<U> {
                     true => future::err(Error::Validate(validation_errors!({"email": ["email" => "Email already exists"]})))
                 })
                 .and_then(move |user| {
-                    users_repo.create(user).map_err(|e| Error::from(e))
+                    users_repo.create(user, Provider::Email).map_err(|e| Error::from(e))
                 }),
         )
     }

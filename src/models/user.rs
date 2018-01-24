@@ -12,7 +12,7 @@ use diesel::Queryable;
 
 use validator::Validate;
 use models::schema::users;
-use models::schema::identity;
+use models::schema::identities;
 
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)] 
@@ -27,7 +27,7 @@ impl fmt::Display for Provider {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", match *self {
             Provider::Email => "email",
-            Provider::UnverifiedEmail => "unverifiedemail",
+            Provider::UnverifiedEmail => "unverified_email",
             Provider::Facebook => "facebook",
             Provider::Google => "google",
         })
@@ -38,7 +38,7 @@ impl FromSqlRow<Text, Pg> for Provider {
     fn build_from_row<R: Row<Pg>>(row: &mut R) -> Result<Self, Box<Error+Send+Sync>> {
         match String::build_from_row(row)?.as_ref() {
             "email" => Ok(Provider::Email),
-            "unverifiedemail" => Ok(Provider::UnverifiedEmail),
+            "unverified_email" => Ok(Provider::UnverifiedEmail),
             "facebook" => Ok(Provider::Facebook),
             "google" => Ok(Provider::Google),
             v => Err(format!("Unknown value {} for State found", v).into()),
@@ -105,7 +105,7 @@ impl<'a> AsExpression<Text> for &'a Gender {
 
 /// Payload for creating identity for users
 #[derive(Debug, Serialize, Deserialize, Validate, Insertable)]
-#[table_name = "identity"]
+#[table_name = "identities"]
 pub struct Identity
 {
     pub user_id: i32,
@@ -117,7 +117,7 @@ pub struct Identity
 }
 
 
-impl Queryable<identity::SqlType, Pg> for Identity {
+impl Queryable<identities::SqlType, Pg> for Identity {
     type Row = (i32, String, Option<String>, String);
 
     fn build(row: Self::Row) -> Self {
@@ -127,7 +127,7 @@ impl Queryable<identity::SqlType, Pg> for Identity {
             user_password: row.2,
             provider: match row.3.as_ref() {
                 "email" => Provider::Email,
-                "unverifiedemail" => Provider::UnverifiedEmail,
+                "unverified_email" => Provider::UnverifiedEmail,
                 "facebook" => Provider::Facebook,
                 "google" => Provider::Google,
                 n => panic!("unknown kind: {}", n),
@@ -186,9 +186,9 @@ impl Queryable<users::SqlType, Pg> for User {
 #[derive(Serialize, Deserialize, Validate, Clone)]
 pub struct NewUser {
     #[validate(email(message = "Invalid email format"))]
-    pub user_email: String,
+    pub email: String,
     #[validate(length(min = "6", max = "30", message = "Password should be between 6 and 30 symbols"))]
-    pub user_password: String,
+    pub password: String,
 }
 
 /// Payload for updating users
@@ -209,7 +209,7 @@ pub struct UpdateUser {
 impl From<NewUser> for UpdateUser {
     fn from(new_user: NewUser) -> Self {
         UpdateUser {
-            email: new_user.user_email,
+            email: new_user.email,
             phone: None,
             first_name: None,
             last_name: None,

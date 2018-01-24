@@ -36,8 +36,8 @@ impl UsersRepo for UsersRepoMock {
         Box::new(futures::future::ok(users))
     }
 
-    fn create(&self, payload: NewUser) -> RepoFuture<User> {
-        let user = create_user(1, payload.user_email);
+    fn create(&self, payload: NewUser, provider_arg: Provider) -> RepoFuture<User> {
+        let user = create_user(1, payload.email);
         Box::new(futures::future::ok(user))
     }
 
@@ -82,8 +82,8 @@ fn create_user(id: i32, email: String) -> User {
 
 fn create_new_user(email: String, password: String) -> NewUser {
     NewUser {
-        user_email: email,
-        user_password: password,
+        email: email,
+        password: password,
     }
 }
 

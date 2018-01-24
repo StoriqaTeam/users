@@ -1,5 +1,5 @@
 table! {
-    identity (user_id) {
+    identities (user_id) {
         user_id -> Int4,
         user_email -> Varchar,
         user_password -> Nullable<Varchar>,

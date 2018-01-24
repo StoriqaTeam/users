@@ -13,7 +13,7 @@ use futures_cpupool::CpuPool;
 
 use models::user::{User, NewUser, UpdateUser, Identity, Provider};
 use models::schema::users::dsl::*;
-use models::schema::identity::dsl::*;
+use models::schema::identities::dsl::*;
 use super::error::Error;
 use super::types::{RepoFuture, DbConnection, DbPool};
 
@@ -35,7 +35,7 @@ pub trait UsersRepo {
     fn list(&self, from: i32, count: i64) -> RepoFuture<Vec<User>>;
 
     /// Creates new user
-    fn create(&self, payload: NewUser) -> RepoFuture<User>;
+    fn create(&self, payload: NewUser, provider: Provider) -> RepoFuture<User>;
 
     /// Updates specific user
     fn update(&self, user_id: i32, payload: UpdateUser) -> RepoFuture<User>;
@@ -78,12 +78,12 @@ impl UsersRepo for UsersRepoImpl {
 
     /// Checks if e-mail is already registered
     fn email_provider_exists(&self, email_arg: String, provider_arg: Provider) -> RepoFuture<bool> {
-        self.execute_query(select(exists(identity.filter(user_email.eq(email_arg)).filter(provider.eq(provider_arg)))))
+        self.execute_query(select(exists(identities.filter(user_email.eq(email_arg)).filter(provider.eq(provider_arg)))))
     }
 
     /// Verifies password
     fn verify_password(&self, email_arg: String, password_arg: String) -> RepoFuture<bool> {
-        self.execute_query(select(exists(identity.filter(user_email.eq(email_arg)).filter(user_password.eq(password_arg)))))
+        self.execute_query(select(exists(identities.filter(user_email.eq(email_arg)).filter(user_password.eq(password_arg)))))
     }
 
     /// Returns list of users, limited by `from` and `count` parameters
@@ -102,7 +102,7 @@ impl UsersRepo for UsersRepoImpl {
 
     /// Creates new user
     // TODO - set e-mail uniqueness in database
-    fn create(&self, payload: NewUser) -> RepoFuture<User> {
+    fn create(&self, payload: NewUser, provider_arg: Provider) -> RepoFuture<User> {
         let conn = self.get_connection();
 
         Box::new(self.cpu_pool.spawn_fn(move || {
@@ -111,8 +111,8 @@ impl UsersRepo for UsersRepoImpl {
             query_user.get_result::<User>(&*conn)
                 .map_err(Error::from)
                 .and_then(move |user| { 
-                    let identity_arg = Identity {user_id : user.id, user_email: user.email.clone(), provider: Provider::Email, user_password: Some(payload.user_password)};
-                    let ident_query = diesel::insert_into(identity).values(&identity_arg);
+                    let identity_arg = Identity {user_id : user.id, user_email: user.email.clone(), provider: provider_arg, user_password: Some(payload.password)};
+                    let ident_query = diesel::insert_into(identities).values(&identity_arg);
                     ident_query.get_result::<Identity>(&*conn)
                         .map_err(Error::from)
                         .and_then(|_| Ok(user))

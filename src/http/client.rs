@@ -269,15 +269,15 @@ mod tests {
     #[test]
     fn test_parse_body() {
         let message = NewUser {
-            user_email: "aaa@mail.com".to_string(),
-            user_password: "password".to_string(),
+            email: "aaa@mail.com".to_string(),
+            password: "password".to_string(),
         };
         let message_str = serde_json::to_string(&message).unwrap();
         let res = response_with_body(message_str.clone());
         let mut core = Core::new().unwrap();
         let work = parse_body::<NewUser>(res.body());
         let result = core.run(work).unwrap();
-        assert_eq!(result.user_email, message.user_email);
+        assert_eq!(result.email, message.email);
     }
 
     fn response_with_body(body: String) -> Response {

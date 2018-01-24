@@ -98,7 +98,7 @@ impl<U: UsersRepo> JWTService for JWTServiceImpl<U> {
 
         Box::new(
             self.users_repo
-                .verify_password(payload.user_email.to_string(), payload.user_password.clone())
+                .verify_password(payload.email.to_string(), payload.password.clone())
                 .map_err(Error::from)
                 .map(|exists| (exists, payload))
                 .and_then(
@@ -110,7 +110,7 @@ impl<U: UsersRepo> JWTService for JWTServiceImpl<U> {
                     }
                 )
                 .and_then(move |pl| {
-                    let tokenpayload = JWTPayload::new(pl.user_email);
+                    let tokenpayload = JWTPayload::new(pl.email);
                     encode(&Header::default(), &tokenpayload, jwt_secret_key.as_ref())
                         .map_err(|_| Error::Parse(format!("Couldn't encode jwt: {:?}", tokenpayload)))
                         .into_future()
