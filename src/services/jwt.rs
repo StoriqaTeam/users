@@ -26,16 +26,15 @@ struct GoogleID {
   given_name: String,
   id: String,
   hd: String,
-  verified_email: String
+  verified_email: bool
 }
 
 #[derive(Serialize, Deserialize)]
 struct GoogleToken
 {
   access_token: String,
-  refresh_token: String,
   token_type: String,
-  expires_in: String
+  expires_in: i32
 }
 
 #[derive(Serialize, Deserialize)]
@@ -159,7 +158,7 @@ impl<U: UsersRepo> JWTService for JWTServiceImpl<U> {
                                 token: token.access_token
                             }));
                     http_client.request::<GoogleID>(Method::Get, info_url, None, Some(headers))
-                        .map_err(|_| Error::HttpClient("Failed to receive user info from google.".to_string()))
+                        .map_err(|e| Error::HttpClient(format!("Failed to receive user info from google. {}", e.to_string())))
                 })
                 .and_then(move |google_id| {
                     let tokenpayload = JWTPayload::new(google_id.email);
