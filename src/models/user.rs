@@ -1,110 +1,12 @@
 use std::time::SystemTime;
-use std::error::Error;
-use std::fmt;
-
-use diesel::pg::Pg;
-use diesel::types::FromSqlRow;
-use diesel::types::{Text};
-use diesel::row::Row;
-use diesel::expression::AsExpression;
-use diesel::dsl::AsExprOf;
-use diesel::Queryable;
 
 use validator::Validate;
 use models::schema::users;
 use models::schema::identities;
 
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)] 
-pub enum Provider {
-   Email,
-   UnverifiedEmail,
-   Facebook,
-   Google
-}
-
-impl fmt::Display for Provider {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", match *self {
-            Provider::Email => "email",
-            Provider::UnverifiedEmail => "unverified_email",
-            Provider::Facebook => "facebook",
-            Provider::Google => "google",
-        })
-    }
-}
-
-impl FromSqlRow<Text, Pg> for Provider {
-    fn build_from_row<R: Row<Pg>>(row: &mut R) -> Result<Self, Box<Error+Send+Sync>> {
-        match String::build_from_row(row)?.as_ref() {
-            "email" => Ok(Provider::Email),
-            "unverified_email" => Ok(Provider::UnverifiedEmail),
-            "facebook" => Ok(Provider::Facebook),
-            "google" => Ok(Provider::Google),
-            v => Err(format!("Unknown value {} for State found", v).into()),
-        }
-    }
-}
-
-impl AsExpression<Text> for Provider {
-    type Expression = AsExprOf<String, Text>;
-    fn as_expression(self) -> Self::Expression {
-        <String as AsExpression<Text>>::as_expression(self.to_string())
-    }
-}
-
-impl<'a> AsExpression<Text> for &'a Provider {
-    type Expression = AsExprOf<String, Text>;
-    fn as_expression(self) -> Self::Expression {
-        <String as AsExpression<Text>>::as_expression(self.to_string())
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)] 
-pub enum Gender {
-   Male,
-   Female,
-   Undefined
-}
-
-impl fmt::Display for Gender {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", match *self {
-            Gender::Male => "male",
-            Gender::Female => "female",
-            Gender::Undefined => "undefined",
-        })
-    }
-}
-
-impl FromSqlRow<Text, Pg> for Gender {
-    fn build_from_row<R: Row<Pg>>(row: &mut R) -> Result<Self, Box<Error+Send+Sync>> {
-        match String::build_from_row(row)?.as_ref() {
-            "male" => Ok(Gender::Male),
-            "female" => Ok(Gender::Female),
-            "undefined" => Ok(Gender::Undefined),
-            v => Err(format!("Unknown value {} for Gender found", v).into()),
-        }
-    }
-}
-
-impl AsExpression<Text> for Gender {
-    type Expression = AsExprOf<String, Text>;
-    fn as_expression(self) -> Self::Expression {
-        <String as AsExpression<Text>>::as_expression(self.to_string())
-    }
-}
-
-impl<'a> AsExpression<Text> for &'a Gender {
-    type Expression = AsExprOf<String, Text>;
-    fn as_expression(self) -> Self::Expression {
-        <String as AsExpression<Text>>::as_expression(self.to_string())
-    }
-}
-
-
 /// Payload for creating identity for users
-#[derive(Debug, Serialize, Deserialize, Validate, Insertable)]
+#[derive(Debug, Serialize, Deserialize, Validate, Insertable, Queryable)]
 #[table_name = "identities"]
 pub struct Identity
 {
@@ -117,26 +19,7 @@ pub struct Identity
 }
 
 
-impl Queryable<identities::SqlType, Pg> for Identity {
-    type Row = (i32, String, Option<String>, String);
-
-    fn build(row: Self::Row) -> Self {
-        Identity {
-            user_id: row.0,
-            user_email: row.1,
-            user_password: row.2,
-            provider: match row.3.as_ref() {
-                "email" => Provider::Email,
-                "unverified_email" => Provider::UnverifiedEmail,
-                "facebook" => Provider::Facebook,
-                "google" => Provider::Google,
-                n => panic!("unknown kind: {}", n),
-            }
-        }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Queryable)]
 pub struct User {
    pub id: i32,
    pub email: String,
@@ -152,34 +35,6 @@ pub struct User {
    pub last_login_at: SystemTime, 
    pub created_at: SystemTime, 
    pub updated_at: SystemTime, 
-}
-
-impl Queryable<users::SqlType, Pg> for User {
-    type Row = (i32, String, bool, Option<String>, bool, bool, Option<String>, Option<String>, Option<String>, String, Option<SystemTime>, SystemTime,SystemTime,SystemTime);
-
-    fn build(row: Self::Row) -> Self {
-        User {
-            id: row.0,          
-            email: row.1,           
-            email_verified: row.2,          
-            phone: row.3,           
-            phone_verified: row.4,          
-            is_active: row.5 ,          
-            first_name: row.6,          
-            last_name: row.7,           
-            middle_name: row.8,         
-            gender: match row.9.as_ref() {          
-                "male" => Gender::Male,         
-                "female" => Gender::Female,         
-                "undefined" => Gender::Undefined,           
-                n => panic!("unknown gender: {}", n),           
-            },          
-            birthdate: row.10,          
-            last_login_at: row.11,          
-            created_at: row.12,         
-            updated_at: row.13,         
-        }
-    }
 }
 
 /// Payload for creating users
@@ -217,6 +72,165 @@ impl From<NewUser> for UpdateUser {
             gender: Gender::Undefined,
             birthdate: None,
             last_login_at: SystemTime::now(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)] 
+pub enum Provider {
+   Email,
+   UnverifiedEmail,
+   Facebook,
+   Google
+}
+
+#[derive(QueryId)]
+pub struct ProviderType;
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)] 
+pub enum Gender {
+   Male,
+   Female,
+   Undefined
+}
+
+#[derive(QueryId)]
+pub struct GenderType;
+
+mod impls_for_insert_and_query {
+    use diesel::Queryable;
+    use diesel::expression::AsExpression;
+    use diesel::expression::bound::Bound;
+    use diesel::pg::Pg;
+    use diesel::row::Row;
+    use diesel::serialize::{IsNull, ToSql};
+    use diesel::serialize::Output;
+    use diesel::deserialize::FromSqlRow;
+    use diesel::sql_types::*;
+    use std::error::Error;
+    use std::io::Write;
+
+    use super::{Provider, ProviderType};
+    use super::{Gender, GenderType};
+
+    impl HasSqlType<ProviderType> for Pg {
+        fn metadata(lookup: &Self::MetadataLookup) -> Self::TypeMetadata {
+            lookup.lookup_type("provider_type")
+        }
+    }
+
+    impl NotNull for ProviderType {}
+    impl SingleValue for ProviderType {}
+
+    impl<'a> AsExpression<ProviderType> for &'a Provider {
+        type Expression = Bound<ProviderType, &'a Provider>;
+
+        fn as_expression(self) -> Self::Expression {
+            Bound::new(self)
+        }
+    }
+
+    impl AsExpression<ProviderType> for Provider {
+        type Expression = Bound<ProviderType, Provider>;
+
+        fn as_expression(self) -> Self::Expression {
+            Bound::new(self)
+        }
+    }
+
+    impl ToSql<ProviderType, Pg> for Provider {
+        fn to_sql<W: Write>(
+            &self,
+            out: &mut Output<W, Pg>,
+        ) -> Result<IsNull, Box<Error + Send + Sync>> {
+            match *self {
+                Provider::Email => out.write_all(b"email")?,
+                Provider::UnverifiedEmail => out.write_all(b"unverified_email")?,
+                Provider::Facebook => out.write_all(b"facebook")?,
+                Provider::Google => out.write_all(b"google")?,
+            }
+            Ok(IsNull::No)
+        }
+    }
+
+    impl FromSqlRow<ProviderType, Pg> for Provider {
+        fn build_from_row<T: Row<Pg>>(row: &mut T) -> Result<Self, Box<Error + Send + Sync>> {
+            match row.take() {
+                Some(b"email") => Ok(Provider::Email),
+                Some(b"unverified_email") => Ok(Provider::UnverifiedEmail),
+                Some(b"facebook") => Ok(Provider::Facebook),
+                Some(b"google") => Ok(Provider::Google),
+                Some(_) => Err("Unrecognized enum variant".into()),
+                None => Err("Unexpected null for non-null column".into()),
+            }
+        }
+    }
+
+    impl Queryable<ProviderType, Pg> for Provider {
+        type Row = Self;
+
+        fn build(row: Self::Row) -> Self {
+            row
+        }
+    }
+
+
+    impl HasSqlType<GenderType> for Pg {
+        fn metadata(lookup: &Self::MetadataLookup) -> Self::TypeMetadata {
+            lookup.lookup_type("Gender_type")
+        }
+    }
+
+    impl NotNull for GenderType {}
+    impl SingleValue for GenderType {}
+
+    impl<'a> AsExpression<GenderType> for &'a Gender {
+        type Expression = Bound<GenderType, &'a Gender>;
+
+        fn as_expression(self) -> Self::Expression {
+            Bound::new(self)
+        }
+    }
+
+    impl AsExpression<GenderType> for Gender {
+        type Expression = Bound<GenderType, Gender>;
+
+        fn as_expression(self) -> Self::Expression {
+            Bound::new(self)
+        }
+    }
+
+    impl ToSql<GenderType, Pg> for Gender {
+        fn to_sql<W: Write>(
+            &self,
+            out: &mut Output<W, Pg>,
+        ) -> Result<IsNull, Box<Error + Send + Sync>> {
+            match *self {
+                Gender::Male => out.write_all(b"male")?,
+                Gender::Female => out.write_all(b"female")?,
+                Gender::Undefined => out.write_all(b"undefined")?,
+            }
+            Ok(IsNull::No)
+        }
+    }
+
+    impl FromSqlRow<GenderType, Pg> for Gender {
+        fn build_from_row<T: Row<Pg>>(row: &mut T) -> Result<Self, Box<Error + Send + Sync>> {
+            match row.take() {
+                Some(b"male") => Ok(Gender::Male),
+                Some(b"female") => Ok(Gender::Female),
+                Some(b"undefined") => Ok(Gender::Undefined),
+                Some(_) => Err("Unrecognized enum variant".into()),
+                None => Err("Unexpected null for non-null column".into()),
+            }
+        }
+    }
+
+    impl Queryable<GenderType, Pg> for Gender {
+        type Row = Self;
+
+        fn build(row: Self::Row) -> Self {
+            row
         }
     }
 }
