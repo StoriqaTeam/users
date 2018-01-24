@@ -18,7 +18,7 @@ use users_lib::models::user::{NewUser, UpdateUser};
 use users_lib::models::jwt::ProviderOauth;
 use users_lib::http::client::Client;
 
-
+#[derive(Clone)]
 struct UsersRepoMock;
 
 impl UsersRepo for UsersRepoMock {
@@ -76,16 +76,7 @@ fn create_service () -> (Core, JWTServiceImpl<UsersRepoMock>) {
     handle.spawn(
         client_stream.for_each(|_| Ok(()))
     );
-    let jwt_settings = config.jwt.clone();
-    let google_settings = config.google.clone();
-    let facebook_settings = config.facebook.clone();
-    let service = JWTServiceImpl { 
-            users_repo : Arc::new(MOCK), 
-            http_client: client_handle,
-            google_settings: google_settings,
-            facebook_settings: facebook_settings,
-            jwt_settings: jwt_settings,
-    };
+    let service = JWTServiceImpl::new(MOCK, client_handle, config);
     (core, service)
 }
 

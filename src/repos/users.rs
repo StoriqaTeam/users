@@ -1,4 +1,3 @@
-use std::sync::Arc;
 
 use diesel;
 use diesel::select;
@@ -17,10 +16,11 @@ use super::error::Error;
 use super::types::{RepoFuture, DbConnection, DbPool};
 
 /// Users repository, responsible for handling users
+#[derive(Clone)]
 pub struct UsersRepoImpl {
     // Todo - no need for Arc, since pool is itself an ARC-like structure
-    pub r2d2_pool: Arc<DbPool>,
-    pub cpu_pool: Arc<CpuPool>
+    pub r2d2_pool: DbPool,
+    pub cpu_pool: CpuPool
 }
 
 pub trait UsersRepo {
@@ -51,6 +51,13 @@ pub trait UsersRepo {
 }
 
 impl UsersRepoImpl {
+    pub fn new(r2d2_pool: DbPool, cpu_pool: CpuPool) -> Self {
+        Self {
+            r2d2_pool,
+            cpu_pool
+        }
+    }
+
     fn get_connection(&self) -> DbConnection {
         match self.r2d2_pool.get() {
             Ok(connection) => connection,

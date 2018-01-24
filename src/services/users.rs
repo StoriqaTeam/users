@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use futures::future;
 use futures::Future;
 
@@ -7,7 +5,6 @@ use models::user::{User, NewUser, UpdateUser};
 use repos::users::UsersRepo;
 use super::types::ServiceFuture;
 use super::error::Error;
-use super::context::Context;
 
 
 pub trait UsersService {
@@ -26,21 +23,21 @@ pub trait UsersService {
 }
 
 /// Users services, responsible for User-related CRUD operations
-pub struct UsersServiceImpl<U: 'static + UsersRepo> {
-    pub users_repo: Arc<U>,
-    context: Context,
+pub struct UsersServiceImpl<U: 'static + UsersRepo + Clone> {
+    users_repo: U,
+    user_email: Option<String>
 }
 
-impl<U: 'static + UsersRepo> UsersServiceImpl<U> {
-    pub fn new(users_repo: Arc<U>, context: Context) -> Self {
+impl<U: 'static + UsersRepo + Clone> UsersServiceImpl<U> {
+    pub fn new(users_repo: U, user_email: Option<String>) -> Self {
         Self {
             users_repo,
-            context
+            user_email
         }
     }
 }
 
-impl<U: UsersRepo> UsersService for UsersServiceImpl<U> {
+impl<U: UsersRepo + Clone> UsersService for UsersServiceImpl<U> {
     /// Returns user by ID
     fn get(&self, user_id: i32) -> ServiceFuture<User> {
         Box::new(self.users_repo.find(user_id).map_err(Error::from))
@@ -48,9 +45,8 @@ impl<U: UsersRepo> UsersService for UsersServiceImpl<U> {
 
     /// Returns current user
     fn current(&self) -> ServiceFuture<User>{
-        let context = self.context.clone();
-        if let Some(email) = context.user_email {
-            Box::new(self.users_repo.find_by_email(email).map_err(Error::from))
+        if let Some(ref email) = self.user_email {
+            Box::new(self.users_repo.find_by_email(email.to_string()).map_err(Error::from))
         } else {
             Box::new(future::err(Error::Validate(validation_errors!({"email": ["email" => "Email not found"]}))))
         }
@@ -77,7 +73,6 @@ impl<U: UsersRepo> UsersService for UsersServiceImpl<U> {
     /// Creates new user
     fn create(&self, payload: NewUser) -> ServiceFuture<User> {
         let users_repo = self.users_repo.clone();
-
         Box::new(
             users_repo
                 .email_exists(payload.email.to_string())
@@ -95,12 +90,12 @@ impl<U: UsersRepo> UsersService for UsersServiceImpl<U> {
 
     /// Updates specific user
     fn update(&self, user_id: i32, payload: UpdateUser) -> ServiceFuture<User> {
-        let update_repo = self.users_repo.clone();
+        let users_repo = self.users_repo.clone();
 
         Box::new(
-            update_repo
+            users_repo
                 .find(user_id)
-                .and_then(move |_user| update_repo.update(user_id, payload))
+                .and_then(move |_user| users_repo.update(user_id, payload))
                 .map_err(|e| Error::from(e)),
         )
     }
