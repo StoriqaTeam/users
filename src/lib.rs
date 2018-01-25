@@ -30,7 +30,6 @@ extern crate validator_derive;
 extern crate validator;
 extern crate jsonwebtoken;
 extern crate hyper_tls;
-extern crate percent_encoding;
 
 #[macro_use]
 pub mod macros;

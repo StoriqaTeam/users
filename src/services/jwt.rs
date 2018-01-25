@@ -5,7 +5,6 @@ use futures::{Future, IntoFuture};
 use hyper::mime::{APPLICATION_WWW_FORM_URLENCODED};
 use hyper::{Method, Headers};
 use hyper::header::{Authorization, Bearer, ContentLength, ContentType};
-use percent_encoding::{utf8_percent_encode, PATH_SEGMENT_ENCODE_SET};
 
 use models::jwt::{JWT, ProviderOauth};
 use models::user::NewUser;
@@ -134,17 +133,15 @@ impl<U: UsersRepo> JWTService for JWTServiceImpl<U> {
         let client_secret = self.google_settings.key.clone();
         let info_url = self.google_settings.info_url.clone();
         let http_client = self.http_client.clone();
-        let oauth_code = utf8_percent_encode(oauth.code.as_ref(), PATH_SEGMENT_ENCODE_SET).to_string();
-        let redirect_url = utf8_percent_encode(redirect_url.as_ref(), PATH_SEGMENT_ENCODE_SET).to_string();
 
         let exchange_code_to_token_url = format!("{}", code_to_token_url );
         let body = format!("code={}&redirect_uri={}&client_id={}&client_secret={}&scope=&grant_type=authorization_code",
-            oauth_code,
+            oauth.code,
             redirect_url,
             client_id,
             client_secret
             );
-
+        
         let mut headers =  Headers::new();
         headers.set(ContentLength(body.len() as u64 ) );
         headers.set(ContentType(APPLICATION_WWW_FORM_URLENCODED));
