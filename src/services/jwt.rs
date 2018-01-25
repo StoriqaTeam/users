@@ -1,20 +1,23 @@
-use std::sync::Arc;
-
 use futures::future;
 use futures::{Future, IntoFuture};
+use futures_cpupool::CpuPool;
+use hyper::{Method, Headers};
+use hyper::header::{Authorization, Bearer, ContentLength, ContentType};
+use hyper::mime::{APPLICATION_WWW_FORM_URLENCODED};
+use jsonwebtoken::{encode, Header};
+
 
 use models::jwt::{JWT, ProviderOauth};
 use models::user::NewUser;
-use repos::users::UsersRepo;
-use repos::identities::IdentitiesRepo;
+use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
+use repos::users::{UsersRepo, UsersRepoImpl};
 use http::client::ClientHandle;
-use hyper::{Method, Headers};
-use hyper::header::{Authorization, Bearer};
-use jsonwebtoken::{encode, Header};
 use config::JWT as JWTConfig;
 use config::OAuth;
+use config::Config;
 use super::types::ServiceFuture;
 use super::error::Error;
+use repos::types::DbPool;
 
 #[derive(Serialize, Deserialize)]
 struct GoogleID {
@@ -25,16 +28,15 @@ struct GoogleID {
   given_name: String,
   id: String,
   hd: String,
-  verified_email: String
+  verified_email: bool
 }
 
 #[derive(Serialize, Deserialize)]
 struct GoogleToken
 {
   access_token: String,
-  refresh_token: String,
   token_type: String,
-  expires_in: String
+  expires_in: i32
 }
 
 #[derive(Serialize, Deserialize)]
@@ -81,25 +83,39 @@ pub trait JWTService {
 
 }
 /// JWT services, responsible for JsonWebToken operations
-pub struct JWTServiceImpl <U:'static + UsersRepo, I: 'static + IdentitiesRepo> {
-    pub users_repo: Arc<U>,
-    pub ident_repo: Arc<I>,
-
+pub struct JWTServiceImpl <U:'static + UsersRepo + Clone, I: 'static + IdentitiesRepo+ Clone> {
+    pub users_repo: U,
+    pub ident_repo: I,
     pub http_client: ClientHandle,
-    pub google_settings: OAuth,
-    pub facebook_settings: OAuth,
-    pub jwt_settings: JWTConfig,
+    pub google_config: OAuth,
+    pub facebook_config: OAuth,
+    pub jwt_config: JWTConfig,
 }
 
-impl<U: UsersRepo, I: IdentitiesRepo> JWTService for JWTServiceImpl<U, I> {
+impl JWTServiceImpl<UsersRepoImpl, IdentitiesRepoImpl> {
+    pub fn new(r2d2_pool: DbPool, cpu_pool:CpuPool, http_client: ClientHandle, config: Config) -> Self {
+        let users_repo = UsersRepoImpl::new(r2d2_pool.clone(), cpu_pool.clone());
+        let ident_repo = IdentitiesRepoImpl::new(r2d2_pool, cpu_pool);
+        Self {
+            users_repo: users_repo,
+            ident_repo: ident_repo,
+            http_client: http_client,
+            google_config: config.google,
+            facebook_config: config.facebook,
+            jwt_config: config.jwt,
+        }
+    }
+}
+ 
+
+impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> JWTService for JWTServiceImpl<U, I> {
     /// Creates new JWT token by email
      fn create_token_email(
         &self,
         payload: NewUser,
     ) -> ServiceFuture<JWT> {
-        let users_repo = self.users_repo.clone();
         let ident_repo = self.ident_repo.clone();
-        let jwt_secret_key = self.jwt_settings.secret_key.clone();
+        let jwt_secret_key = self.jwt_config.secret_key.clone();
 
         Box::new(
             ident_repo
@@ -131,24 +147,28 @@ impl<U: UsersRepo, I: IdentitiesRepo> JWTService for JWTServiceImpl<U, I> {
         oauth: ProviderOauth,
     ) -> ServiceFuture<JWT> {
 
-        let jwt_secret_key = self.jwt_settings.secret_key.clone();
-        let code_to_token_url = self.google_settings.code_to_token_url.clone();
-        let redirect_url = self.google_settings.redirect_url.clone();
-        let client_id = self.google_settings.id.clone();
-        let client_secret = self.google_settings.key.clone();
-        let info_url = self.google_settings.info_url.clone();
+        let jwt_secret_key = self.jwt_config.secret_key.clone();
+        let code_to_token_url = self.google_config.code_to_token_url.clone();
+        let redirect_url = self.google_config.redirect_url.clone();
+        let client_id = self.google_config.id.clone();
+        let client_secret = self.google_config.key.clone();
+        let info_url = self.google_config.info_url.clone();
         let http_client = self.http_client.clone();
 
-        let exchange_code_to_token_url = format!("{}?client_id={}&redirect_uri={}&client_secret={}&code={}&grant_type=authorization_code",
-            code_to_token_url,
-            client_id,
+        let exchange_code_to_token_url = format!("{}", code_to_token_url );
+        let body = format!("code={}&redirect_uri={}&client_id={}&client_secret={}&scope=&grant_type=authorization_code",
+            oauth.code,
             redirect_url,
-            client_secret,
-            oauth.code);
+            client_id,
+            client_secret
+            );
         
+        let mut headers =  Headers::new();
+        headers.set(ContentLength(body.len() as u64 ) );
+        headers.set(ContentType(APPLICATION_WWW_FORM_URLENCODED));
 
         Box::new(
-            http_client.request::<GoogleToken>(Method::Get, exchange_code_to_token_url, None, None)
+            http_client.request::<GoogleToken>(Method::Post, exchange_code_to_token_url, Some(body), Some(headers))
                 .map_err(|e| Error::HttpClient(format!("Failed to connect to google oauth. {}", e.to_string())))
                 .and_then(move |token| {
                     let mut headers = Headers::new();
@@ -156,7 +176,7 @@ impl<U: UsersRepo, I: IdentitiesRepo> JWTService for JWTServiceImpl<U, I> {
                                 token: token.access_token
                             }));
                     http_client.request::<GoogleID>(Method::Get, info_url, None, Some(headers))
-                        .map_err(|_| Error::HttpClient("Failed to receive user info from google.".to_string()))
+                        .map_err(|e| Error::HttpClient(format!("Failed to receive user info from google. {}", e.to_string())))
                 })
                 .and_then(move |google_id| {
                     let tokenpayload = JWTPayload::new(google_id.email);
@@ -175,12 +195,12 @@ impl<U: UsersRepo, I: IdentitiesRepo> JWTService for JWTServiceImpl<U, I> {
         oauth: ProviderOauth,
     ) -> ServiceFuture<JWT> {
 
-        let jwt_secret_key = self.jwt_settings.secret_key.clone();
-        let code_to_token_url = self.facebook_settings.code_to_token_url.clone();
-        let redirect_url = self.facebook_settings.redirect_url.clone();
-        let client_id = self.facebook_settings.id.clone();
-        let client_secret = self.facebook_settings.key.clone();
-        let info_url = self.facebook_settings.info_url.clone();
+        let jwt_secret_key = self.jwt_config.secret_key.clone();
+        let code_to_token_url = self.facebook_config.code_to_token_url.clone();
+        let redirect_url = self.facebook_config.redirect_url.clone();
+        let client_id = self.facebook_config.id.clone();
+        let client_secret = self.facebook_config.key.clone();
+        let info_url = self.facebook_config.info_url.clone();
         let http_client = self.http_client.clone();
 
         let exchange_code_to_token_url = format!("{}?client_id={}&redirect_uri={}&client_secret={}&code={}",

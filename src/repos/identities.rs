@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::convert::From;
 
 use diesel;
@@ -17,10 +16,11 @@ use super::error::Error;
 use super::types::{DbConnection, DbPool, RepoFuture};
 
 /// Identities repository, responsible for handling identities
+#[derive(Clone)]
 pub struct IdentitiesRepoImpl {
     // Todo - no need for Arc, since pool is itself an ARC-like structure
-    pub r2d2_pool: Arc<DbPool>,
-    pub cpu_pool: Arc<CpuPool>,
+    pub r2d2_pool: DbPool,
+    pub cpu_pool: CpuPool,
 }
 
 pub trait IdentitiesRepo {
@@ -35,6 +35,13 @@ pub trait IdentitiesRepo {
 }
 
 impl IdentitiesRepoImpl {
+    pub fn new(r2d2_pool: DbPool, cpu_pool: CpuPool) -> Self {
+        Self {
+            r2d2_pool,
+            cpu_pool
+        }
+    }
+
     fn get_connection(&self) -> DbConnection {
         match self.r2d2_pool.get() {
             Ok(connection) => connection,
