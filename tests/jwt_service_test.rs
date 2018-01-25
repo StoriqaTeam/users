@@ -28,6 +28,10 @@ impl UsersRepo for UsersRepoMock {
         Box::new(futures::future::ok(user))
     }
 
+    fn email_exists(&self, email_arg: String) -> RepoFuture<bool> {
+        Box::new(futures::future::ok(email_arg == MOCK_EMAIL.to_string()))
+    }
+
     fn find_by_email(&self, email_arg: String) -> RepoFuture<User> {
         let user = create_user(1, email_arg);
         Box::new(futures::future::ok(user))
@@ -70,11 +74,12 @@ impl IdentitiesRepo for IdentitiesRepoMock {
 
     fn create(
         &self,
-        payload: NewUser,
+        email: String,
+        password: Option<String>,
         provider_arg: Provider,
         user_id: i32,
     ) -> RepoFuture<Identity> {
-        let ident = create_identity(payload, user_id, provider_arg);
+        let ident = create_identity(email, password, user_id, provider_arg);
         Box::new(futures::future::ok(ident))
     }
 
@@ -144,16 +149,17 @@ fn create_new_user(email: String, password: String) -> NewUser {
 
 
 fn create_identity(
-    user: NewUser,
-    user_id: i32,
-    provider: Provider,
-) -> Identity {
-    Identity {
-        user_email: user.email,
-        user_password: Some(user.password),
-        user_id: user_id,
-        provider: provider,
-    }
+    email: String,
+    password: Option<String>, 
+    user_id: i32, 
+    provider: Provider) 
+    -> Identity {
+        Identity {
+            user_email: email,
+            user_password: password,
+            user_id: user_id,
+            provider: provider,
+        }
 }
 
 const MOCK_USERS: UsersRepoMock = UsersRepoMock {};

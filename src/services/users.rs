@@ -101,7 +101,7 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> UsersService for UsersServ
                 })
                 .and_then(move |(new_user, user)| {
                     ident_repo
-                        .create(new_user, Provider::Email, user.id)
+                        .create(new_user.email, Some(new_user.password), Provider::Email, user.id)
                         .map_err(|e| Error::from(e))
                         .map(|_| user)
                 })

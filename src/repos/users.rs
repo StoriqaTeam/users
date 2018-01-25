@@ -2,6 +2,8 @@ use std::convert::From;
 
 use diesel;
 use diesel::prelude::*;
+use diesel::select;
+use diesel::dsl::exists;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::query_dsl::LoadQuery;
 use diesel::pg::PgConnection;
@@ -24,6 +26,8 @@ pub struct UsersRepoImpl {
 pub trait UsersRepo {
     /// Find specific user by ID
     fn find(&self, user_id: i32) -> RepoFuture<User>;
+
+    fn email_exists(&self, email_arg: String) -> RepoFuture<bool>;
 
     /// Find specific user by email
     fn find_by_email(&self, email_arg: String) -> RepoFuture<User>;
@@ -79,6 +83,13 @@ impl UsersRepo for UsersRepoImpl {
     /// Find specific user by ID
     fn find(&self, user_id_arg: i32) -> RepoFuture<User> {
         self.execute_query(users.find(user_id_arg))
+    }
+
+    fn email_exists(&self, email_arg: String) -> RepoFuture<bool> {
+        self.execute_query(select(exists(
+            users
+                .filter(email.eq(email_arg))
+        )))
     }
 
     /// Find specific user by email

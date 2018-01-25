@@ -1,4 +1,5 @@
 use std::time::SystemTime;
+use std::str::FromStr;
 
 use validator::Validate;
 use models::schema::users;
@@ -19,7 +20,7 @@ pub struct Identity
 }
 
 
-#[derive(Debug, Serialize, Deserialize, Queryable)]
+#[derive(Debug, Serialize, Deserialize, Queryable, Clone)]
 pub struct User {
    pub id: i32,
    pub email: String,
@@ -92,6 +93,17 @@ pub enum Gender {
    Male,
    Female,
    Undefined
+}
+
+impl FromStr for Gender {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "male" => Ok(Gender::Male),
+            "female" => Ok(Gender::Female),
+            _ => Ok(Gender::Undefined),
+        }
+    }
 }
 
 #[derive(QueryId)]

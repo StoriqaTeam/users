@@ -1,3 +1,6 @@
+use std::time::SystemTime;
+use std::str::FromStr;
+
 use futures::future;
 use futures::{Future, IntoFuture};
 use futures_cpupool::CpuPool;
@@ -8,7 +11,7 @@ use jsonwebtoken::{encode, Header};
 
 
 use models::jwt::{JWT, ProviderOauth};
-use models::user::NewUser;
+use models::user::{NewUser, Provider, UpdateUser, Gender, User};
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
 use http::client::ClientHandle;
@@ -19,7 +22,7 @@ use super::types::ServiceFuture;
 use super::error::Error;
 use repos::types::DbPool;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 struct GoogleID {
   family_name: String,
   name: String,
@@ -31,6 +34,47 @@ struct GoogleID {
   verified_email: bool
 }
 
+impl From<GoogleID> for UpdateUser {
+    fn from(google_id: GoogleID) -> Self {
+        UpdateUser {
+            email: google_id.email,
+            phone: None,
+            first_name: Some(google_id.name),
+            last_name: Some(google_id.family_name),
+            middle_name:  None,
+            gender: Gender::Undefined,
+            birthdate: None,
+            last_login_at: SystemTime::now(),
+        }
+    }
+}
+
+impl GoogleID {
+    fn update_user(&self, user: User) -> UpdateUser {
+        let first_name = if user.first_name.is_none() {
+            Some(self.name.clone())
+        } else {
+            user.first_name
+        };
+        let last_name = if user.last_name.is_none() {
+            Some(self.family_name.clone())
+        } else {
+            user.last_name
+        };
+        UpdateUser {
+            email: self.email.clone(),
+            phone: user.phone,
+            first_name: first_name,
+            last_name: last_name,
+            middle_name:  user.middle_name,
+            gender: user.gender,
+            birthdate: user.birthdate,
+            last_login_at: SystemTime::now(),
+        }
+    }
+}
+
+
 #[derive(Serialize, Deserialize)]
 struct GoogleToken
 {
@@ -39,7 +83,7 @@ struct GoogleToken
   expires_in: i32
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 struct FacebookID {
     id: String,
     email: String,
@@ -48,6 +92,53 @@ struct FacebookID {
     last_name: String,
     name: String,
 }
+
+impl From<FacebookID> for UpdateUser {
+    fn from(facebook_id: FacebookID) -> Self {
+        UpdateUser {
+            email: facebook_id.email,
+            phone: None,
+            first_name: Some(facebook_id.first_name),
+            last_name: Some(facebook_id.last_name),
+            middle_name:  None,
+            gender: Gender::from_str(facebook_id.gender.as_ref()).unwrap(),
+            birthdate: None,
+            last_login_at: SystemTime::now(),
+        }
+    }
+}
+
+impl FacebookID {
+    fn update_user(&self, user: User) -> UpdateUser {
+        let first_name = if user.first_name.is_none() {
+            Some(self.first_name.clone())
+        } else {
+            user.first_name
+        };
+        let last_name = if user.last_name.is_none() {
+            Some(self.last_name.clone())
+        } else {
+            user.last_name
+        };
+        let gender = if user.gender == Gender::Undefined {
+            Gender::from_str(self.gender.as_ref()).unwrap()
+        } else {
+            user.gender
+        };
+        UpdateUser {
+            email: self.email.clone(),
+            phone: user.phone,
+            first_name: first_name,
+            last_name: last_name,
+            middle_name:  user.middle_name,
+            gender: gender,
+            birthdate: user.birthdate,
+            last_login_at: SystemTime::now(),
+        }
+    }
+}
+
+
 
 #[derive(Serialize, Deserialize)]
 struct FacebookToken
@@ -147,6 +238,11 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> JWTService for JWTServiceI
         oauth: ProviderOauth,
     ) -> ServiceFuture<JWT> {
 
+        let ident_repo = self.ident_repo.clone();
+        let ident_repo_clone = self.ident_repo.clone();
+        let users_repo = self.users_repo.clone();
+        let users_repo_clone = self.users_repo.clone();
+        
         let jwt_secret_key = self.jwt_config.secret_key.clone();
         let code_to_token_url = self.google_config.code_to_token_url.clone();
         let redirect_url = self.google_config.redirect_url.clone();
@@ -179,7 +275,67 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> JWTService for JWTServiceI
                         .map_err(|e| Error::HttpClient(format!("Failed to receive user info from google. {}", e.to_string())))
                 })
                 .and_then(move |google_id| {
-                    let tokenpayload = JWTPayload::new(google_id.email);
+                    ident_repo
+                        .email_provider_exists(google_id.email.clone(), Provider::Google)
+                        .map_err(Error::from)
+                        .map(|exists| (exists, google_id))
+                })
+                 .and_then(
+                    move |(exists, google_id)| -> ServiceFuture<String>{
+                        
+                        match exists {
+                            // identity email + provider Google doesn't exist
+                            false => {
+                                Box::new(users_repo
+                                    .email_exists(google_id.email.clone())
+                                    .map_err(Error::from)
+                                    .map(|email_exist| (google_id, email_exist))
+                                    .and_then(move |(google_id, email_exist)| ->  ServiceFuture<String>{
+                                        match email_exist {
+                                        // user doesn't exist, creating user + identity
+                                        false => {
+                                            let update_user = UpdateUser::from(google_id.clone());
+                                            Box::new(
+                                            users_repo_clone
+                                                .create(update_user)
+                                                .map_err(Error::from)
+                                                .map(|user| (google_id, user))
+                                                .and_then(move |(google_id, user)| {
+                                                    ident_repo_clone
+                                                        .create(google_id.email, None, Provider::Google, user.id)
+                                                        .map_err(Error::from)
+                                                        .map(|u| u.user_email)
+                                                })
+                                            )
+                                        },
+                                        // user exists, creating identity and filling user info
+                                        true => {
+                                            Box::new(
+                                            users_repo
+                                                .find_by_email(google_id.email.clone())
+                                                .map_err(Error::from)
+                                                .map(|user| (google_id, user))
+                                                .and_then(move |(google_id, user)| {
+                                                    let update_user = google_id.update_user(user.clone());
+                                                    Box::new(
+                                                        users_repo_clone.update(user.id, update_user)
+                                                        .map_err(Error::from)
+                                                        .map(|u| u.email)
+                                                    )
+                                                }                                                
+                                            ))
+                                        }
+
+                                    }})
+                                )
+                            },
+                            // User identity email + provider Google exists, returning Email
+                            true => Box::new(future::ok(google_id.email)),
+                        }
+                    }
+                )
+                .and_then(move |email| {
+                    let tokenpayload = JWTPayload::new(email);
                     encode(&Header::default(), &tokenpayload, jwt_secret_key.as_ref())
                         .map_err(|_| Error::Parse(format!("Couldn't encode jwt: {:?}.", tokenpayload)))
                         .into_future()
@@ -194,6 +350,11 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> JWTService for JWTServiceI
         &self,
         oauth: ProviderOauth,
     ) -> ServiceFuture<JWT> {
+
+        let ident_repo = self.ident_repo.clone();
+        let ident_repo_clone = self.ident_repo.clone();
+        let users_repo = self.users_repo.clone();
+        let users_repo_clone = self.users_repo.clone();
 
         let jwt_secret_key = self.jwt_config.secret_key.clone();
         let code_to_token_url = self.facebook_config.code_to_token_url.clone();
@@ -217,9 +378,68 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> JWTService for JWTServiceI
                     let url = format!("{}?fields=first_name,last_name,gender,email,name&access_token={}", info_url, token.access_token);
                     http_client.request::<FacebookID>(Method::Get, url, None, None)
                         .map_err(|e| Error::HttpClient(format!("Failed to receive user info from facebook. {}", e.to_string())))
+                })               .and_then(move |facebook_id| {
+                    ident_repo
+                        .email_provider_exists(facebook_id.email.clone(), Provider::Facebook)
+                        .map_err(Error::from)
+                        .map(|exists| (exists, facebook_id))
                 })
-                .and_then(move |facebook_id| {
-                    let tokenpayload = JWTPayload::new(facebook_id.email);
+                 .and_then(
+                    move |(exists, facebook_id)| -> ServiceFuture<String>{
+                        
+                        match exists {
+                            // identity email + provider facebook doesn't exist
+                            false => {
+                                Box::new(users_repo
+                                    .email_exists(facebook_id.email.clone())
+                                    .map_err(Error::from)
+                                    .map(|email_exist| (facebook_id, email_exist))
+                                    .and_then(move |(facebook_id, email_exist)| ->  ServiceFuture<String>{
+                                        match email_exist {
+                                        // user doesn't exist, creating user + identity
+                                        false => {
+                                            let update_user = UpdateUser::from(facebook_id.clone());
+                                            Box::new(
+                                            users_repo_clone
+                                                .create(update_user)
+                                                .map_err(Error::from)
+                                                .map(|user| (facebook_id, user))
+                                                .and_then(move |(facebook_id, user)| {
+                                                    ident_repo_clone
+                                                        .create(facebook_id.email, None, Provider::Facebook, user.id)
+                                                        .map_err(Error::from)
+                                                        .map(|u| u.user_email)
+                                                })
+                                            )
+                                        },
+                                        // user exists, creating identity and filling user info
+                                        true => {
+                                            Box::new(
+                                            users_repo
+                                                .find_by_email(facebook_id.email.clone())
+                                                .map_err(Error::from)
+                                                .map(|user| (facebook_id, user))
+                                                .and_then(move |(facebook_id, user)| {
+                                                    let update_user = facebook_id.update_user(user.clone());
+                                                    Box::new(
+                                                        users_repo_clone.update(user.id, update_user)
+                                                        .map_err(Error::from)
+                                                        .map(|u| u.email)
+                                                    )
+                                                }                                                
+                                            ))
+                                        }
+
+                                    }})
+                                )
+                            },
+                            // User identity email + provider facebook exists, returning Email
+                            true => Box::new(future::ok(facebook_id.email)),
+                        }
+                    }
+                )
+                .and_then(move |email| {
+                    let tokenpayload = JWTPayload::new(email);
                     encode(&Header::default(), &tokenpayload, jwt_secret_key.as_ref())
                         .map_err(|_| Error::Parse(format!("Couldn't encode jwt: {:?}.", tokenpayload)))
                         .into_future()

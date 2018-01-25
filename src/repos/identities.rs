@@ -28,7 +28,7 @@ pub trait IdentitiesRepo {
     fn email_provider_exists(&self, email_arg: String, provider: Provider) -> RepoFuture<bool>;
 
     /// Creates new identity
-    fn create(&self, payload: NewUser, provider: Provider, user_id: i32) -> RepoFuture<Identity>;
+    fn create(&self, email_arg: String, password_arg: Option<String>, provider_arg: Provider, user_id_arg: i32) -> RepoFuture<Identity>;
 
     /// Verifies password
     fn verify_password(&self, email_arg: String, password_arg: String) -> RepoFuture<bool>;
@@ -89,14 +89,14 @@ impl IdentitiesRepo for IdentitiesRepoImpl {
 
     /// Creates new user
     // TODO - set e-mail uniqueness in database
-    fn create(&self, payload: NewUser, provider_arg: Provider, user_id_arg: i32) -> RepoFuture<Identity> {
+    fn create(&self, email_arg: String, password_arg: Option<String>, provider_arg: Provider, user_id_arg: i32) -> RepoFuture<Identity> {
         let conn = self.get_connection();
         Box::new(self.cpu_pool.spawn_fn(move || {
             let identity_arg = Identity {
                 user_id: user_id_arg,
-                user_email: payload.email.clone(),
+                user_email: email_arg,
                 provider: provider_arg,
-                user_password: Some(payload.password),
+                user_password: password_arg,
             };
             let ident_query = diesel::insert_into(identities).values(&identity_arg);
             ident_query
