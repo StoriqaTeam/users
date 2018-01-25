@@ -2,7 +2,8 @@ use futures::future;
 use futures::{Future, IntoFuture};
 use futures_cpupool::CpuPool;
 use hyper::{Method, Headers};
-use hyper::header::{Authorization, Bearer};
+use hyper::header::{Authorization, Bearer, ContentLength, ContentType};
+use hyper::mime::{APPLICATION_WWW_FORM_URLENCODED};
 use jsonwebtoken::{encode, Header};
 
 
@@ -26,16 +27,15 @@ struct GoogleID {
   given_name: String,
   id: String,
   hd: String,
-  verified_email: String
+  verified_email: bool
 }
 
 #[derive(Serialize, Deserialize)]
 struct GoogleToken
 {
   access_token: String,
-  refresh_token: String,
   token_type: String,
-  expires_in: String
+  expires_in: i32
 }
 
 #[derive(Serialize, Deserialize)]
@@ -150,16 +150,20 @@ impl<U: UsersRepo> JWTService for JWTServiceImpl<U> {
         let info_url = self.google_config.info_url.clone();
         let http_client = self.http_client.clone();
 
-        let exchange_code_to_token_url = format!("{}?client_id={}&redirect_uri={}&client_secret={}&code={}&grant_type=authorization_code",
-            code_to_token_url,
-            client_id,
+        let exchange_code_to_token_url = format!("{}", code_to_token_url );
+        let body = format!("code={}&redirect_uri={}&client_id={}&client_secret={}&scope=&grant_type=authorization_code",
+            oauth.code,
             redirect_url,
-            client_secret,
-            oauth.code);
+            client_id,
+            client_secret
+            );
         
+        let mut headers =  Headers::new();
+        headers.set(ContentLength(body.len() as u64 ) );
+        headers.set(ContentType(APPLICATION_WWW_FORM_URLENCODED));
 
         Box::new(
-            http_client.request::<GoogleToken>(Method::Get, exchange_code_to_token_url, None, None)
+            http_client.request::<GoogleToken>(Method::Post, exchange_code_to_token_url, Some(body), Some(headers))
                 .map_err(|e| Error::HttpClient(format!("Failed to connect to google oauth. {}", e.to_string())))
                 .and_then(move |token| {
                     let mut headers = Headers::new();
@@ -167,7 +171,7 @@ impl<U: UsersRepo> JWTService for JWTServiceImpl<U> {
                                 token: token.access_token
                             }));
                     http_client.request::<GoogleID>(Method::Get, info_url, None, Some(headers))
-                        .map_err(|_| Error::HttpClient("Failed to receive user info from google.".to_string()))
+                        .map_err(|e| Error::HttpClient(format!("Failed to receive user info from google. {}", e.to_string())))
                 })
                 .and_then(move |google_id| {
                     let tokenpayload = JWTPayload::new(google_id.email);
