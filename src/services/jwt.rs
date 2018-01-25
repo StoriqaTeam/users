@@ -6,6 +6,7 @@ use futures::{Future, IntoFuture};
 use models::jwt::{JWT, ProviderOauth};
 use models::user::NewUser;
 use repos::users::UsersRepo;
+use repos::identities::IdentitiesRepo;
 use http::client::ClientHandle;
 use hyper::{Method, Headers};
 use hyper::header::{Authorization, Bearer};
@@ -80,24 +81,28 @@ pub trait JWTService {
 
 }
 /// JWT services, responsible for JsonWebToken operations
-pub struct JWTServiceImpl <U:'static + UsersRepo> {
+pub struct JWTServiceImpl <U:'static + UsersRepo, I: 'static + IdentitiesRepo> {
     pub users_repo: Arc<U>,
+    pub ident_repo: Arc<I>,
+
     pub http_client: ClientHandle,
     pub google_settings: OAuth,
     pub facebook_settings: OAuth,
     pub jwt_settings: JWTConfig,
 }
 
-impl<U: UsersRepo> JWTService for JWTServiceImpl<U> {
+impl<U: UsersRepo, I: IdentitiesRepo> JWTService for JWTServiceImpl<U, I> {
     /// Creates new JWT token by email
      fn create_token_email(
         &self,
         payload: NewUser,
     ) -> ServiceFuture<JWT> {
+        let users_repo = self.users_repo.clone();
+        let ident_repo = self.ident_repo.clone();
         let jwt_secret_key = self.jwt_settings.secret_key.clone();
 
         Box::new(
-            self.users_repo
+            ident_repo
                 .verify_password(payload.email.to_string(), payload.password.clone())
                 .map_err(Error::from)
                 .map(|exists| (exists, payload))

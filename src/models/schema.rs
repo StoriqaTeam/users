@@ -2,7 +2,7 @@ table! {
     use diesel::sql_types::*;
     use models::user::ProviderType;
     identities (user_id) {
-        user_id -> Int4,
+        user_id -> Integer,
         user_email -> Varchar,
         user_password -> Nullable<Varchar>,
         provider -> ProviderType,
@@ -13,7 +13,7 @@ table! {
     use diesel::sql_types::*;
     use models::user::GenderType;
     users (id) {
-        id -> Int4,
+        id -> Integer,
         email -> Varchar,
         email_verified -> Bool,
         phone -> Nullable<VarChar>,
