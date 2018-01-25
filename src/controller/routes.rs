@@ -6,6 +6,7 @@ pub enum Route {
     Healthcheck,
     Users,
     User(i32),
+    Current,
     JWTEmail,
     JWTGoogle,
     JWTFacebook,
@@ -114,6 +115,9 @@ pub fn create_route_parser() -> RouteParser {
 
     // Users Routes
     router.add_route(r"^/users$", Route::Users);
+
+    // Users Routes
+    router.add_route(r"^/users/current$", Route::Current);
 
     // JWT email route
     router.add_route(r"^/jwt/email$", Route::JWTEmail);

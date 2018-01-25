@@ -16,15 +16,20 @@ use users_lib::repos::types::RepoFuture;
 use users_lib::services::jwt::{JWTServiceImpl, JWTService};
 use users_lib::models::user::{NewUser, UpdateUser};
 use users_lib::models::jwt::ProviderOauth;
-use users_lib::http::client::Client;
+use users_lib::http::client::{Client, ClientHandle};
 
-
-struct UsersRepoMock;
+#[derive(Clone)]
+pub struct UsersRepoMock;
 
 impl UsersRepo for UsersRepoMock {
 
     fn find(&self, user_id: i32) -> RepoFuture<User> {
         let user = User {  id: user_id, email: MOCK_EMAIL.to_string(), password: MOCK_PASSWORD.to_string(), is_active: true };
+        Box::new(futures::future::ok(user))
+    }
+
+    fn find_by_email(&self, email_arg: String) -> RepoFuture<User>{
+        let user = User {  id: 1, email: email_arg.to_string(), password: MOCK_PASSWORD.to_string(), is_active: true };
         Box::new(futures::future::ok(user))
     }
 
@@ -61,6 +66,17 @@ impl UsersRepo for UsersRepoMock {
     }
 }
 
+pub fn new_service(users_repo: UsersRepoMock, http_client: ClientHandle, config: Config) -> JWTServiceImpl<UsersRepoMock> {
+    JWTServiceImpl {
+        users_repo: users_repo,
+        http_client: http_client,
+        google_config: config.google,
+        facebook_config: config.facebook,
+        jwt_config: config.jwt,
+    }
+}
+
+
 fn create_service () -> (Core, JWTServiceImpl<UsersRepoMock>) {
     let config = Config::new().unwrap();
     let core = Core::new().expect("Unexpected error creating event loop core");
@@ -71,16 +87,7 @@ fn create_service () -> (Core, JWTServiceImpl<UsersRepoMock>) {
     handle.spawn(
         client_stream.for_each(|_| Ok(()))
     );
-    let jwt_settings = config.jwt.clone();
-    let google_settings = config.google.clone();
-    let facebook_settings = config.facebook.clone();
-    let service = JWTServiceImpl { 
-            users_repo : Arc::new(MOCK), 
-            http_client: client_handle,
-            google_settings: google_settings,
-            facebook_settings: facebook_settings,
-            jwt_settings: jwt_settings,
-    };
+    let service = new_service(MOCK, client_handle, config);
     (core, service)
 }
 

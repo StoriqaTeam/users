@@ -1,20 +1,22 @@
-use std::sync::Arc;
-
 use futures::future;
 use futures::{Future, IntoFuture};
-use hyper::mime::{APPLICATION_WWW_FORM_URLENCODED};
+use futures_cpupool::CpuPool;
 use hyper::{Method, Headers};
 use hyper::header::{Authorization, Bearer, ContentLength, ContentType};
+use hyper::mime::{APPLICATION_WWW_FORM_URLENCODED};
+use jsonwebtoken::{encode, Header};
+
 
 use models::jwt::{JWT, ProviderOauth};
 use models::user::NewUser;
-use repos::users::UsersRepo;
+use repos::users::{UsersRepo, UsersRepoImpl};
 use http::client::ClientHandle;
-use jsonwebtoken::{encode, Header};
 use config::JWT as JWTConfig;
 use config::OAuth;
+use config::Config;
 use super::types::ServiceFuture;
 use super::error::Error;
+use repos::types::DbPool;
 
 #[derive(Serialize, Deserialize)]
 struct GoogleID {
@@ -81,12 +83,26 @@ pub trait JWTService {
 }
 /// JWT services, responsible for JsonWebToken operations
 pub struct JWTServiceImpl <U:'static + UsersRepo> {
-    pub users_repo: Arc<U>,
+    pub users_repo: U,
     pub http_client: ClientHandle,
-    pub google_settings: OAuth,
-    pub facebook_settings: OAuth,
-    pub jwt_settings: JWTConfig,
+    pub google_config: OAuth,
+    pub facebook_config: OAuth,
+    pub jwt_config: JWTConfig,
 }
+
+impl JWTServiceImpl<UsersRepoImpl> {
+    pub fn new(r2d2_pool: DbPool, cpu_pool:CpuPool, http_client: ClientHandle, config: Config) -> Self {
+        let users_repo = UsersRepoImpl::new(r2d2_pool, cpu_pool);
+        Self {
+            users_repo: users_repo,
+            http_client: http_client,
+            google_config: config.google,
+            facebook_config: config.facebook,
+            jwt_config: config.jwt,
+        }
+    }
+}
+ 
 
 impl<U: UsersRepo> JWTService for JWTServiceImpl<U> {
     /// Creates new JWT token by email
@@ -94,7 +110,7 @@ impl<U: UsersRepo> JWTService for JWTServiceImpl<U> {
         &self,
         payload: NewUser,
     ) -> ServiceFuture<JWT> {
-        let jwt_secret_key = self.jwt_settings.secret_key.clone();
+        let jwt_secret_key = self.jwt_config.secret_key.clone();
 
         Box::new(
             self.users_repo
@@ -126,12 +142,12 @@ impl<U: UsersRepo> JWTService for JWTServiceImpl<U> {
         oauth: ProviderOauth,
     ) -> ServiceFuture<JWT> {
 
-        let jwt_secret_key = self.jwt_settings.secret_key.clone();
-        let code_to_token_url = self.google_settings.code_to_token_url.clone();
-        let redirect_url = self.google_settings.redirect_url.clone();
-        let client_id = self.google_settings.id.clone();
-        let client_secret = self.google_settings.key.clone();
-        let info_url = self.google_settings.info_url.clone();
+        let jwt_secret_key = self.jwt_config.secret_key.clone();
+        let code_to_token_url = self.google_config.code_to_token_url.clone();
+        let redirect_url = self.google_config.redirect_url.clone();
+        let client_id = self.google_config.id.clone();
+        let client_secret = self.google_config.key.clone();
+        let info_url = self.google_config.info_url.clone();
         let http_client = self.http_client.clone();
 
         let exchange_code_to_token_url = format!("{}", code_to_token_url );
@@ -174,12 +190,12 @@ impl<U: UsersRepo> JWTService for JWTServiceImpl<U> {
         oauth: ProviderOauth,
     ) -> ServiceFuture<JWT> {
 
-        let jwt_secret_key = self.jwt_settings.secret_key.clone();
-        let code_to_token_url = self.facebook_settings.code_to_token_url.clone();
-        let redirect_url = self.facebook_settings.redirect_url.clone();
-        let client_id = self.facebook_settings.id.clone();
-        let client_secret = self.facebook_settings.key.clone();
-        let info_url = self.facebook_settings.info_url.clone();
+        let jwt_secret_key = self.jwt_config.secret_key.clone();
+        let code_to_token_url = self.facebook_config.code_to_token_url.clone();
+        let redirect_url = self.facebook_config.redirect_url.clone();
+        let client_id = self.facebook_config.id.clone();
+        let client_secret = self.facebook_config.key.clone();
+        let info_url = self.facebook_config.info_url.clone();
         let http_client = self.http_client.clone();
 
         let exchange_code_to_token_url = format!("{}?client_id={}&redirect_uri={}&client_secret={}&code={}",

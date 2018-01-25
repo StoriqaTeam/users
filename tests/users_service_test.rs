@@ -4,8 +4,6 @@ extern crate tokio_core;
 extern crate users_lib;
 extern crate futures;
 
-use std::sync::Arc;
-
 use tokio_core::reactor::Core;
 
 use users_lib::repos::users::UsersRepo;
@@ -13,12 +11,18 @@ use users_lib::repos::types::RepoFuture;
 use users_lib::services::users::{UsersServiceImpl, UsersService};
 use users_lib::models::user::{NewUser, UpdateUser, User};
 
-struct UsersRepoMock;
+#[derive(Clone)]
+pub struct UsersRepoMock;
 
 impl UsersRepo for UsersRepoMock {
 
     fn find(&self, user_id: i32) -> RepoFuture<User> {
         let user = User {  id: user_id, email: MOCK_EMAIL.to_string(), password: MOCK_PASSWORD.to_string(), is_active: true };
+        Box::new(futures::future::ok(user))
+    }
+
+    fn find_by_email(&self, email_arg: String) -> RepoFuture<User>{
+        let user = User {  id: 1, email: email_arg.to_string(), password: MOCK_PASSWORD.to_string(), is_active: true };
         Box::new(futures::future::ok(user))
     }
 
@@ -55,8 +59,15 @@ impl UsersRepo for UsersRepoMock {
     }
 }
 
-fn create_service () -> UsersServiceImpl<UsersRepoMock> {
-    UsersServiceImpl { users_repo : Arc::new(MOCK) } 
+pub fn new_service(users_repo: UsersRepoMock, user_email: Option<String>) -> UsersServiceImpl<UsersRepoMock> {
+    UsersServiceImpl {
+        users_repo,
+        user_email
+    }
+}
+
+fn create_service (users_email: Option<String>) -> UsersServiceImpl<UsersRepoMock> {
+    new_service(MOCK, users_email)
 }
 
 const MOCK : UsersRepoMock = UsersRepoMock{};
@@ -66,7 +77,7 @@ static MOCK_PASSWORD: &'static str = "password";
 
 #[test]
 fn test_get_user() {
-    let service = create_service();
+    let service = create_service(Some(MOCK_EMAIL.to_string()));
     let mut core = Core::new().unwrap();
     let work = service.get(1);
     let result = core.run(work).unwrap();
@@ -74,8 +85,26 @@ fn test_get_user() {
 }
 
 #[test]
+fn test_current_user() {
+    let service = create_service(Some(MOCK_EMAIL.to_string()));
+    let mut core = Core::new().unwrap();
+    let work = service.current();
+    let result = core.run(work).unwrap();
+    assert_eq!(result.email, MOCK_EMAIL.to_string());
+}
+
+#[test]
+fn test_current_user_without_user_email() {
+    let service = create_service(None);
+    let mut core = Core::new().unwrap();
+    let work = service.current();
+    let result = core.run(work);
+    assert_eq!(result.is_err(), true);
+}
+
+#[test]
 fn test_list() {
-    let service = create_service();
+    let service = create_service(Some(MOCK_EMAIL.to_string()));
     let mut core = Core::new().unwrap();
     let work = service.list(1, 5);
     let result = core.run(work).unwrap();
@@ -84,7 +113,7 @@ fn test_list() {
 
 #[test]
 fn test_create_allready_existed() {
-    let service = create_service();
+    let service = create_service(Some(MOCK_EMAIL.to_string()));
     let mut core = Core::new().unwrap();
     let new_user = NewUser { email: MOCK_EMAIL.to_string(), password: MOCK_PASSWORD.to_string() };
     let work = service.create(new_user);
@@ -94,7 +123,7 @@ fn test_create_allready_existed() {
 
 #[test]
 fn test_create_user() {
-    let service = create_service();
+    let service = create_service(Some(MOCK_EMAIL.to_string()));
     let mut core = Core::new().unwrap();
     let new_user = NewUser { email: "new_user@mail.com".to_string(), password: MOCK_PASSWORD.to_string() };
     let work = service.create(new_user);
@@ -104,7 +133,7 @@ fn test_create_user() {
 
 #[test]
 fn test_update() {
-    let service = create_service();
+    let service = create_service(Some(MOCK_EMAIL.to_string()));
     let mut core = Core::new().unwrap();
     let update_user = UpdateUser {email: MOCK_EMAIL.to_string()};
     let work = service.update(1, update_user);
@@ -115,7 +144,7 @@ fn test_update() {
 
 #[test]
 fn test_deactivate() {
-    let service = create_service();
+    let service = create_service(Some(MOCK_EMAIL.to_string()));
     let mut core = Core::new().unwrap();
     let work = service.deactivate(1);
     let result = core.run(work).unwrap();

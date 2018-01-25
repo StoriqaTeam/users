@@ -1,4 +1,3 @@
-use std::sync::Arc;
 
 use diesel;
 use diesel::select;
@@ -17,15 +16,19 @@ use super::error::Error;
 use super::types::{RepoFuture, DbConnection, DbPool};
 
 /// Users repository, responsible for handling users
+#[derive(Clone)]
 pub struct UsersRepoImpl {
     // Todo - no need for Arc, since pool is itself an ARC-like structure
-    pub r2d2_pool: Arc<DbPool>,
-    pub cpu_pool: Arc<CpuPool>
+    pub r2d2_pool: DbPool,
+    pub cpu_pool: CpuPool
 }
 
 pub trait UsersRepo {
     /// Find specific user by ID
     fn find(&self, user_id: i32) -> RepoFuture<User>;
+
+    /// Find specific user by email
+    fn find_by_email(&self, email_arg: String) -> RepoFuture<User>;
 
     /// Checks if e-mail is already registered
     fn email_exists(&self, email_arg: String) -> RepoFuture<bool>;
@@ -48,6 +51,13 @@ pub trait UsersRepo {
 }
 
 impl UsersRepoImpl {
+    pub fn new(r2d2_pool: DbPool, cpu_pool: CpuPool) -> Self {
+        Self {
+            r2d2_pool,
+            cpu_pool
+        }
+    }
+
     fn get_connection(&self) -> DbConnection {
         match self.r2d2_pool.get() {
             Ok(connection) => connection,
@@ -73,6 +83,17 @@ impl UsersRepo for UsersRepoImpl {
     /// Find specific user by ID
     fn find(&self, user_id: i32) -> RepoFuture<User> {
         self.execute_query(users.find(user_id))
+    }
+
+    /// Find specific user by email
+    fn find_by_email(&self, email_arg: String) -> RepoFuture<User>{
+        let conn = self.get_connection();
+        let query = users
+            .filter(email.eq(email_arg));
+
+        Box::new(self.cpu_pool.spawn_fn(move || {
+            query.first::<User>(&*conn).map_err(|e| Error::from(e))
+        }))
     }
 
     /// Checks if e-mail is already registered
