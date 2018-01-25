@@ -23,10 +23,10 @@ impl From<ServiceError> for Error {
             ServiceError::NotFound => Error::NotFound,
             ServiceError::Rollback => Error::BadRequest("Transaction rollback".to_string()),
             ServiceError::Validate(msg) => Error::BadRequest(serde_json::to_string(&msg).unwrap_or("Unable to serialize validation errors".to_string())),
-            ServiceError::Parse(e) => Error::UnprocessableEntity(format!("Parse error: {}", e)),
-            ServiceError::Database(e) => Error::InternalServerError(e.to_string()),
-            ServiceError::HttpClient(e) => Error::InternalServerError(e.to_string()),
-            ServiceError::Unknown(e) => Error::InternalServerError(e.to_string())
+            ServiceError::Parse(msg) => Error::UnprocessableEntity(format!("Parse error: {}", msg)),
+            ServiceError::Database(msg) => Error::InternalServerError(format!("Database error: {}", msg)),
+            ServiceError::HttpClient(msg) => Error::InternalServerError(format!("Http Client error: {}", msg)),
+            ServiceError::Unknown(msg) => Error::InternalServerError(format!("Unknown: {}", msg))
         }
     }
 }
