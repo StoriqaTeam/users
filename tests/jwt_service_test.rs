@@ -16,10 +16,10 @@ use users_lib::repos::types::RepoFuture;
 use users_lib::services::jwt::{JWTServiceImpl, JWTService};
 use users_lib::models::user::{NewUser, UpdateUser};
 use users_lib::models::jwt::ProviderOauth;
-use users_lib::http::client::Client;
+use users_lib::http::client::{Client, ClientHandle};
 
 #[derive(Clone)]
-struct UsersRepoMock;
+pub struct UsersRepoMock;
 
 impl UsersRepo for UsersRepoMock {
 
@@ -66,6 +66,17 @@ impl UsersRepo for UsersRepoMock {
     }
 }
 
+pub fn new_service(users_repo: UsersRepoMock, http_client: ClientHandle, config: Config) -> JWTServiceImpl<UsersRepoMock> {
+    JWTServiceImpl {
+        users_repo: users_repo,
+        http_client: http_client,
+        google_config: config.google,
+        facebook_config: config.facebook,
+        jwt_config: config.jwt,
+    }
+}
+
+
 fn create_service () -> (Core, JWTServiceImpl<UsersRepoMock>) {
     let config = Config::new().unwrap();
     let core = Core::new().expect("Unexpected error creating event loop core");
@@ -76,7 +87,7 @@ fn create_service () -> (Core, JWTServiceImpl<UsersRepoMock>) {
     handle.spawn(
         client_stream.for_each(|_| Ok(()))
     );
-    let service = JWTServiceImpl::new(MOCK, client_handle, config);
+    let service = new_service(MOCK, client_handle, config);
     (core, service)
 }
 

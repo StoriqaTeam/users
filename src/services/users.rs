@@ -1,10 +1,12 @@
 use futures::future;
 use futures::Future;
+use futures_cpupool::CpuPool;
 
 use models::user::{User, NewUser, UpdateUser};
-use repos::users::UsersRepo;
+use repos::users::{UsersRepo, UsersRepoImpl};
 use super::types::ServiceFuture;
 use super::error::Error;
+use repos::types::DbPool;
 
 
 pub trait UsersService {
@@ -24,15 +26,16 @@ pub trait UsersService {
 
 /// Users services, responsible for User-related CRUD operations
 pub struct UsersServiceImpl<U: 'static + UsersRepo + Clone> {
-    users_repo: U,
-    user_email: Option<String>
+    pub users_repo: U,
+    pub user_email: Option<String>
 }
 
-impl<U: 'static + UsersRepo + Clone> UsersServiceImpl<U> {
-    pub fn new(users_repo: U, user_email: Option<String>) -> Self {
+impl UsersServiceImpl<UsersRepoImpl> {
+    pub fn new(r2d2_pool: DbPool, cpu_pool:CpuPool, user_email: Option<String>) -> Self {
+        let users_repo = UsersRepoImpl::new(r2d2_pool, cpu_pool);
         Self {
-            users_repo,
-            user_email
+            users_repo: users_repo,
+            user_email: user_email
         }
     }
 }

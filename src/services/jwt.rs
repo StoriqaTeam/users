@@ -1,18 +1,21 @@
 use futures::future;
 use futures::{Future, IntoFuture};
-
-use models::jwt::{JWT, ProviderOauth};
-use models::user::NewUser;
-use repos::users::UsersRepo;
-use http::client::ClientHandle;
+use futures_cpupool::CpuPool;
 use hyper::{Method, Headers};
 use hyper::header::{Authorization, Bearer};
 use jsonwebtoken::{encode, Header};
+
+
+use models::jwt::{JWT, ProviderOauth};
+use models::user::NewUser;
+use repos::users::{UsersRepo, UsersRepoImpl};
+use http::client::ClientHandle;
 use config::JWT as JWTConfig;
 use config::OAuth;
 use config::Config;
 use super::types::ServiceFuture;
 use super::error::Error;
+use repos::types::DbPool;
 
 #[derive(Serialize, Deserialize)]
 struct GoogleID {
@@ -87,8 +90,9 @@ pub struct JWTServiceImpl <U:'static + UsersRepo> {
     pub jwt_config: JWTConfig,
 }
 
-impl<U: 'static + UsersRepo + Clone> JWTServiceImpl<U> {
-    pub fn new(users_repo: U, http_client: ClientHandle, config: Config) -> Self {
+impl JWTServiceImpl<UsersRepoImpl> {
+    pub fn new(r2d2_pool: DbPool, cpu_pool:CpuPool, http_client: ClientHandle, config: Config) -> Self {
+        let users_repo = UsersRepoImpl::new(r2d2_pool, cpu_pool);
         Self {
             users_repo: users_repo,
             http_client: http_client,

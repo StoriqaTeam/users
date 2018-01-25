@@ -22,7 +22,6 @@ use self::error::Error;
 use services::system::{SystemServiceImpl, SystemService};
 use services::users::{UsersServiceImpl, UsersService};
 use services::jwt::{JWTService, JWTServiceImpl};
-use repos::users::UsersRepoImpl;
 use repos::types::DbPool;
 
 use models;
@@ -72,32 +71,30 @@ impl Controller {
         let user_email = auth_header.map (move |auth| {
                 auth.0.clone()
             });
-        let users_repo = UsersRepoImpl::new(self.r2d2_pool.clone(), self.cpu_pool.clone());
+        let system_service = SystemServiceImpl::new();
+        let users_service = UsersServiceImpl::new(self.r2d2_pool.clone(), self.cpu_pool.clone(), user_email);
+        let jwt_service = JWTServiceImpl::new(self.r2d2_pool.clone(), self.cpu_pool.clone(), self.client_handle.clone(), self.config.clone());
 
         match (req.method(), self.route_parser.test(req.path())) {
             // GET /healthcheck
             (&Get, Some(Route::Healthcheck)) =>
                 {
-                    let system_service = SystemServiceImpl::new();
                     serialize_future!(system_service.healthcheck().map_err(|e| Error::from(e)))
                 },
 
             // GET /users/<user_id>
             (&Get, Some(Route::User(user_id))) => {
-                let users_service = UsersServiceImpl::new(users_repo, user_email);
                 serialize_future!(users_service.get(user_id))
             },
 
             // GET /users/current
             (&Get, Some(Route::Current)) => {
-                let users_service = UsersServiceImpl::new(users_repo, user_email);
                 serialize_future!(users_service.current())
             },
 
             // GET /users
             (&Get, Some(Route::Users)) => {
                 if let (Some(from), Some(to)) = parse_query!(req.query().unwrap_or_default(), "from" => i32, "to" => i64) {
-                    let users_service = UsersServiceImpl::new(users_repo, user_email);
                     serialize_future!(users_service.list(from, to))
                 } else {
                     Box::new(future::err(Error::UnprocessableEntity("Error parsing request body".to_string())))
@@ -106,7 +103,6 @@ impl Controller {
 
             // POST /users
             (&Post, Some(Route::Users)) => {
-                let users_service = UsersServiceImpl::new(users_repo, user_email);
                 serialize_future!(
                     parse_body::<models::user::NewUser>(req.body())
                         .map_err(|_| Error::UnprocessableEntity("Error parsing request body".to_string()))
@@ -116,7 +112,6 @@ impl Controller {
 
             // PUT /users/<user_id>
             (&Put, Some(Route::User(user_id))) => {
-                let users_service = UsersServiceImpl::new(users_repo, user_email);
                 serialize_future!(
                     parse_body::<models::user::UpdateUser>(req.body())
                         .map_err(|_| Error::UnprocessableEntity("Error parsing request body".to_string()))
@@ -126,13 +121,11 @@ impl Controller {
 
             // DELETE /users/<user_id>
             (&Delete, Some(Route::User(user_id))) => {
-                let users_service = UsersServiceImpl::new(users_repo, user_email);
                 serialize_future!(users_service.deactivate(user_id))
             },
 
             // POST /jwt/email
             (&Post, Some(Route::JWTEmail)) => {
-                let jwt_service = JWTServiceImpl::new(users_repo, self.client_handle.clone(), self.config.clone());
                 serialize_future!(
                     parse_body::<models::user::NewUser>(req.body())
                         .map_err(|_| Error::UnprocessableEntity("Error parsing request body".to_string()))
@@ -142,7 +135,6 @@ impl Controller {
 
             // POST /jwt/google
             (&Post, Some(Route::JWTGoogle)) =>  {
-                let jwt_service = JWTServiceImpl::new(users_repo, self.client_handle.clone(), self.config.clone());
                 serialize_future!(
                     parse_body::<models::jwt::ProviderOauth>(req.body())
                         .map_err(|_| Error::UnprocessableEntity("Error parsing request body".to_string()))
@@ -151,7 +143,6 @@ impl Controller {
             },
             // POST /jwt/facebook
             (&Post, Some(Route::JWTFacebook)) => {
-                let jwt_service = JWTServiceImpl::new(users_repo, self.client_handle.clone(), self.config.clone());
                 serialize_future!(
                     parse_body::<models::jwt::ProviderOauth>(req.body())
                         .map_err(|_| Error::UnprocessableEntity("Error parsing request body".to_string()))

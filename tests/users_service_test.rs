@@ -12,7 +12,7 @@ use users_lib::services::users::{UsersServiceImpl, UsersService};
 use users_lib::models::user::{NewUser, UpdateUser, User};
 
 #[derive(Clone)]
-struct UsersRepoMock;
+pub struct UsersRepoMock;
 
 impl UsersRepo for UsersRepoMock {
 
@@ -59,8 +59,15 @@ impl UsersRepo for UsersRepoMock {
     }
 }
 
+pub fn new_service(users_repo: UsersRepoMock, user_email: Option<String>) -> UsersServiceImpl<UsersRepoMock> {
+    UsersServiceImpl {
+        users_repo,
+        user_email
+    }
+}
+
 fn create_service (users_email: Option<String>) -> UsersServiceImpl<UsersRepoMock> {
-    UsersServiceImpl::new(MOCK, users_email ) 
+    new_service(MOCK, users_email)
 }
 
 const MOCK : UsersRepoMock = UsersRepoMock{};
