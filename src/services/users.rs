@@ -51,7 +51,7 @@ impl<U: UsersRepo + Clone> UsersService for UsersServiceImpl<U> {
         if let Some(ref email) = self.user_email {
             Box::new(self.users_repo.find_by_email(email.to_string()).map_err(Error::from))
         } else {
-            Box::new(future::err(Error::Validate(validation_errors!({"email": ["email" => "Email not found"]}))))
+            Box::new(future::err(Error::Unknown("There is no user email in request header.")))
         }
     }
     
