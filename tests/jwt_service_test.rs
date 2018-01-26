@@ -173,8 +173,8 @@ const MOCK_USERS: UsersRepoMock = UsersRepoMock {};
 const MOCK_IDENT: IdentitiesRepoMock = IdentitiesRepoMock {};
 static MOCK_EMAIL: &'static str = "example@mail.com";
 static MOCK_PASSWORD: &'static str = "password";
-static GOOGLE_CODE: &'static str = "google";
-static FACEBOOK_CODE: &'static str = "AQDr-FG4bmYyrhYGk9ZJg1liqTRBfKfRbXopSd72_Qjexg3e4ybh9EJZFErHwyhw0oKyUOEbCQSalC4D8b3B2r4eJiyEmyW-E_ESsVnyThn27j8KEDDfsxCwUJxZY6fDwZt9LWMEHnHYEnFxABIupKN8y8bj_SH8wxIZoDm-YzZtYbj7VUf9g0vPKOkA_1hnjjW8TGrEKmbhFZLWLj6wJgC3uek3D3MahUhd_k3K-4BjOJNyXa8h_ESPQWNHt9sIIIDmhAw5X4iVmdbte7tQWf6y96vd_muwA4hKMRxzc7gMQo16tcI7hazQaJ1rJj39G8poG9Ac7AjdO6O7vSnYB9IqeLFbhKH56IyJoCR_05e2tg";
+static GOOGLE_TOKEN: &'static str = "google";
+static FACEBOOK_TOKEN: &'static str = "AQDr-FG4bmYyrhYGk9ZJg1liqTRBfKfRbXopSd72_Qjexg3e4ybh9EJZFErHwyhw0oKyUOEbCQSalC4D8b3B2r4eJiyEmyW-E_ESsVnyThn27j8KEDDfsxCwUJxZY6fDwZt9LWMEHnHYEnFxABIupKN8y8bj_SH8wxIZoDm-YzZtYbj7VUf9g0vPKOkA_1hnjjW8TGrEKmbhFZLWLj6wJgC3uek3D3MahUhd_k3K-4BjOJNyXa8h_ESPQWNHt9sIIIDmhAw5X4iVmdbte7tQWf6y96vd_muwA4hKMRxzc7gMQo16tcI7hazQaJ1rJj39G8poG9Ac7AjdO6O7vSnYB9IqeLFbhKH56IyJoCR_05e2tg";
 
 #[test]
 fn test_jwt_email() {
@@ -209,7 +209,7 @@ fn test_jwt_password_incorrect() {
 #[ignore] 
 fn test_jwt_google() {
     let (mut core, service) = create_service();
-    let oauth = ProviderOauth { code: GOOGLE_CODE.to_string() };
+    let oauth = ProviderOauth { token: GOOGLE_TOKEN.to_string() };
     let work = service.create_token_google(oauth);
     let result = core.run(work).unwrap();
     assert_eq!(result.token, "token");
@@ -220,7 +220,7 @@ fn test_jwt_google() {
 #[ignore]
 fn test_jwt_facebook() {
     let (mut core, service) = create_service();
-    let oauth = ProviderOauth { code: FACEBOOK_CODE.to_string() };
+    let oauth = ProviderOauth { token: FACEBOOK_TOKEN.to_string() };
     let work = service.create_token_facebook(oauth);
     let result = core.run(work).unwrap();
     assert_eq!(result.token, "token");
