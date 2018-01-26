@@ -38,11 +38,7 @@ pub struct JWT {
 /// Oauth 2.0 basic settings
 #[derive(Debug, Deserialize, Clone)]
 pub struct OAuth {
-    pub id: String,
-    pub key: String,
     pub info_url: String,
-    pub redirect_url: String,
-    pub code_to_token_url: String,
 }
 
 
