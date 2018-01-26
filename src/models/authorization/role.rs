@@ -1,16 +1,17 @@
 //! Models for authorization like Role, Resource, etc.
 
 use std::error::Error;
+use std::io::Write;
+use std::str;
 
 use diesel::pg::Pg;
 use diesel::row::Row;
 use diesel::expression::bound::Bound;
 use diesel::expression::AsExpression;
-use diesel::types::{FromSqlRow};
+use diesel::types::{FromSqlRow, ToSql, IsNull, NotNull, SingleValue};
+use diesel::serialize::Output;
 use diesel::deserialize::Queryable;
 use diesel::sql_types::VarChar;
-
-
 
 #[derive(Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Clone)]
 pub enum Role {
@@ -18,39 +19,17 @@ pub enum Role {
     User,
 }
 
-#[derive(PartialEq, Eq)]
-pub enum Resource {
-    Users,
-}
-
-#[derive(PartialEq, Eq)]
-pub enum Scope {
-    All,
-    Owned,
-}
-
-#[derive(PartialEq, Eq)]
-pub enum Action {
-    All,
-    Index,
-    Read,
-    Write,
-}
-
-pub struct Permission {
-    pub resource: Resource,
-    pub action: Action,
-    pub scope: Scope,
-}
+impl NotNull for Role {}
+impl SingleValue for Role {}
 
 impl FromSqlRow<VarChar, Pg> for Role {
     fn build_from_row<R: Row<Pg>>(row: &mut R) -> Result<Self, Box<Error + Send + Sync>> {
-        match &(String::build_from_row(row)?)[..] {
-            "Superuser" => Ok(Role::Superuser),
-            "User" => Ok(Role::User),
-            v => Err(format!("Unknown value {} for Role found", v).into()),
+        match row.take() {
+            Some(b"superuser") => Ok(Role::Superuser),
+            Some(b"user") => Ok(Role::User),
+            Some(value) => Err(format!("Unrecognized enum variant for Role: {}", str::from_utf8(value).unwrap_or("unreadable value")).into()),
+            None => Err("Unexpected null for non-null column role".into()),
         }
-        // unimplemented!()
     }
 }
 
@@ -61,6 +40,15 @@ impl Queryable<VarChar, Pg> for Role {
     }
 }
 
+impl ToSql<Role, Pg> for Role {
+    fn to_sql<W: Write>(&self, out: &mut Output<W, Pg>) -> Result<IsNull, Box<Error + Send + Sync>> {
+        match *self {
+            Role::Superuser => out.write_all(b"superuser")?,
+            Role::User => out.write_all(b"user")?,
+        }
+        Ok(IsNull::No)
+    }
+}
 
 impl AsExpression<VarChar> for Role {
     type Expression = Bound<VarChar, Role>;
