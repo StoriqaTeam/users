@@ -3,7 +3,8 @@ use validator::Validate;
 use super::authorization::Role;
 use models::schema::user_roles;
 
-#[derive(Queryable, Debug)]
+#[derive(Queryable, Insertable, Debug)]
+#[table_name = "user_roles"]
 pub struct UserRole {
     pub id: i32,
     pub user_id: i32,

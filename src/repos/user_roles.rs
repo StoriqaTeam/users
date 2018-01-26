@@ -2,6 +2,7 @@
 //! users and roles. I.e. this table is for user has-many roles
 //! relationship
 
+use diesel;
 use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::query_dsl::LoadQuery;
@@ -22,6 +23,9 @@ pub trait UserRolesRepo {
 
     /// Create a new user role
     fn create(&self, payload: NewUserRole) -> RepoFuture<UserRole>;
+
+    /// Delete role of a user
+    fn delete(&self, user_id: i32, role: Role) -> RepoFuture<UserRole>;
 }
 
 /// Implementation of UserRoles trait
@@ -77,7 +81,13 @@ impl UserRolesRepo for UserRolesRepoImpl {
         }))
     }
 
-    // fn delete(&self, user_role_id: i32) -> RepoFuture<u8> {
-    //     self.execute_query(diesel::delete(id.eq(user_id)))
-    // }
+    fn delete(&self, user_id_value: i32, role_value: Role) -> RepoFuture<UserRole> {
+        let conn = self.get_connection();
+
+        Box::new(self.cpu_pool.spawn_fn(move || {
+            let filtered = user_roles.filter(user_id.eq(user_id_value)).filter(role.eq(role_value));
+            let query = diesel::delete(filtered);
+            query.get_result(&*conn).map_err(Error::from)
+        }))
+    }
 }

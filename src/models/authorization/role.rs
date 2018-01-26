@@ -28,7 +28,7 @@ impl FromSqlRow<VarChar, Pg> for Role {
             Some(b"superuser") => Ok(Role::Superuser),
             Some(b"user") => Ok(Role::User),
             Some(value) => Err(format!("Unrecognized enum variant for Role: {}", str::from_utf8(value).unwrap_or("unreadable value")).into()),
-            None => Err("Unexpected null for non-null column role".into()),
+            None => Err("Unexpected null for non-null column `role`".into()),
         }
     }
 }
@@ -40,7 +40,7 @@ impl Queryable<VarChar, Pg> for Role {
     }
 }
 
-impl ToSql<Role, Pg> for Role {
+impl ToSql<VarChar, Pg> for Role {
     fn to_sql<W: Write>(&self, out: &mut Output<W, Pg>) -> Result<IsNull, Box<Error + Send + Sync>> {
         match *self {
             Role::Superuser => out.write_all(b"superuser")?,
