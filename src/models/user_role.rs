@@ -1,6 +1,6 @@
 use validator::Validate;
 
-use services::authorization::Role;
+use super::authorization::Role;
 use models::schema::user_roles;
 
 #[derive(Queryable, Debug)]
