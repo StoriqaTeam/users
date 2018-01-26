@@ -2,11 +2,6 @@
 //! users and roles. I.e. this table is for user has-many roles
 //! relationship
 
-use std::sync::Arc;
-
-use diesel;
-use diesel::select;
-use diesel::dsl::exists;
 use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::query_dsl::LoadQuery;
@@ -24,6 +19,9 @@ use super::types::{RepoFuture, DbConnection, DbPool};
 pub trait UserRolesRepo {
     /// Returns list of user_roles for a specific user
     fn list_for_user(&self, user_id: i32) -> RepoFuture<UserRole>;
+
+    /// Create a new user role
+    fn create(&self, payload: NewUserRole) -> RepoFuture<UserRole>;
 }
 
 /// Implementation of UserRoles trait
@@ -70,14 +68,14 @@ impl UserRolesRepo for UserRolesRepoImpl {
         )
     }
 
-    // fn create(&self, payload: NewUserRole) -> RepoFuture<UserRole> {
-    //     let conn = self.get_connection();
+    fn create(&self, payload: NewUserRole) -> RepoFuture<UserRole> {
+        let conn = self.get_connection();
 
-    //     Box::new(self.cpu_pool.spawn_fn(move || {
-    //         let query = diesel::insert_into(user_roles).values(&payload);
-    //         query.get_result(&*conn).map_err(Error::from)
-    //     }))
-    // }
+        Box::new(self.cpu_pool.spawn_fn(move || {
+            let query = diesel::insert_into(user_roles).values(&payload);
+            query.get_result(&*conn).map_err(Error::from)
+        }))
+    }
 
     // fn delete(&self, user_role_id: i32) -> RepoFuture<u8> {
     //     self.execute_query(diesel::delete(id.eq(user_id)))
