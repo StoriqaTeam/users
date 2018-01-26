@@ -1,5 +1,6 @@
 //! Authorization module contains authorization logic for the whole app
 
+use std::iter;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 
@@ -21,12 +22,18 @@ impl Authorization {
         Self { acls: HashMap::new() }
     }
 
-    pub fn can(&self, user_roles: &[UserRole], resource: Resource, action: Action) -> bool {
-        // let acls = user_roles.iter()
-        //     .map(|user_role| user_role.role)
-        //     .flat_map(|role| self.acls.get(&role).iter().flat_map(|permissions| permissions.iter()))
-        //     .filter(|permission| (permission.resource == resource) && (permission.action == action));
-        false
+    pub fn can(&self, user_roles: &[UserRole], resource: Resource, action: Action, user_id: Option<i32>, resource_owner_id: Option<i32>) -> bool {
+        let empty: Vec<Permission> = Vec::new();
+        let acls = user_roles.iter()
+            .map(|user_role| user_role.role.clone())
+            .flat_map(|role| self.acls.get(&role).unwrap_or(&empty))
+            .filter(|permission|
+                (permission.resource == resource) &&
+                ((permission.action == action) || (permission.action == Action::All))
+            )
+            .filter(|permission| permission.scope.can(user_id, resource_owner_id));
+
+        acls.count() > 0
     }
 
     fn add_permission_to_role(&mut self, role: Role, permission: Permission) {
