@@ -5,22 +5,21 @@ use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::error::Error;
 use std::io::Write;
 
-use diesel::pg::{Pg, PgConnection};
-use diesel::prelude::*;
+use diesel::pg::Pg;
+// use diesel::prelude::*;
 use diesel::row::Row;
-use diesel::dsl::AsExprOf;
-use diesel::types::*;
 use diesel::expression::bound::Bound;
 use diesel::expression::AsExpression;
-use diesel::types::{FromSqlRow, SmallInt};
+use diesel::types::{FromSqlRow};
+use diesel::deserialize::Queryable;
+use diesel::sql_types::{SmallInt, VarChar};
 
 use models::user_role::UserRole;
 
 #[derive(Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Clone)]
-#[repr(i16)]
 pub enum Role {
-    Superuser = 0,
-    User = 1,
+    Superuser,
+    User,
 }
 
 #[derive(PartialEq, Eq)]
@@ -48,26 +47,34 @@ struct Permission {
     pub scope: Scope,
 }
 
-impl FromSqlRow<SmallInt, Pg> for Role {
+impl FromSqlRow<VarChar, Pg> for Role {
     fn build_from_row<R: Row<Pg>>(row: &mut R) -> Result<Self, Box<Error + Send + Sync>> {
-        // match i16::build_from_row(row)? {
-        //     0 => Ok(Role::Superuser),
-        //     1 => Ok(Role::User),
-        //     v => Err(format!("Unknown value {} for Role found", v).into()),
-        // }
-        unimplemented!()
+        match &(String::build_from_row(row)?)[..] {
+            "Superuser" => Ok(Role::Superuser),
+            "User" => Ok(Role::User),
+            v => Err(format!("Unknown value {} for Role found", v).into()),
+        }
+        // unimplemented!()
     }
 }
 
-impl AsExpression<SmallInt> for Role {
-    type Expression = Bound<SmallInt, Role>;
+impl Queryable<VarChar, Pg> for Role {
+    type Row = Role;
+    fn build(row: Self::Row) -> Self {
+        row
+    }
+}
+
+
+impl AsExpression<VarChar> for Role {
+    type Expression = Bound<VarChar, Role>;
     fn as_expression(self) -> Self::Expression {
         Bound::new(self)
     }
 }
 
-impl<'a> AsExpression<SmallInt> for &'a Role {
-    type Expression = Bound<SmallInt, &'a Role>;
+impl<'a> AsExpression<VarChar> for &'a Role {
+    type Expression = Bound<VarChar, &'a Role>;
     fn as_expression(self) -> Self::Expression {
         Bound::new(self)
     }
@@ -90,10 +97,10 @@ impl Authorization {
     }
 
     pub fn can(&self, user_roles: &[UserRole], resource: Resource, action: Action) -> bool {
-        let acls = user_roles.iter()
-            .map(|user_role| user_role.role)
-            .flat_map(|role| self.acls.get(&role).iter().flat_map(|permissions| permissions.iter()))
-            .filter(|permission| (permission.resource == resource) && (permission.action == action));
+        // let acls = user_roles.iter()
+        //     .map(|user_role| user_role.role)
+        //     .flat_map(|role| self.acls.get(&role).iter().flat_map(|permissions| permissions.iter()))
+        //     .filter(|permission| (permission.resource == resource) && (permission.action == action));
         false
     }
 
