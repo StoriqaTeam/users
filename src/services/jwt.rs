@@ -10,6 +10,8 @@ use hyper::header::{Authorization, Bearer, ContentLength, ContentType};
 use hyper::mime::{APPLICATION_WWW_FORM_URLENCODED};
 use jsonwebtoken::{encode, Header};
 use sha3::{Digest, Sha3_256};
+use base64::decode;
+
 
 use models::jwt::{JWT, ProviderOauth};
 use models::user::{NewUser, Provider, UpdateUser, Gender, User};
@@ -224,7 +226,7 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> JWTService for JWTServiceI
                                 let new_user_clone = new_user.clone();
                                 Box::new(
                                     ident_repo
-                                        .find_by_email(new_user.email.clone())
+                                        .find_by_email_provider(new_user.email.clone(), Provider::Email)
                                         .map_err(Error::from)
                                         .and_then (move |identity| 
                                             password_verify(identity.user_password.unwrap().clone(), new_user.password.clone())
@@ -478,12 +480,12 @@ fn password_verify(db_hash: String, clear_password: String) -> Result<bool, Erro
         Err(Error::Validate(validation_errors!({"password": ["password" => "Password in db has wrong format"]})))
     } else {
         let salt = v[1];
-        let pass = salt.to_string() + &clear_password;
+        let pass = clear_password + salt;
         let mut hasher = Sha3_256::default();
         hasher.input(pass.as_bytes());
         let out = hasher.result();
-        str::from_utf8(&out[..])
-           .map_err(|_| Error::Validate(validation_errors!({"password": ["password" => "Password in db has wrong format"]})))
-            .map(|computed_hash| computed_hash == v[0])
+        let computed_hash = decode(v[0])
+           .map_err(|_| Error::Validate(validation_errors!({"password": ["password" => "Password in db has wrong format"]})))?;
+        Ok(computed_hash == &out[..])
     }
 }

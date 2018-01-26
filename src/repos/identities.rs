@@ -34,7 +34,7 @@ pub trait IdentitiesRepo {
     fn verify_password(&self, email_arg: String, password_arg: String) -> RepoFuture<bool>;
 
     /// Find specific user by email
-    fn find_by_email(&self, email_arg: String) -> RepoFuture<Identity>;
+    fn find_by_email_provider(&self, email_arg: String, provider_arg: Provider) -> RepoFuture<Identity>;
 }
 
 impl IdentitiesRepoImpl {
@@ -109,10 +109,11 @@ impl IdentitiesRepo for IdentitiesRepoImpl {
     }
 
     /// Find specific user by email
-    fn find_by_email(&self, email_arg: String) -> RepoFuture<Identity>{
+    fn find_by_email_provider(&self, email_arg: String, provider_arg: Provider) -> RepoFuture<Identity>{
         let conn = self.get_connection();
         let query = identities
-            .filter(user_email.eq(email_arg));
+            .filter(user_email.eq(email_arg))
+            .filter(provider.eq(provider_arg));
 
         Box::new(self.cpu_pool.spawn_fn(move || {
             query.first::<Identity>(&*conn).map_err(|e| Error::from(e))

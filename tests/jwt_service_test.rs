@@ -10,9 +10,11 @@ use std::time::SystemTime;
 use tokio_core::reactor::Core;
 use futures::Stream;
 
+
 use users_lib::config::Config;
 use users_lib::models::jwt::ProviderOauth;
 use users_lib::services::jwt::{JWTServiceImpl, JWTService};
+use users_lib::services::users::{password_create};
 use users_lib::repos::users::UsersRepo;
 use users_lib::repos::identities::IdentitiesRepo;
 use users_lib::repos::types::RepoFuture;
@@ -85,8 +87,13 @@ impl IdentitiesRepo for IdentitiesRepoMock {
 
     fn verify_password(&self, email_arg: String, password_arg: String) -> RepoFuture<bool> {
         Box::new(futures::future::ok(
-            email_arg == MOCK_EMAIL.to_string() && password_arg == MOCK_PASSWORD.to_string(),
+            email_arg == MOCK_EMAIL.to_string() && password_arg == password_create(MOCK_PASSWORD.to_string()),
         ))
+    }
+
+    fn find_by_email_provider(&self, email_arg: String, provider_arg: Provider) -> RepoFuture<Identity>{
+        let ident = create_identity(email_arg, Some(password_create(MOCK_PASSWORD.to_string())), 1, provider_arg);
+        Box::new(futures::future::ok(ident))
     }
 }
 
