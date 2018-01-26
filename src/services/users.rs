@@ -1,6 +1,10 @@
+use std::str;
+
 use futures::future;
 use futures::Future;
 use futures_cpupool::CpuPool;
+use sha3::{Digest, Sha3_256};
+use rand;
 
 use models::user::{NewUser, Provider, UpdateUser, User};
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
@@ -100,11 +104,15 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> UsersService for UsersServ
                         .map(|user| (new_user, user))
                 })
                 .and_then(move |(new_user, user)| {
-                    ident_repo
-                        .create(new_user.email, Some(new_user.password), Provider::Email, user.id)
-                        .map_err(|e| Error::from(e))
-                        .map(|_| user)
+                    password_create(new_user.password.clone())
+                    .map(|hashed_password| (new_user, user, hashed_password))
                 })
+                .and_then(move |(new_user, user, hashed_password)| 
+                        ident_repo
+                            .create(new_user.email, Some(hashed_password), Provider::Email, user.id)
+                            .map_err(|e| Error::from(e))
+                            .map(|_| user)
+                    )
                 ,
         )
     }
@@ -120,4 +128,19 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> UsersService for UsersServ
                 .map_err(|e| Error::from(e)),
         )
     }
+}
+
+
+
+fn password_create(clear_password: String) -> Result<String, Error> {
+    let salt = rand::random::<u64>().to_string().split_off(10);
+    let pass = salt.clone() + &clear_password;
+    let mut hasher = Sha3_256::default();
+    hasher.input(pass.as_bytes());
+    let out = hasher.result();
+    str::from_utf8(&out[..])
+        .map_err(|_| Error::Unknown("Can not create hash from password".to_string()))
+        .map(move |computed_hash| 
+            computed_hash.to_string() + "." + &salt
+        )
 }

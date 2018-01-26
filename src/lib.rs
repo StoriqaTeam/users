@@ -31,6 +31,8 @@ extern crate validator;
 extern crate jsonwebtoken;
 extern crate hyper_tls;
 extern crate chrono;
+extern crate sha3;
+extern crate rand;
 
 #[macro_use]
 pub mod macros;

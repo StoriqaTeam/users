@@ -10,7 +10,7 @@ use diesel::pg::PgConnection;
 use futures::future;
 use futures_cpupool::CpuPool;
 
-use models::user::{Identity, NewUser, Provider};
+use models::user::{Identity, Provider};
 use models::schema::identities::dsl::*;
 use super::error::Error;
 use super::types::{DbConnection, DbPool, RepoFuture};
@@ -32,6 +32,9 @@ pub trait IdentitiesRepo {
 
     /// Verifies password
     fn verify_password(&self, email_arg: String, password_arg: String) -> RepoFuture<bool>;
+
+    /// Find specific user by email
+    fn find_by_email(&self, email_arg: String) -> RepoFuture<Identity>;
 }
 
 impl IdentitiesRepoImpl {
@@ -102,6 +105,17 @@ impl IdentitiesRepo for IdentitiesRepoImpl {
             ident_query
                 .get_result::<Identity>(&*conn)
                 .map_err(Error::from)
+        }))
+    }
+
+    /// Find specific user by email
+    fn find_by_email(&self, email_arg: String) -> RepoFuture<Identity>{
+        let conn = self.get_connection();
+        let query = identities
+            .filter(user_email.eq(email_arg));
+
+        Box::new(self.cpu_pool.spawn_fn(move || {
+            query.first::<Identity>(&*conn).map_err(|e| Error::from(e))
         }))
     }
 }

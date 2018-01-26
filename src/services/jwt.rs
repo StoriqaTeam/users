@@ -1,5 +1,6 @@
 use std::time::SystemTime;
 use std::str::FromStr;
+use std::str;
 
 use futures::future;
 use futures::{Future, IntoFuture};
@@ -8,7 +9,7 @@ use hyper::{Method, Headers};
 use hyper::header::{Authorization, Bearer, ContentLength, ContentType};
 use hyper::mime::{APPLICATION_WWW_FORM_URLENCODED};
 use jsonwebtoken::{encode, Header};
-
+use sha3::{Digest, Sha3_256};
 
 use models::jwt::{JWT, ProviderOauth};
 use models::user::{NewUser, Provider, UpdateUser, Gender, User};
@@ -210,19 +211,40 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> JWTService for JWTServiceI
 
         Box::new(
             ident_repo
-                .verify_password(payload.email.to_string(), payload.password.clone())
+                .email_provider_exists(payload.email.to_string(), Provider::Email)
                 .map_err(Error::from)
                 .map(|exists| (exists, payload))
                 .and_then(
-                    move |(exists, user)| -> ServiceFuture<NewUser> {
+                    move |(exists, new_user)| -> ServiceFuture<String> {
                         match exists {
+                            // email does not exist
                             false => Box::new(future::err(Error::Validate(validation_errors!({"email": ["email" => "Email or password are incorrect"]})))),
-                            true => Box::new(future::ok(user)),
+                            // email exists, checking password
+                            true => {
+                                let new_user_clone = new_user.clone();
+                                Box::new(
+                                    ident_repo
+                                        .find_by_email(new_user.email.clone())
+                                        .map_err(Error::from)
+                                        .and_then (move |identity| 
+                                            password_verify(identity.user_password.unwrap().clone(), new_user.password.clone())
+                                        )
+                                        .map(move |verified| (verified, new_user_clone))
+                                        .and_then( move |(verified, user)| -> ServiceFuture<String> {
+                                                match verified {
+                                                    //password not verified
+                                                    false => Box::new(future::err(Error::Validate(validation_errors!({"email": ["email" => "Email or password are incorrect"]})))),
+                                                    //password verified
+                                                    true => Box::new(future::ok(user.email))
+                                                }
+                                        })
+                                )
+                            },
                         }
                     }
                 )
-                .and_then(move |pl| {
-                    let tokenpayload = JWTPayload::new(pl.email);
+                .and_then(move |email| {
+                    let tokenpayload = JWTPayload::new(email);
                     encode(&Header::default(), &tokenpayload, jwt_secret_key.as_ref())
                         .map_err(|_| Error::Parse(format!("Couldn't encode jwt: {:?}", tokenpayload)))
                         .into_future()
@@ -447,5 +469,21 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> JWTService for JWTServiceI
                 });
 
         Box::new(future)
+    }
+}
+
+fn password_verify(db_hash: String, clear_password: String) -> Result<bool, Error> {
+    let v: Vec<&str> = db_hash.split('.').collect();
+    if v.len() != 2 {
+        Err(Error::Validate(validation_errors!({"password": ["password" => "Password in db has wrong format"]})))
+    } else {
+        let salt = v[1];
+        let pass = salt.to_string() + &clear_password;
+        let mut hasher = Sha3_256::default();
+        hasher.input(pass.as_bytes());
+        let out = hasher.result();
+        str::from_utf8(&out[..])
+           .map_err(|_| Error::Validate(validation_errors!({"password": ["password" => "Password in db has wrong format"]})))
+            .map(|computed_hash| computed_hash == v[0])
     }
 }
