@@ -4,6 +4,7 @@ use std::str::FromStr;
 use validator::Validate;
 
 use models::identity::NewIdentity;
+use super::authorization::{Scope, WithScope};
 
 table! {
     use diesel::sql_types::*;
@@ -19,8 +20,8 @@ table! {
         last_name -> Nullable<VarChar>,
         middle_name -> Nullable<VarChar>,
         gender -> GenderType,
-        birthdate -> Nullable<Timestamp>, // 
-        last_login_at -> Timestamp, // 
+        birthdate -> Nullable<Timestamp>, //
+        last_login_at -> Timestamp, //
         created_at -> Timestamp, // UTC 0, generated at db level
         updated_at -> Timestamp, // UTC 0, generated at db level
     }
@@ -39,9 +40,9 @@ pub struct User {
    pub middle_name: Option<String>,
    pub gender: Gender,
    pub birthdate: Option<SystemTime>,
-   pub last_login_at: SystemTime, 
-   pub created_at: SystemTime, 
-   pub updated_at: SystemTime, 
+   pub last_login_at: SystemTime,
+   pub created_at: SystemTime,
+   pub updated_at: SystemTime,
 }
 
 /// Payload for creating users
@@ -56,7 +57,7 @@ pub struct NewUser {
     pub middle_name: Option<String>,
     pub gender: Gender,
     pub birthdate: Option<SystemTime>,
-    pub last_login_at: SystemTime, 
+    pub last_login_at: SystemTime,
 }
 
 /// Payload for updating users
@@ -70,7 +71,16 @@ pub struct UpdateUser {
     pub middle_name: Option<Option<String>>,
     pub gender: Option<Gender>,
     pub birthdate: Option<Option<SystemTime>>,
-    pub last_login_at: Option<SystemTime>, 
+    pub last_login_at: Option<SystemTime>,
+}
+
+impl WithScope for User {
+    fn is_in_scope(&self, scope: &Scope, user_id: i32) -> bool {
+        match *scope {
+            Scope::All => true,
+            Scope::Owned => self.id == user_id
+        }
+    }
 }
 
 impl From<NewIdentity> for NewUser {
@@ -88,9 +98,7 @@ impl From<NewIdentity> for NewUser {
     }
 }
 
-
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)] 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum Gender {
    Male,
    Female,
