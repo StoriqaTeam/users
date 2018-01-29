@@ -22,7 +22,7 @@ impl Authorization {
         Self { acls: HashMap::new() }
     }
 
-    pub fn can(&self, user_roles: &[UserRole], resource: Resource, action: Action, user_id: Option<i32>, resource_owner_id: Option<i32>) -> bool {
+    pub fn can(&self, resource: Resource, action: Action, user_id: i32, user_roles: &[UserRole], resource_with_scope: &WithScope) -> bool {
         let empty: Vec<Permission> = Vec::new();
         let acls = user_roles.iter()
             .map(|user_role| user_role.role.clone())
@@ -31,7 +31,7 @@ impl Authorization {
                 (permission.resource == resource) &&
                 ((permission.action == action) || (permission.action == Action::All))
             )
-            .filter(|permission| permission.scope.can(user_id, resource_owner_id));
+            .filter(|permission| resource_with_scope.is_in_scope(&permission.scope, user_id));
 
         acls.count() > 0
     }

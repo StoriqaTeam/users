@@ -4,6 +4,7 @@ use std::str::FromStr;
 use validator::Validate;
 
 use models::identity::NewIdentity;
+use super::authorization::{Scope, WithScope};
 
 table! {
     use diesel::sql_types::*;
@@ -73,6 +74,15 @@ pub struct UpdateUser {
     pub last_login_at: Option<SystemTime>,
 }
 
+impl WithScope for User {
+    fn is_in_scope(&self, scope: &Scope, user_id: i32) -> bool {
+        match *scope {
+            Scope::All => true,
+            Scope::Owned => self.id == user_id
+        }
+    }
+}
+
 impl From<NewIdentity> for NewUser {
     fn from(identity: NewIdentity) -> Self {
         NewUser {
@@ -87,8 +97,6 @@ impl From<NewIdentity> for NewUser {
         }
     }
 }
-
-
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum Gender {
