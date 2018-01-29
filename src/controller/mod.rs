@@ -97,16 +97,16 @@ impl Controller {
                 if let (Some(from), Some(to)) = parse_query!(req.query().unwrap_or_default(), "from" => i32, "to" => i64) {
                     serialize_future!(users_service.list(from, to))
                 } else {
-                    Box::new(future::err(Error::UnprocessableEntity("Error parsing request body".to_string())))
+                    Box::new(future::err(Error::UnprocessableEntity("Error parsing request from gateway body".to_string())))
                 }
             },
 
             // POST /users
             (&Post, Some(Route::Users)) => {
                 serialize_future!(
-                    parse_body::<models::user::NewUser>(req.body())
-                        .map_err(|_| Error::UnprocessableEntity("Error parsing request body".to_string()))
-                        .and_then(move |new_user| users_service.create(new_user).map_err(|e| Error::from(e)))
+                    parse_body::<models::identity::NewIdentity>(req.body())
+                        .map_err(|_| Error::UnprocessableEntity("Error parsing request from gateway body".to_string()))
+                        .and_then(move |new_ident| users_service.create(new_ident).map_err(|e| Error::from(e)))
                 )
             },
 
@@ -114,7 +114,7 @@ impl Controller {
             (&Put, Some(Route::User(user_id))) => {
                 serialize_future!(
                     parse_body::<models::user::UpdateUser>(req.body())
-                        .map_err(|_| Error::UnprocessableEntity("Error parsing request body".to_string()))
+                        .map_err(|_| Error::UnprocessableEntity("Error parsing request from gateway body".to_string()))
                         .and_then(move |update_user| users_service.update(user_id, update_user).map_err(|e| Error::from(e)))
                 )
             }
@@ -127,9 +127,9 @@ impl Controller {
             // POST /jwt/email
             (&Post, Some(Route::JWTEmail)) => {
                 serialize_future!(
-                    parse_body::<models::user::NewUser>(req.body())
-                        .map_err(|_| Error::UnprocessableEntity("Error parsing request body".to_string()))
-                        .and_then(move |new_user| jwt_service.create_token_email(new_user).map_err(|e| Error::from(e)))
+                    parse_body::<models::identity::NewIdentity>(req.body())
+                        .map_err(|_| Error::UnprocessableEntity("Error parsing request from gateway body".to_string()))
+                        .and_then(move |new_ident| jwt_service.create_token_email(new_ident).map_err(|e| Error::from(e)))
                 )
             },
 
@@ -137,7 +137,7 @@ impl Controller {
             (&Post, Some(Route::JWTGoogle)) =>  {
                 serialize_future!(
                     parse_body::<models::jwt::ProviderOauth>(req.body())
-                        .map_err(|_| Error::UnprocessableEntity("Error parsing request body".to_string()))
+                        .map_err(|_| Error::UnprocessableEntity("Error parsing request from gateway body".to_string()))
                         .and_then(move |oauth| jwt_service.create_token_google(oauth).map_err(|e| Error::from(e)))
                 )
             },
@@ -145,7 +145,7 @@ impl Controller {
             (&Post, Some(Route::JWTFacebook)) => {
                 serialize_future!(
                     parse_body::<models::jwt::ProviderOauth>(req.body())
-                        .map_err(|_| Error::UnprocessableEntity("Error parsing request body".to_string()))
+                        .map_err(|_| Error::UnprocessableEntity("Error parsing request from gateway body".to_string()))
                         .and_then(move |oauth| jwt_service.create_token_facebook(oauth).map_err(|e| Error::from(e)))
                 )
             },

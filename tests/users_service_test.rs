@@ -12,7 +12,8 @@ use users_lib::repos::users::UsersRepo;
 use users_lib::repos::identities::IdentitiesRepo;
 use users_lib::repos::types::RepoFuture;
 use users_lib::services::users::{UsersService, UsersServiceImpl, password_create};
-use users_lib::models::user::{Gender, Identity, NewUser, Provider, UpdateUser, User};
+use users_lib::models::user::{Gender, NewUser, UpdateUser, User};
+use users_lib::models::identity::{NewIdentity, Identity, Provider};
 
 #[derive(Clone)]
 pub struct UsersRepoMock;
@@ -41,13 +42,14 @@ impl UsersRepo for UsersRepoMock {
         Box::new(futures::future::ok(users))
     }
 
-    fn create(&self, payload: UpdateUser) -> RepoFuture<User> {
+    fn create(&self, payload: NewUser) -> RepoFuture<User> {
         let user = create_user(1, payload.email);
         Box::new(futures::future::ok(user))
     }
 
     fn update(&self, user_id: i32, payload: UpdateUser) -> RepoFuture<User> {
-        let user = create_user(user_id, payload.email);
+        let user = create_user(user_id, payload.email.unwrap_or(MOCK_EMAIL.to_string()));
+
         Box::new(futures::future::ok(user))
     }
 
@@ -130,8 +132,8 @@ fn create_user(id: i32, email: String) -> User {
     }
 }
 
-fn create_new_user(email: String, password: String) -> NewUser {
-    NewUser {
+fn create_new_identity(email: String, password: String) -> NewIdentity {
+    NewIdentity {
         email: email,
         password: password,
     }
@@ -139,14 +141,14 @@ fn create_new_user(email: String, password: String) -> NewUser {
 
 fn create_update_user(email: String) -> UpdateUser {
     UpdateUser {
-        email: email,
+        email: Some(email),
         phone: None,
         first_name: None,
         last_name: None,
         middle_name: None,
-        gender: Gender::Male,
+        gender: None,
         birthdate: None,
-        last_login_at: SystemTime::now(),
+        last_login_at: Some(SystemTime::now()),
     }
 }
 
@@ -210,8 +212,8 @@ fn test_list() {
 fn test_create_allready_existed() {
     let service = create_service(Some(MOCK_EMAIL.to_string()));
     let mut core = Core::new().unwrap();
-    let new_user = create_new_user(MOCK_EMAIL.to_string(), MOCK_PASSWORD.to_string());
-    let work = service.create(new_user);
+    let new_ident = create_new_identity(MOCK_EMAIL.to_string(), MOCK_PASSWORD.to_string());
+    let work = service.create(new_ident);
     let result = core.run(work);
     assert_eq!(result.is_err(), true);
 }
@@ -220,8 +222,8 @@ fn test_create_allready_existed() {
 fn test_create_user() {
     let service = create_service(Some(MOCK_EMAIL.to_string()));
     let mut core = Core::new().unwrap();
-    let new_user = create_new_user("new_user@mail.com".to_string(), MOCK_PASSWORD.to_string());
-    let work = service.create(new_user);
+    let new_ident = create_new_identity("new_user@mail.com".to_string(), MOCK_PASSWORD.to_string());
+    let work = service.create(new_ident);
     let result = core.run(work).unwrap();
     assert_eq!(result.email, "new_user@mail.com".to_string());
 }
@@ -230,8 +232,8 @@ fn test_create_user() {
 fn test_update() {
     let service = create_service(Some(MOCK_EMAIL.to_string()));
     let mut core = Core::new().unwrap();
-    let update_user = create_update_user(MOCK_EMAIL.to_string());
-    let work = service.update(1, update_user);
+    let new_user = create_update_user(MOCK_EMAIL.to_string());
+    let work = service.update(1, new_user);
     let result = core.run(work).unwrap();
     assert_eq!(result.id, 1);
     assert_eq!(result.email, MOCK_EMAIL.to_string());

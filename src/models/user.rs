@@ -2,23 +2,29 @@ use std::time::SystemTime;
 use std::str::FromStr;
 
 use validator::Validate;
-use models::schema::users;
-use models::schema::identities;
 
+use models::identity::NewIdentity;
 
-/// Payload for creating identity for users
-#[derive(Debug, Serialize, Deserialize, Validate, Insertable, Queryable)]
-#[table_name = "identities"]
-pub struct Identity
-{
-    pub user_id: i32,
-    #[validate(email(message = "Invalid email format"))]
-    pub user_email: String,
-    #[validate(length(min = "6", max = "30", message = "Password should be between 6 and 30 symbols"))]
-    pub user_password: Option<String>,
-    pub provider: Provider
+table! {
+    use diesel::sql_types::*;
+    use models::user::GenderType;
+    users (id) {
+        id -> Integer,
+        email -> Varchar,
+        email_verified -> Bool,
+        phone -> Nullable<VarChar>,
+        phone_verified -> Bool,
+        is_active -> Bool ,
+        first_name -> Nullable<VarChar>,
+        last_name -> Nullable<VarChar>,
+        middle_name -> Nullable<VarChar>,
+        gender -> GenderType,
+        birthdate -> Nullable<Timestamp>, // 
+        last_login_at -> Timestamp, // 
+        created_at -> Timestamp, // UTC 0, generated at db level
+        updated_at -> Timestamp, // UTC 0, generated at db level
+    }
 }
-
 
 #[derive(Debug, Serialize, Deserialize, Queryable, Clone)]
 pub struct User {
@@ -39,19 +45,10 @@ pub struct User {
 }
 
 /// Payload for creating users
-#[derive(Serialize, Deserialize, Validate, Clone)]
+#[derive(Serialize, Deserialize, Insertable, Validate, Clone)]
+#[table_name = "users"]
 pub struct NewUser {
     #[validate(email(message = "Invalid email format"))]
-    pub email: String,
-    #[validate(length(min = "6", max = "30", message = "Password should be between 6 and 30 symbols"))]
-    pub password: String,
-}
-
-/// Payload for updating users
-#[derive(Serialize, Deserialize, Insertable, Validate)]
-#[table_name = "users"]
-pub struct UpdateUser {
-    #[validate(email(message = "Invalid e-mail format"))]
     pub email: String,
     pub phone: Option<String>,
     pub first_name: Option<String>,
@@ -62,10 +59,24 @@ pub struct UpdateUser {
     pub last_login_at: SystemTime, 
 }
 
-impl From<NewUser> for UpdateUser {
-    fn from(new_user: NewUser) -> Self {
-        UpdateUser {
-            email: new_user.email,
+/// Payload for updating users
+#[derive(Serialize, Deserialize, Insertable, AsChangeset)]
+#[table_name = "users"]
+pub struct UpdateUser {
+    pub email: Option<String>,
+    pub phone: Option<Option<String>>,
+    pub first_name: Option<Option<String>>,
+    pub last_name: Option<Option<String>>,
+    pub middle_name: Option<Option<String>>,
+    pub gender: Option<Gender>,
+    pub birthdate: Option<Option<SystemTime>>,
+    pub last_login_at: Option<SystemTime>, 
+}
+
+impl From<NewIdentity> for NewUser {
+    fn from(identity: NewIdentity) -> Self {
+        NewUser {
+            email: identity.email,
             phone: None,
             first_name: None,
             last_name: None,
@@ -77,16 +88,7 @@ impl From<NewUser> for UpdateUser {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)] 
-pub enum Provider {
-   Email,
-   UnverifiedEmail,
-   Facebook,
-   Google
-}
 
-#[derive(QueryId)]
-pub struct ProviderType;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)] 
 pub enum Gender {
@@ -122,70 +124,7 @@ mod impls_for_insert_and_query {
     use std::error::Error;
     use std::io::Write;
 
-    use super::{Provider, ProviderType};
     use super::{Gender, GenderType};
-
-    impl HasSqlType<ProviderType> for Pg {
-        fn metadata(lookup: &Self::MetadataLookup) -> Self::TypeMetadata {
-            lookup.lookup_type("provider_type")
-        }
-    }
-
-    impl NotNull for ProviderType {}
-    impl SingleValue for ProviderType {}
-
-    impl<'a> AsExpression<ProviderType> for &'a Provider {
-        type Expression = Bound<ProviderType, &'a Provider>;
-
-        fn as_expression(self) -> Self::Expression {
-            Bound::new(self)
-        }
-    }
-
-    impl AsExpression<ProviderType> for Provider {
-        type Expression = Bound<ProviderType, Provider>;
-
-        fn as_expression(self) -> Self::Expression {
-            Bound::new(self)
-        }
-    }
-
-    impl ToSql<ProviderType, Pg> for Provider {
-        fn to_sql<W: Write>(
-            &self,
-            out: &mut Output<W, Pg>,
-        ) -> Result<IsNull, Box<Error + Send + Sync>> {
-            match *self {
-                Provider::Email => out.write_all(b"email")?,
-                Provider::UnverifiedEmail => out.write_all(b"unverified_email")?,
-                Provider::Facebook => out.write_all(b"facebook")?,
-                Provider::Google => out.write_all(b"google")?,
-            }
-            Ok(IsNull::No)
-        }
-    }
-
-    impl FromSqlRow<ProviderType, Pg> for Provider {
-        fn build_from_row<T: Row<Pg>>(row: &mut T) -> Result<Self, Box<Error + Send + Sync>> {
-            match row.take() {
-                Some(b"email") => Ok(Provider::Email),
-                Some(b"unverified_email") => Ok(Provider::UnverifiedEmail),
-                Some(b"facebook") => Ok(Provider::Facebook),
-                Some(b"google") => Ok(Provider::Google),
-                Some(_) => Err("Unrecognized enum variant".into()),
-                None => Err("Unexpected null for non-null column".into()),
-            }
-        }
-    }
-
-    impl Queryable<ProviderType, Pg> for Provider {
-        type Row = Self;
-
-        fn build(row: Self::Row) -> Self {
-            row
-        }
-    }
-
 
     impl HasSqlType<GenderType> for Pg {
         fn metadata(lookup: &Self::MetadataLookup) -> Self::TypeMetadata {

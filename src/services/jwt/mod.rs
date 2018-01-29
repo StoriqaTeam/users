@@ -14,7 +14,8 @@ use serde;
 
 
 use models::jwt::{JWT, ProviderOauth};
-use models::user::{NewUser, Provider, UpdateUser};
+use models::user::{NewUser};
+use models::identity::{Provider, NewIdentity};
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
 use http::client::ClientHandle;
@@ -30,7 +31,7 @@ use self::model::{GoogleProfile, FacebookProfile, JWTPayload, Email, IntoUser};
 /// JWT services, responsible for JsonWebToken operations
 pub trait JWTService {
     /// Creates new JWT token by email
-    fn create_token_email(&self, payload: NewUser) -> ServiceFuture<JWT>;
+    fn create_token_email(&self, payload: NewIdentity) -> ServiceFuture<JWT>;
     /// Creates new JWT token by google
     fn create_token_google(&self, oauth: ProviderOauth) -> ServiceFuture<JWT>;
     /// Creates new JWT token by facebook
@@ -92,7 +93,7 @@ impl<P, U, I> ProfileService<P> for JWTServiceImpl<U, I>
     where   P: Email + Clone + 'static,
             U: UsersRepo + Clone,
             I: IdentitiesRepo + Clone,
-            UpdateUser: From<P>,
+            NewUser: From<P>,
             P: for<'a> serde::Deserialize<'a>,
             P: IntoUser {
 
@@ -133,12 +134,12 @@ impl<P, U, I> ProfileService<P> for JWTServiceImpl<U, I>
     
     
     fn create_profile(&self, profile: P) -> ServiceFuture<String> {
-        let update_user = UpdateUser::from(profile.clone());
+        let new_user = NewUser::from(profile.clone());
         let users_repo = self.users_repo.clone();
         let ident_repo = self.ident_repo.clone();
         Box::new(
             users_repo
-                .create(update_user)
+                .create(new_user)
                 .map_err(Error::from)
                 .map(|user| (profile, user))
                 .and_then(move |(profile, user)| {
@@ -199,7 +200,7 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> JWTService for JWTServiceI
     /// Creates new JWT token by email
      fn create_token_email(
         &self,
-        payload: NewUser,
+        payload: NewIdentity,
     ) -> ServiceFuture<JWT> {
         let ident_repo = self.ident_repo.clone();
         let jwt_secret_key = self.jwt_config.secret_key.clone();

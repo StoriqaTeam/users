@@ -10,8 +10,8 @@ use diesel::pg::PgConnection;
 use futures::future;
 use futures_cpupool::CpuPool;
 
-use models::user::{UpdateUser, User};
-use models::schema::users::dsl::*;
+use models::user::{UpdateUser, User, NewUser};
+use models::user::users::dsl::*;
 use super::error::Error;
 use super::types::{DbConnection, DbPool, RepoFuture};
 
@@ -36,7 +36,7 @@ pub trait UsersRepo {
     fn list(&self, from: i32, count: i64) -> RepoFuture<Vec<User>>;
 
     /// Creates new user
-    fn create(&self, payload: UpdateUser) -> RepoFuture<User>;
+    fn create(&self, payload: NewUser) -> RepoFuture<User>;
 
     /// Updates specific user
     fn update(&self, user_id: i32, payload: UpdateUser) -> RepoFuture<User>;
@@ -119,7 +119,7 @@ impl UsersRepo for UsersRepoImpl {
 
     /// Creates new user
     // TODO - set e-mail uniqueness in database
-    fn create(&self, payload: UpdateUser) -> RepoFuture<User> {
+    fn create(&self, payload: NewUser) -> RepoFuture<User> {
         let conn = self.get_connection();
 
         Box::new(self.cpu_pool.spawn_fn(move || {
@@ -136,7 +136,7 @@ impl UsersRepo for UsersRepoImpl {
         let filter = users.filter(id.eq(user_id_arg)).filter(is_active.eq(true));
 
         Box::new(self.cpu_pool.spawn_fn(move || {
-            let query = diesel::update(filter).set(email.eq(payload.email));
+            let query = diesel::update(filter).set(&payload);
             query.get_result::<User>(&*conn).map_err(|e| Error::from(e))
         }))
     }

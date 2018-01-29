@@ -10,8 +10,8 @@ use diesel::pg::PgConnection;
 use futures::future;
 use futures_cpupool::CpuPool;
 
-use models::user::{Identity, Provider};
-use models::schema::identities::dsl::*;
+use models::identity::{Identity, Provider};
+use models::identity::identities::dsl::*;
 use super::error::Error;
 use super::types::{DbConnection, DbPool, RepoFuture};
 

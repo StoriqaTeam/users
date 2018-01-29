@@ -38,7 +38,7 @@ pub fn parse_body<T>(body: hyper::Body) -> Box<Future<Item=T, Error=error::Error
     Box::new(
         read_body(body)
             .map_err(|err| error::Error::BadRequest(format!("{}", err)))
-            .and_then(|body| serde_json::from_str::<T>(&body).map_err(|_| error::Error::UnprocessableEntity("Errpr parsing request body".to_string())))
+            .and_then(|body| serde_json::from_str::<T>(&body).map_err(|_| error::Error::UnprocessableEntity("Error parsing request body".to_string())))
     )
 }
 

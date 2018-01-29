@@ -7,7 +7,8 @@ use rand;
 use base64::encode;
 
 
-use models::user::{NewUser, Provider, UpdateUser, User};
+use models::user::{NewUser, UpdateUser, User};
+use models::identity::{Provider, NewIdentity};
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
 use super::types::ServiceFuture;
@@ -25,7 +26,7 @@ pub trait UsersService {
     /// Deactivates specific user
     fn deactivate(&self, user_id: i32) -> ServiceFuture<User>;
     /// Creates new user
-    fn create(&self, payload: NewUser) -> ServiceFuture<User>;
+    fn create(&self, payload: NewIdentity) -> ServiceFuture<User>;
     /// Updates specific user
     fn update(&self, user_id: i32, payload: UpdateUser) -> ServiceFuture<User>;
 }
@@ -83,7 +84,7 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> UsersService for UsersServ
     }
 
     /// Creates new user
-    fn create(&self, payload: NewUser) -> ServiceFuture<User> {
+    fn create(&self, payload: NewIdentity) -> ServiceFuture<User> {
         let users_repo = self.users_repo.clone();
         let ident_repo = self.ident_repo.clone();
         Box::new(
@@ -97,16 +98,16 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> UsersService for UsersServ
                         validation_errors!({"email": ["email" => "Email already exists"]}),
                     )),
                 })
-                .and_then(move |new_user| {
-                    let update_user = UpdateUser::from(new_user.clone());
+                .and_then(move |new_ident| {
+                    let new_user = NewUser::from(new_ident.clone());
                     users_repo
-                        .create(update_user)
+                        .create(new_user)
                         .map_err(|e| Error::from(e))
-                        .map(|user| (new_user, user))
+                        .map(|user| (new_ident, user))
                 })
-                .and_then(move |(new_user, user)| 
+                .and_then(move |(new_ident, user)| 
                         ident_repo
-                            .create(new_user.email, Some(password_create(new_user.password.clone())), Provider::Email, user.id)
+                            .create(new_ident.email, Some(password_create(new_ident.password.clone())), Provider::Email, user.id)
                             .map_err(|e| Error::from(e))
                             .map(|_| user)
                     )

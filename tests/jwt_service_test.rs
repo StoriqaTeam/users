@@ -18,7 +18,8 @@ use users_lib::services::users::{password_create};
 use users_lib::repos::users::UsersRepo;
 use users_lib::repos::identities::IdentitiesRepo;
 use users_lib::repos::types::RepoFuture;
-use users_lib::models::user::{Gender, Identity, NewUser, Provider, UpdateUser, User};
+use users_lib::models::user::{Gender, NewUser, UpdateUser, User};
+use users_lib::models::identity::{NewIdentity, Identity, Provider};
 use users_lib::http::client::{Client, ClientHandle};
 
 #[derive(Clone)]
@@ -48,13 +49,13 @@ impl UsersRepo for UsersRepoMock {
         Box::new(futures::future::ok(users))
     }
 
-    fn create(&self, payload: UpdateUser) -> RepoFuture<User> {
+    fn create(&self, payload: NewUser) -> RepoFuture<User> {
         let user = create_user(1, payload.email);
         Box::new(futures::future::ok(user))
     }
 
     fn update(&self, user_id: i32, payload: UpdateUser) -> RepoFuture<User> {
-        let user = create_user(user_id, payload.email);
+        let user = create_user(user_id, payload.email.unwrap_or(MOCK_EMAIL.to_string()));
         Box::new(futures::future::ok(user))
     }
 
@@ -147,8 +148,8 @@ fn create_user(id: i32, email: String) -> User {
     }
 }
 
-fn create_new_user(email: String, password: String) -> NewUser {
-    NewUser {
+fn create_new_identity(email: String, password: String) -> NewIdentity {
+    NewIdentity {
         email: email,
         password: password,
     }
@@ -173,14 +174,13 @@ const MOCK_USERS: UsersRepoMock = UsersRepoMock {};
 const MOCK_IDENT: IdentitiesRepoMock = IdentitiesRepoMock {};
 static MOCK_EMAIL: &'static str = "example@mail.com";
 static MOCK_PASSWORD: &'static str = "password";
-static GOOGLE_TOKEN: &'static str = "google";
+static GOOGLE_TOKEN: &'static str = "ya29.GlxRBQ0wdpH46NWtA4ko0dj9ji2sQtdglwYGXslCCDdWNf0Drdg6SFEcWEzHUKdUMkJJ1n_GCRJilJNpB3Wt_oAYjTT9GY5jPIg_tPHvnzEJl_0ZQklSymRRfj2aAg";
 static FACEBOOK_TOKEN: &'static str = "AQDr-FG4bmYyrhYGk9ZJg1liqTRBfKfRbXopSd72_Qjexg3e4ybh9EJZFErHwyhw0oKyUOEbCQSalC4D8b3B2r4eJiyEmyW-E_ESsVnyThn27j8KEDDfsxCwUJxZY6fDwZt9LWMEHnHYEnFxABIupKN8y8bj_SH8wxIZoDm-YzZtYbj7VUf9g0vPKOkA_1hnjjW8TGrEKmbhFZLWLj6wJgC3uek3D3MahUhd_k3K-4BjOJNyXa8h_ESPQWNHt9sIIIDmhAw5X4iVmdbte7tQWf6y96vd_muwA4hKMRxzc7gMQo16tcI7hazQaJ1rJj39G8poG9Ac7AjdO6O7vSnYB9IqeLFbhKH56IyJoCR_05e2tg";
 
 #[test]
 fn test_jwt_email() {
     let (mut core, service) = create_service();
-    let new_user = create_new_user (MOCK_EMAIL.to_string(), MOCK_PASSWORD.to_string());
-
+    let new_user = create_new_identity (MOCK_EMAIL.to_string(), MOCK_PASSWORD.to_string());
     let work = service.create_token_email(new_user);
     let result = core.run(work).unwrap();
     assert_eq!(result.token, "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2VtYWlsIjoiZXhhbXBsZUBtYWlsLmNvbSJ9.EiRpbadz8jGW0_wGPKXKhlmrWC9QJNIDv8eRWp0-VG0");
@@ -189,7 +189,7 @@ fn test_jwt_email() {
 #[test]
 fn test_jwt_email_not_found() {
     let (mut core, service) = create_service();
-    let new_user = create_new_user ("not found email".to_string(), MOCK_PASSWORD.to_string());
+    let new_user = create_new_identity ("not found email".to_string(), MOCK_PASSWORD.to_string());
     let work = service.create_token_email(new_user);
     let result = core.run(work);
     assert_eq!(result.is_err(), true);
@@ -198,7 +198,7 @@ fn test_jwt_email_not_found() {
 #[test]
 fn test_jwt_password_incorrect() {
     let (mut core, service) = create_service();
-    let new_user = create_new_user (MOCK_EMAIL.to_string(), "wrong password".to_string());
+    let new_user = create_new_identity (MOCK_EMAIL.to_string(), "wrong password".to_string());
     let work = service.create_token_email(new_user);
     let result = core.run(work);
     assert_eq!(result.is_err(), true);
@@ -206,7 +206,7 @@ fn test_jwt_password_incorrect() {
 
 // this test is ignored because of expired access code from google 
 #[test]
-#[ignore] 
+#[ignore]
 fn test_jwt_google() {
     let (mut core, service) = create_service();
     let oauth = ProviderOauth { token: GOOGLE_TOKEN.to_string() };

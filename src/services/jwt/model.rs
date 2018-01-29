@@ -2,7 +2,7 @@ use std::time::SystemTime;
 use std::str::FromStr;
 use std::str;
 
-use models::user::{UpdateUser, Gender, User};
+use models::user::{NewUser, UpdateUser, Gender, User};
 
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -17,9 +17,9 @@ pub struct GoogleProfile {
   pub verified_email: bool
 }
 
-impl From<GoogleProfile> for UpdateUser {
+impl From<GoogleProfile> for NewUser {
     fn from(google_id: GoogleProfile) -> Self {
-        UpdateUser {
+        NewUser {
             email: google_id.email,
             phone: None,
             first_name: Some(google_id.name),
@@ -56,29 +56,29 @@ pub trait IntoUser {
 impl IntoUser for FacebookProfile {
     fn merge_into_user(&self, user: User) -> UpdateUser {
         let first_name = if user.first_name.is_none() {
-            Some(self.first_name.clone())
+            Some(Some(self.first_name.clone()))
         } else {
-            user.first_name
+            None
         };
         let last_name = if user.last_name.is_none() {
-            Some(self.last_name.clone())
+            Some(Some(self.last_name.clone()))
         } else {
-            user.last_name
+            None
         };
         let gender = if user.gender == Gender::Undefined {
-            Gender::from_str(self.gender.as_ref()).unwrap()
+            Some(Gender::from_str(self.gender.as_ref()).unwrap())
         } else {
-            user.gender
+            None
         };
         UpdateUser {
-            email: user.email,
-            phone: user.phone,
+            email: None,
+            phone: None,
             first_name: first_name,
             last_name: last_name,
-            middle_name:  user.middle_name,
+            middle_name:  None,
             gender: gender,
-            birthdate: user.birthdate,
-            last_login_at: SystemTime::now(),
+            birthdate: None,
+            last_login_at: Some(SystemTime::now()),
         }
     }
 }
@@ -86,24 +86,24 @@ impl IntoUser for FacebookProfile {
 impl IntoUser for GoogleProfile {
     fn merge_into_user(&self, user: User) -> UpdateUser {
         let first_name = if user.first_name.is_none() {
-            Some(self.name.clone())
+            Some(Some(self.name.clone()))
         } else {
-            user.first_name
+            None
         };
         let last_name = if user.last_name.is_none() {
-            Some(self.family_name.clone())
+            Some(Some(self.family_name.clone()))
         } else {
-            user.last_name
+            None
         };
         UpdateUser {
-            email: user.email,
-            phone: user.phone,
+            email: None,
+            phone: None,
             first_name: first_name,
             last_name: last_name,
-            middle_name:  user.middle_name,
-            gender: user.gender,
-            birthdate: user.birthdate,
-            last_login_at: SystemTime::now(),
+            middle_name:  None,
+            gender: None,
+            birthdate: None,
+            last_login_at: Some(SystemTime::now()),
         }
     }
 }
@@ -119,9 +119,9 @@ pub struct FacebookProfile {
     pub name: String,
 }
 
-impl From<FacebookProfile> for UpdateUser {
+impl From<FacebookProfile> for NewUser {
     fn from(facebook_id: FacebookProfile) -> Self {
-        UpdateUser {
+        NewUser {
             email: facebook_id.email,
             phone: None,
             first_name: Some(facebook_id.first_name),
