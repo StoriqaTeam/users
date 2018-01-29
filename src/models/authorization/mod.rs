@@ -1,3 +1,5 @@
+//! Models for working with autorization (acl - access control list)
+
 pub mod action;
 pub mod permission;
 pub mod resource;

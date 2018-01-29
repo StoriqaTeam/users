@@ -1,4 +1,4 @@
-//! Authorization module contains authorization logic for the whole app
+//! Authorization module contains authorization logic for the repo layer app
 
 use std::iter;
 use std::collections::HashMap;
@@ -15,11 +15,22 @@ macro_rules! permission {
     ($resource: expr, $action: expr, $scope: expr) => { Permission { resource: $resource, action: $action, scope: $scope }  };
 }
 
-struct Acl {
+/// Access control layer for repos. It tells if a user can do a certain action with
+/// certain resource. All logic for roles and permissions should be hardcoded into implementation
+/// of this trait.
+trait Acl {
+    /// Tells of a user with id `user_id` a list of `roles` can do `action` on `resource`.
+    /// `resource_with_scope` can tell if this resource is in some scope, which is also a part of `acl` for some
+    /// permissions. E.g. You can say that a user can do `Create` (`Action`) on `Store` (`Resource`) only if he's the
+    /// `Owner` (`Scope`) of the store.
+    fn can(&self, resource: Resource, action: Action, roles: &[Role], user_id: i32,resource_with_scope: &WithScope) -> bool;
+}
+
+struct AclImpl {
     acls: HashMap<Role, Vec<Permission>>,
 }
 
-impl Acl {
+impl AclImpl {
     pub fn new() -> Self {
         let mut result = Self { acls: HashMap::new() };
         result.add_permission_to_role(Role::Superuser, permission!(Resource::Users));
@@ -29,19 +40,6 @@ impl Acl {
         result.add_permission_to_role(Role::User, permission!(Resource::UserRoles, Action::Index, Scope::Owned));
         result.add_permission_to_role(Role::User, permission!(Resource::UserRoles, Action::Read, Scope::Owned));
         result
-    }
-
-    pub fn can(&self, resource: Resource, action: Action, roles: &[Role], user_id: i32,resource_with_scope: &WithScope) -> bool {
-        let empty: Vec<Permission> = Vec::new();
-        let acls = roles.iter()
-            .flat_map(|role| self.acls.get(&role).unwrap_or(&empty))
-            .filter(|permission|
-                (permission.resource == resource) &&
-                ((permission.action == action) || (permission.action == Action::All))
-            )
-            .filter(|permission| resource_with_scope.is_in_scope(&permission.scope, user_id));
-
-        acls.count() > 0
     }
 
     pub fn add_permission_to_role(&mut self, role: Role, permission: Permission) {
@@ -57,6 +55,21 @@ impl Acl {
     }
 }
 
+impl Acl for AclImpl {
+    fn can(&self, resource: Resource, action: Action, roles: &[Role], user_id: i32,resource_with_scope: &WithScope) -> bool {
+        let empty: Vec<Permission> = Vec::new();
+        let acls = roles.iter()
+            .flat_map(|role| self.acls.get(&role).unwrap_or(&empty))
+            .filter(|permission|
+                (permission.resource == resource) &&
+                ((permission.action == action) || (permission.action == Action::All))
+            )
+            .filter(|permission| resource_with_scope.is_in_scope(&permission.scope, user_id));
+
+        acls.count() > 0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -66,7 +79,7 @@ mod tests {
 
     #[test]
     fn test_super_user_for_users() {
-        let acl = Acl::new();
+        let acl = AclImpl::new();
 
         let resource = User {
             id: 1,
@@ -97,7 +110,7 @@ mod tests {
 
     #[test]
     fn test_ordinary_user_for_users() {
-        let acl = Acl::new();
+        let acl = AclImpl::new();
 
         let resource = User {
             id: 1,
@@ -128,7 +141,7 @@ mod tests {
 
     #[test]
     fn test_super_user_for_user_roles() {
-        let acl = Acl::new();
+        let acl = AclImpl::new();
 
         let resource = UserRole {
             id: 1,
@@ -148,7 +161,7 @@ mod tests {
 
     #[test]
     fn test_user_for_user_roles() {
-        let acl = Acl::new();
+        let acl = AclImpl::new();
 
         let resource = UserRole {
             id: 1,
