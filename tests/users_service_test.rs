@@ -3,15 +3,21 @@ extern crate hyper;
 extern crate serde_json;
 extern crate tokio_core;
 extern crate users_lib;
+extern crate sha3;
+extern crate base64;
+extern crate rand;
+
 
 use std::time::SystemTime;
 
 use tokio_core::reactor::Core;
+use sha3::{Digest, Sha3_256};
+use base64::encode;
 
 use users_lib::repos::users::UsersRepo;
 use users_lib::repos::identities::IdentitiesRepo;
 use users_lib::repos::types::RepoFuture;
-use users_lib::services::users::{UsersService, UsersServiceImpl, password_create};
+use users_lib::services::users::{UsersService, UsersServiceImpl};
 use users_lib::models::user::{Gender, NewUser, UpdateUser, User};
 use users_lib::models::identity::{NewIdentity, Identity, Provider};
 
@@ -164,6 +170,16 @@ fn create_identity(
             user_id: user_id,
             provider: provider,
         }
+}
+
+fn password_create(clear_password: String) -> String {
+    let salt = rand::random::<u64>().to_string().split_off(10);
+    let pass = clear_password + &salt;
+    let mut hasher = Sha3_256::default();
+    hasher.input(pass.as_bytes());
+    let out = hasher.result();
+    let computed_hash = encode(&out[..]);
+    computed_hash + "." + &salt
 }
 
 const MOCK_USERS: UsersRepoMock = UsersRepoMock {};

@@ -36,6 +36,8 @@ pub trait JWTService {
     fn create_token_google(&self, oauth: ProviderOauth) -> ServiceFuture<JWT>;
     /// Creates new JWT token by facebook
     fn create_token_facebook(&self, oauth: ProviderOauth) -> ServiceFuture<JWT>;
+    /// Verifies password
+    fn password_verify(db_hash: String, clear_password: String) -> Result<bool, Error>;
 }
 
 /// JWT services, responsible for JsonWebToken operations
@@ -223,7 +225,7 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> JWTService for JWTServiceI
                                         .find_by_email_provider(new_user.email.clone(), Provider::Email)
                                         .map_err(Error::from)
                                         .and_then (move |identity| 
-                                            password_verify(identity.user_password.unwrap().clone(), new_user.password.clone())
+                                            Self::password_verify(identity.user_password.unwrap().clone(), new_user.password.clone())
                                         )
                                         .map(move |verified| (verified, new_user_clone))
                                         .and_then( move |(verified, user)| -> ServiceFuture<String> {
@@ -275,23 +277,25 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> JWTService for JWTServiceI
         let jwt_secret_key = self.jwt_config.secret_key.clone();
         <JWTServiceImpl<U,I> as ProfileService<FacebookProfile>>::create_token(self, Provider::Facebook, jwt_secret_key, url, None)
     }
-}
 
-fn password_verify(db_hash: String, clear_password: String) -> Result<bool, Error> {
-    let v: Vec<&str> = db_hash.split('.').collect();
-    if v.len() != 2 {
-        Err(Error::Validate(validation_errors!({"password": ["password" => "Password in db has wrong format"]})))
-    } else {
-        let salt = v[1];
-        let pass = clear_password + salt;
-        let mut hasher = Sha3_256::default();
-        hasher.input(pass.as_bytes());
-        let out = hasher.result();
-        let computed_hash = decode(v[0])
-           .map_err(|_| Error::Validate(validation_errors!({"password": ["password" => "Password in db has wrong format"]})))?;
-        Ok(computed_hash == &out[..])
+    fn password_verify(db_hash: String, clear_password: String) -> Result<bool, Error> {
+        let v: Vec<&str> = db_hash.split('.').collect();
+        if v.len() != 2 {
+            Err(Error::Validate(validation_errors!({"password": ["password" => "Password in db has wrong format"]})))
+        } else {
+            let salt = v[1];
+            let pass = clear_password + salt;
+            let mut hasher = Sha3_256::default();
+            hasher.input(pass.as_bytes());
+            let out = hasher.result();
+            let computed_hash = decode(v[0])
+            .map_err(|_| Error::Validate(validation_errors!({"password": ["password" => "Password in db has wrong format"]})))?;
+            Ok(computed_hash == &out[..])
+        }
     }
 }
+
+
 
 
 

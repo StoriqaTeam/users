@@ -250,7 +250,6 @@ mod tests {
     use tokio_core::reactor::Core;
     use serde_json;
 
-    use ::models::user::{NewUser};
     use ::models::identity::{NewIdentity};
     use ::controller::utils::{parse_body, read_body};
 

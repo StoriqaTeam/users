@@ -29,6 +29,8 @@ pub trait UsersService {
     fn create(&self, payload: NewIdentity) -> ServiceFuture<User>;
     /// Updates specific user
     fn update(&self, user_id: i32, payload: UpdateUser) -> ServiceFuture<User>;
+    /// creates hashed password 
+    fn password_create(clear_password: String) -> String;
 }
 
 /// Users services, responsible for User-related CRUD operations
@@ -107,7 +109,7 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> UsersService for UsersServ
                 })
                 .and_then(move |(new_ident, user)| 
                         ident_repo
-                            .create(new_ident.email, Some(password_create(new_ident.password.clone())), Provider::Email, user.id)
+                            .create(new_ident.email, Some(Self::password_create(new_ident.password.clone())), Provider::Email, user.id)
                             .map_err(|e| Error::from(e))
                             .map(|_| user)
                     )
@@ -126,14 +128,14 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> UsersService for UsersServ
                 .map_err(|e| Error::from(e)),
         )
     }
-}
 
-pub fn password_create(clear_password: String) -> String {
-    let salt = rand::random::<u64>().to_string().split_off(10);
-    let pass = clear_password + &salt;
-    let mut hasher = Sha3_256::default();
-    hasher.input(pass.as_bytes());
-    let out = hasher.result();
-    let computed_hash = encode(&out[..]);
-    computed_hash + "." + &salt
+    fn password_create(clear_password: String) -> String {
+        let salt = rand::random::<u64>().to_string().split_off(10);
+        let pass = clear_password + &salt;
+        let mut hasher = Sha3_256::default();
+        hasher.input(pass.as_bytes());
+        let out = hasher.result();
+        let computed_hash = encode(&out[..]);
+        computed_hash + "." + &salt
+    }
 }
