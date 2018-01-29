@@ -1,8 +1,15 @@
+
 use futures::future;
 use futures::Future;
 use futures_cpupool::CpuPool;
+use sha3::{Digest, Sha3_256};
+use rand;
+use base64::encode;
 
-use models::user::{User, NewUser, UpdateUser};
+
+use models::user::{NewUser, UpdateUser, User};
+use models::identity::{Provider, NewIdentity};
+use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
 use super::types::ServiceFuture;
 use super::error::Error;
@@ -19,28 +26,33 @@ pub trait UsersService {
     /// Deactivates specific user
     fn deactivate(&self, user_id: i32) -> ServiceFuture<User>;
     /// Creates new user
-    fn create(&self, payload: NewUser) -> ServiceFuture<User>;
+    fn create(&self, payload: NewIdentity) -> ServiceFuture<User>;
     /// Updates specific user
     fn update(&self, user_id: i32, payload: UpdateUser) -> ServiceFuture<User>;
+    /// creates hashed password 
+    fn password_create(clear_password: String) -> String;
 }
 
 /// Users services, responsible for User-related CRUD operations
-pub struct UsersServiceImpl<U: 'static + UsersRepo + Clone> {
+pub struct UsersServiceImpl<U: 'static + UsersRepo + Clone, I: 'static + IdentitiesRepo+ Clone> {
     pub users_repo: U,
+    pub ident_repo: I,
     pub user_email: Option<String>
 }
 
-impl UsersServiceImpl<UsersRepoImpl> {
+impl UsersServiceImpl<UsersRepoImpl, IdentitiesRepoImpl> {
     pub fn new(r2d2_pool: DbPool, cpu_pool:CpuPool, user_email: Option<String>) -> Self {
-        let users_repo = UsersRepoImpl::new(r2d2_pool, cpu_pool);
+        let users_repo = UsersRepoImpl::new(r2d2_pool.clone(), cpu_pool.clone());
+        let ident_repo = IdentitiesRepoImpl::new(r2d2_pool, cpu_pool);
         Self {
             users_repo: users_repo,
+            ident_repo: ident_repo,
             user_email: user_email
         }
     }
 }
 
-impl<U: UsersRepo + Clone> UsersService for UsersServiceImpl<U> {
+impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> UsersService for UsersServiceImpl<U, I> {
     /// Returns user by ID
     fn get(&self, user_id: i32) -> ServiceFuture<User> {
         Box::new(self.users_repo.find(user_id).map_err(Error::from))
@@ -74,20 +86,34 @@ impl<U: UsersRepo + Clone> UsersService for UsersServiceImpl<U> {
     }
 
     /// Creates new user
-    fn create(&self, payload: NewUser) -> ServiceFuture<User> {
+    fn create(&self, payload: NewIdentity) -> ServiceFuture<User> {
         let users_repo = self.users_repo.clone();
+        let ident_repo = self.ident_repo.clone();
         Box::new(
-            users_repo
-                .email_exists(payload.email.to_string())
-                .map(|exists| (payload, exists))
-                .map_err(|e| Error::from(e))
+            ident_repo
+                .email_provider_exists(payload.email.to_string(), Provider::Email)
+                .map(move |exists| (payload, exists))
+                .map_err(Error::from)
                 .and_then(|(payload, exists)| match exists {
                     false => future::ok(payload),
-                    true => future::err(Error::Validate(validation_errors!({"email": ["email" => "Email already exists"]})))
+                    true => future::err(Error::Validate(
+                        validation_errors!({"email": ["email" => "Email already exists"]}),
+                    )),
                 })
-                .and_then(move |user| {
-                    users_repo.create(user).map_err(|e| Error::from(e))
-                }),
+                .and_then(move |new_ident| {
+                    let new_user = NewUser::from(new_ident.clone());
+                    users_repo
+                        .create(new_user)
+                        .map_err(|e| Error::from(e))
+                        .map(|user| (new_ident, user))
+                })
+                .and_then(move |(new_ident, user)| 
+                        ident_repo
+                            .create(new_ident.email, Some(Self::password_create(new_ident.password.clone())), Provider::Email, user.id)
+                            .map_err(|e| Error::from(e))
+                            .map(|_| user)
+                    )
+                ,
         )
     }
 
@@ -101,5 +127,15 @@ impl<U: UsersRepo + Clone> UsersService for UsersServiceImpl<U> {
                 .and_then(move |_user| users_repo.update(user_id, payload))
                 .map_err(|e| Error::from(e)),
         )
+    }
+
+    fn password_create(clear_password: String) -> String {
+        let salt = rand::random::<u64>().to_string().split_off(10);
+        let pass = clear_password + &salt;
+        let mut hasher = Sha3_256::default();
+        hasher.input(pass.as_bytes());
+        let out = hasher.result();
+        let computed_hash = encode(&out[..]);
+        computed_hash + "." + &salt
     }
 }

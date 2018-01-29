@@ -1,19 +1,19 @@
+use std::convert::From;
 
 use diesel;
+use diesel::prelude::*;
 use diesel::select;
 use diesel::dsl::exists;
-use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::query_dsl::LoadQuery;
 use diesel::pg::PgConnection;
 use futures::future;
 use futures_cpupool::CpuPool;
 
-use models::user::{NewUser, UpdateUser};
-use models::user::{User};
-use models::schema::users::dsl::*;
+use models::user::{UpdateUser, User, NewUser};
+use models::user::users::dsl::*;
 use super::error::Error;
-use super::types::{RepoFuture, DbConnection, DbPool};
+use super::types::{DbConnection, DbPool, RepoFuture};
 
 /// Users repository, responsible for handling users
 #[derive(Clone)]
@@ -27,11 +27,10 @@ pub trait UsersRepo {
     /// Find specific user by ID
     fn find(&self, user_id: i32) -> RepoFuture<User>;
 
+    fn email_exists(&self, email_arg: String) -> RepoFuture<bool>;
+
     /// Find specific user by email
     fn find_by_email(&self, email_arg: String) -> RepoFuture<User>;
-
-    /// Checks if e-mail is already registered
-    fn email_exists(&self, email_arg: String) -> RepoFuture<bool>;
 
     /// Returns list of users, limited by `from` and `count` parameters
     fn list(&self, from: i32, count: i64) -> RepoFuture<Vec<User>>;
@@ -44,10 +43,6 @@ pub trait UsersRepo {
 
     /// Deactivates specific user
     fn deactivate(&self, user_id: i32) -> RepoFuture<User>;
-
-    /// Verifies password
-    fn verify_password(&self, email_arg: String, password_arg: String) -> RepoFuture<bool>;
-    
 }
 
 impl UsersRepoImpl {
@@ -65,24 +60,36 @@ impl UsersRepoImpl {
         }
     }
 
-fn execute_query<T: Send + 'static, U: LoadQuery<PgConnection, T> + Send + 'static>(&self, query: U) -> RepoFuture<T> {
+    fn execute_query<T: Send + 'static, U: LoadQuery<PgConnection, T> + Send + 'static>(
+        &self,
+        query: U,
+    ) -> RepoFuture<T> {
         let conn = match self.r2d2_pool.get() {
             Ok(connection) => connection,
-            Err(_) => return Box::new(future::err(Error::Connection("Cannot connect to users db".to_string())))
+            Err(_) => {
+                return Box::new(future::err(
+                    Error::Connection("Cannot connect to users db".to_string()),
+                ))
+            }
         };
 
-        Box::new(
-            self.cpu_pool.spawn_fn(move || {
-                query.get_result::<T>(&*conn).map_err(|e| Error::from(e))
-            })
-        )
+        Box::new(self.cpu_pool.spawn_fn(move || {
+            query.get_result::<T>(&*conn).map_err(|e| Error::from(e))
+        }))
     }
 }
 
 impl UsersRepo for UsersRepoImpl {
     /// Find specific user by ID
-    fn find(&self, user_id: i32) -> RepoFuture<User> {
-        self.execute_query(users.find(user_id))
+    fn find(&self, user_id_arg: i32) -> RepoFuture<User> {
+        self.execute_query(users.find(user_id_arg))
+    }
+
+    fn email_exists(&self, email_arg: String) -> RepoFuture<bool> {
+        self.execute_query(select(exists(
+            users
+                .filter(email.eq(email_arg))
+        )))
     }
 
     /// Find specific user by email
@@ -94,16 +101,6 @@ impl UsersRepo for UsersRepoImpl {
         Box::new(self.cpu_pool.spawn_fn(move || {
             query.first::<User>(&*conn).map_err(|e| Error::from(e))
         }))
-    }
-
-    /// Checks if e-mail is already registered
-    fn email_exists(&self, email_arg: String) -> RepoFuture<bool> {
-        self.execute_query(select(exists(users.filter(email.eq(email_arg)))))
-    }
-
-    /// Verifies password
-    fn verify_password(&self, email_arg: String, password_arg: String) -> RepoFuture<bool> {
-        self.execute_query(select(exists(users.filter(email.eq(email_arg)).filter(password.eq(password_arg)))))
     }
 
     /// Returns list of users, limited by `from` and `count` parameters
@@ -126,27 +123,28 @@ impl UsersRepo for UsersRepoImpl {
         let conn = self.get_connection();
 
         Box::new(self.cpu_pool.spawn_fn(move || {
-            let query = diesel::insert_into(users).values(&payload);
-            query.get_result(&*conn).map_err(|e| Error::from(e))
+            let query_user = diesel::insert_into(users).values(&payload);
+            query_user
+                .get_result::<User>(&*conn)
+                .map_err(Error::from)
         }))
     }
 
     /// Updates specific user
-    fn update(&self, user_id: i32, payload: UpdateUser) -> RepoFuture<User> {
+    fn update(&self, user_id_arg: i32, payload: UpdateUser) -> RepoFuture<User> {
         let conn = self.get_connection();
-        let filter = users.filter(id.eq(user_id)).filter(is_active.eq(true));
+        let filter = users.filter(id.eq(user_id_arg)).filter(is_active.eq(true));
 
         Box::new(self.cpu_pool.spawn_fn(move || {
-            let query = diesel::update(filter).set(email.eq(payload.email));
+            let query = diesel::update(filter).set(&payload);
             query.get_result::<User>(&*conn).map_err(|e| Error::from(e))
         }))
     }
 
     /// Deactivates specific user
-    fn deactivate(&self, user_id: i32) -> RepoFuture<User> {
-        let filter = users.filter(id.eq(user_id)).filter(is_active.eq(true));
+    fn deactivate(&self, user_id_arg: i32) -> RepoFuture<User> {
+        let filter = users.filter(id.eq(user_id_arg)).filter(is_active.eq(true));
         let query = diesel::update(filter).set(is_active.eq(false));
         self.execute_query(query)
     }
-
 }
