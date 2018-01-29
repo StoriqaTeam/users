@@ -113,9 +113,9 @@ impl<P, U, I> ProfileService<P> for JWTServiceImpl<U, I>
                 .and_then(
                     move |(exists, profile)| -> ServiceFuture<String>{
                         match exists {
-                            // identity email + provider facebook doesn't exist
+                            // identity email + provider  doesn't exist
                             false => service_clone.create_or_update_profile(profile),
-                            // User identity email + provider facebook exists, returning Email
+                            // User identity email + provider  exists, returning Email
                             true => Box::new(future::ok(profile.get_email())),
                         }
                     }
@@ -129,7 +129,7 @@ impl<P, U, I> ProfileService<P> for JWTServiceImpl<U, I>
     
     fn get_profile(&self, url: String, headers: Option<Headers>) -> ServiceFuture<P> {
         Box::new(self.http_client.request::<P>(Method::Get, url, None, headers)
-                    .map_err(|e| Error::HttpClient(format!("Failed to receive user info from facebook. {}", e.to_string()))))
+                    .map_err(|e| Error::HttpClient(format!("Failed to receive user info from provider. {}", e.to_string()))))
     }
     
     

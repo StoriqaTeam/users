@@ -13,7 +13,7 @@ pub struct GoogleProfile {
   pub email: String,
   pub given_name: String,
   pub id: String,
-  pub hd: String,
+  pub hd: Option<String>,
   pub verified_email: bool
 }
 

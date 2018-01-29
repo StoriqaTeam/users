@@ -174,7 +174,7 @@ const MOCK_USERS: UsersRepoMock = UsersRepoMock {};
 const MOCK_IDENT: IdentitiesRepoMock = IdentitiesRepoMock {};
 static MOCK_EMAIL: &'static str = "example@mail.com";
 static MOCK_PASSWORD: &'static str = "password";
-static GOOGLE_TOKEN: &'static str = "ya29.GlxRBQ0wdpH46NWtA4ko0dj9ji2sQtdglwYGXslCCDdWNf0Drdg6SFEcWEzHUKdUMkJJ1n_GCRJilJNpB3Wt_oAYjTT9GY5jPIg_tPHvnzEJl_0ZQklSymRRfj2aAg";
+static GOOGLE_TOKEN: &'static str = "ya29.GlxRBXyOU1dfRmFEdVE1oOK3SyQ6UKh4RTESu0J-C19N2o5RCQVEALMi5DKlgctjTQclLCrLQkUovOb05ikfYQdZ2paFja9Uf4GN1hoysgp_dDr9NLgvfo7fGthY8A";
 static FACEBOOK_TOKEN: &'static str = "AQDr-FG4bmYyrhYGk9ZJg1liqTRBfKfRbXopSd72_Qjexg3e4ybh9EJZFErHwyhw0oKyUOEbCQSalC4D8b3B2r4eJiyEmyW-E_ESsVnyThn27j8KEDDfsxCwUJxZY6fDwZt9LWMEHnHYEnFxABIupKN8y8bj_SH8wxIZoDm-YzZtYbj7VUf9g0vPKOkA_1hnjjW8TGrEKmbhFZLWLj6wJgC3uek3D3MahUhd_k3K-4BjOJNyXa8h_ESPQWNHt9sIIIDmhAw5X4iVmdbte7tQWf6y96vd_muwA4hKMRxzc7gMQo16tcI7hazQaJ1rJj39G8poG9Ac7AjdO6O7vSnYB9IqeLFbhKH56IyJoCR_05e2tg";
 
 #[test]
@@ -206,7 +206,6 @@ fn test_jwt_password_incorrect() {
 
 // this test is ignored because of expired access code from google 
 #[test]
-#[ignore]
 fn test_jwt_google() {
     let (mut core, service) = create_service();
     let oauth = ProviderOauth { token: GOOGLE_TOKEN.to_string() };
