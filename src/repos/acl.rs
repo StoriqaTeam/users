@@ -23,8 +23,11 @@ impl Acl {
     pub fn new() -> Self {
         let mut result = Self { acls: HashMap::new() };
         result.add_permission_to_role(Role::Superuser, permission!(Resource::Users));
+        result.add_permission_to_role(Role::Superuser, permission!(Resource::UserRoles));
         result.add_permission_to_role(Role::User, permission!(Resource::Users, Action::Read));
         result.add_permission_to_role(Role::User, permission!(Resource::Users, Action::All, Scope::Owned));
+        result.add_permission_to_role(Role::User, permission!(Resource::UserRoles, Action::Index, Scope::Owned));
+        result.add_permission_to_role(Role::User, permission!(Resource::UserRoles, Action::Read, Scope::Owned));
         result
     }
 
@@ -58,10 +61,11 @@ impl Acl {
 mod tests {
     use super::*;
     use ::models::user::*;
+    use ::models::user_role::*;
     use ::models::authorization::*;
 
     #[test]
-    fn test_super_user() {
+    fn test_super_user_for_users() {
         let acl = Acl::new();
 
         let resource = User {
@@ -91,8 +95,8 @@ mod tests {
         assert_eq!(acl.can(Resource::Users, Action::Index, &vec![Role::Superuser][..], 2, &resource), true);
     }
 
-        #[test]
-    fn test_ordinary_user() {
+    #[test]
+    fn test_ordinary_user_for_users() {
         let acl = Acl::new();
 
         let resource = User {
@@ -122,5 +126,44 @@ mod tests {
         assert_eq!(acl.can(Resource::Users, Action::Index, &vec![Role::User][..], 2, &resource), false);
     }
 
+    #[test]
+    fn test_super_user_for_user_roles() {
+        let acl = Acl::new();
+
+        let resource = UserRole {
+            id: 1,
+            user_id: 1,
+            role: Role::User,
+        };
+
+        assert_eq!(acl.can(Resource::UserRoles, Action::All, &vec![Role::Superuser][..], 1, &resource), true);
+        assert_eq!(acl.can(Resource::UserRoles, Action::All, &vec![Role::Superuser][..], 2, &resource), true);
+        assert_eq!(acl.can(Resource::UserRoles, Action::Read, &vec![Role::Superuser][..], 1, &resource), true);
+        assert_eq!(acl.can(Resource::UserRoles, Action::Read, &vec![Role::Superuser][..], 2, &resource), true);
+        assert_eq!(acl.can(Resource::UserRoles, Action::Write, &vec![Role::Superuser][..], 1, &resource), true);
+        assert_eq!(acl.can(Resource::UserRoles, Action::Write, &vec![Role::Superuser][..], 2, &resource), true);
+        assert_eq!(acl.can(Resource::UserRoles, Action::Index, &vec![Role::Superuser][..], 1, &resource), true);
+        assert_eq!(acl.can(Resource::UserRoles, Action::Index, &vec![Role::Superuser][..], 2, &resource), true);
+    }
+
+    #[test]
+    fn test_user_for_user_roles() {
+        let acl = Acl::new();
+
+        let resource = UserRole {
+            id: 1,
+            user_id: 1,
+            role: Role::User,
+        };
+
+        assert_eq!(acl.can(Resource::UserRoles, Action::All, &vec![Role::User][..], 1, &resource), false);
+        assert_eq!(acl.can(Resource::UserRoles, Action::All, &vec![Role::User][..], 2, &resource), false);
+        assert_eq!(acl.can(Resource::UserRoles, Action::Read, &vec![Role::User][..], 1, &resource), true);
+        assert_eq!(acl.can(Resource::UserRoles, Action::Read, &vec![Role::User][..], 2, &resource), false);
+        assert_eq!(acl.can(Resource::UserRoles, Action::Write, &vec![Role::User][..], 1, &resource), false);
+        assert_eq!(acl.can(Resource::UserRoles, Action::Write, &vec![Role::User][..], 2, &resource), false);
+        assert_eq!(acl.can(Resource::UserRoles, Action::Index, &vec![Role::User][..], 1, &resource), true);
+        assert_eq!(acl.can(Resource::UserRoles, Action::Index, &vec![Role::User][..], 2, &resource), false);
+    }
 }
 

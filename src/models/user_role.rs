@@ -1,6 +1,6 @@
 use validator::Validate;
 
-use super::authorization::Role;
+use super::authorization::{Role, Scope, WithScope};
 use models::schema::user_roles;
 
 #[derive(Queryable, Insertable, Debug)]
@@ -18,3 +18,11 @@ pub struct NewUserRole {
     pub role: Role
 }
 
+impl WithScope for UserRole {
+    fn is_in_scope(&self, scope: &Scope, user_id: i32) -> bool {
+        match *scope {
+            Scope::All => true,
+            Scope::Owned => self.user_id == user_id
+        }
+    }
+}
