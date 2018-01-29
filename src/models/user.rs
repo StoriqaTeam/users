@@ -1,6 +1,8 @@
 use models::schema::users;
 use validator::Validate;
 
+use super::authorization::{Scope, WithScope};
+
 /// User model (WIP)
 #[derive(Debug, Serialize, Queryable, Deserialize)]
 pub struct User {
@@ -26,4 +28,10 @@ pub struct NewUser {
 pub struct UpdateUser {
     #[validate(email(message = "Invalid e-mail format"))]
     pub email: String
+}
+
+impl WithScope for User {
+    fn in_scope(&self, scope: Scope, user_id: i32) {
+        
+    }
 }

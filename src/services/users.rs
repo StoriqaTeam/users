@@ -8,7 +8,6 @@ use repos::users::UsersRepo;
 use super::types::ServiceFuture;
 use super::error::Error;
 
-
 pub trait UsersService {
     /// Returns user by ID
     fn get(&self, user_id: i32) -> ServiceFuture<User>;

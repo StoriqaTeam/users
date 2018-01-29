@@ -145,7 +145,7 @@ impl<U: UsersRepo> JWTService for JWTServiceImpl<U> {
             redirect_url,
             client_secret,
             oauth.code);
-        
+
 
         Box::new(
             http_client.request::<GoogleToken>(Method::Get, exchange_code_to_token_url, None, None)

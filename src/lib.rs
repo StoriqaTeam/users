@@ -102,7 +102,7 @@ pub fn start_server(settings: Config) {
         };
 
          // Prepare services
-        let system_service = SystemService{};
+        let system_service = SystemService;
 
         let users_repo = Arc::new(users_repo);
 
