@@ -1,7 +1,14 @@
 use validator::Validate;
 
 use super::authorization::{Role, Scope, WithScope};
-use models::schema::user_roles;
+
+table! {
+    user_roles (id) {
+        id -> Integer,
+        user_id -> Integer,
+        role -> VarChar,
+    }
+}
 
 #[derive(Queryable, Insertable, Debug)]
 #[table_name = "user_roles"]

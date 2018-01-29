@@ -10,7 +10,7 @@ use diesel::pg::PgConnection;
 use futures::future;
 use futures_cpupool::CpuPool;
 
-use models::schema::user_roles::dsl::*;
+use models::user_role::user_roles::dsl::*;
 use models::user_role::{NewUserRole, UserRole};
 use models::authorization::Role;
 use super::error::Error;
