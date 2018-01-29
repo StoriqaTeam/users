@@ -5,4 +5,5 @@ pub mod authorization;
 pub mod schema;
 pub mod user;
 pub mod user_role;
+pub mod identity;
 pub mod jwt;

@@ -30,7 +30,6 @@ impl Client {
         let (tx, rx) = mpsc::channel::<Payload>(config.client.http_client_buffer_size);
         let client = hyper::Client::configure()
             .connector(hyper_tls::HttpsConnector::new(4, &handle).unwrap())
-            .no_proto()
             .build(&handle);
 
         Client { client, tx, rx, max_retries }
@@ -251,7 +250,7 @@ mod tests {
     use tokio_core::reactor::Core;
     use serde_json;
 
-    use ::models::user::NewUser;
+    use ::models::identity::{NewIdentity};
     use ::controller::utils::{parse_body, read_body};
 
     #[test]
@@ -268,14 +267,14 @@ mod tests {
 
     #[test]
     fn test_parse_body() {
-        let message = NewUser {
+        let message = NewIdentity {
             email: "aaa@mail.com".to_string(),
             password: "password".to_string(),
         };
         let message_str = serde_json::to_string(&message).unwrap();
         let res = response_with_body(message_str.clone());
         let mut core = Core::new().unwrap();
-        let work = parse_body::<NewUser>(res.body());
+        let work = parse_body::<NewIdentity>(res.body());
         let result = core.run(work).unwrap();
         assert_eq!(result.email, message.email);
     }

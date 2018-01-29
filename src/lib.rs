@@ -30,6 +30,10 @@ extern crate validator_derive;
 extern crate validator;
 extern crate jsonwebtoken;
 extern crate hyper_tls;
+extern crate chrono;
+extern crate sha3;
+extern crate rand;
+extern crate base64;
 
 #[macro_use]
 pub mod macros;
@@ -54,14 +58,10 @@ use r2d2_diesel::ConnectionManager;
 use tokio_core::reactor::Core;
 
 use app::Application;
-use repos::users::UsersRepoImpl;
-use services::system::SystemService;
-use services::users::UsersServiceImpl;
-use services::jwt::JWTServiceImpl;
 use config::Config;
 
 /// Starts new web service from provided `Config`
-pub fn start_server(settings: Config) {
+pub fn start_server(config: Config) {
     // Prepare logger
     env_logger::init().unwrap();
 
@@ -69,7 +69,7 @@ pub fn start_server(settings: Config) {
     let mut core = Core::new().expect("Unexpected error creating event loop core");
     let handle = Arc::new(core.handle());
 
-    let client = http::client::Client::new(&settings, &handle);
+    let client = http::client::Client::new(&config, &handle);
     let client_handle = client.handle();
     let client_stream = client.stream();
     handle.spawn(
@@ -77,16 +77,13 @@ pub fn start_server(settings: Config) {
     );
 
     // Prepare server
-    let thread_count = settings.server.thread_count.clone();
-    let address = settings.server.address.parse().expect("Address must be set in configuration");
-    let jwt_settings = settings.jwt.clone();
-    let google_settings = settings.google.clone();
-    let facebook_settings = settings.facebook.clone();
+    let thread_count = config.server.thread_count.clone();
+    let address = config.server.address.parse().expect("Address must be set in configuration");
 
 
     let serve = Http::new().serve_addr_handle(&address, &handle, move || {
         // Prepare database pool
-        let database_url: String = settings.server.database.parse().expect("Database URL must be set in configuration");
+        let database_url: String = config.server.database.parse().expect("Database URL must be set in configuration");
         let manager = ConnectionManager::<PgConnection>::new(database_url);
         let r2d2_pool = r2d2::Pool::builder()
             .build(manager)
@@ -95,31 +92,7 @@ pub fn start_server(settings: Config) {
         // Prepare CPU pool
         let cpu_pool = CpuPool::new(thread_count);
 
-        // Prepare repositories
-        let users_repo = UsersRepoImpl {
-            r2d2_pool: Arc::new(r2d2_pool),
-            cpu_pool: Arc::new(cpu_pool),
-        };
-
-         // Prepare services
-        let system_service = SystemService;
-
-        let users_repo = Arc::new(users_repo);
-
-        let users_service = UsersServiceImpl {
-            users_repo: users_repo.clone(),
-        };
-
-        let jwt_service = JWTServiceImpl {
-            users_repo: users_repo.clone(),
-            http_client: client_handle.clone(),
-            jwt_settings: jwt_settings.clone(),
-            google_settings: google_settings.clone(),
-            facebook_settings: facebook_settings.clone(),
-
-        };
-
-        let controller = controller::Controller::new(Arc::new(system_service), Arc::new(users_service), Arc::new(jwt_service));
+        let controller = controller::Controller::new(r2d2_pool, cpu_pool, client_handle.clone(), config.clone());
 
         // Prepare application
         let app = Application {

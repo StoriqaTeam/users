@@ -14,24 +14,31 @@ use futures::Future;
 use futures::future;
 use hyper::{Get, Post, Put, Delete};
 use hyper::server::Request;
+use hyper::header::Authorization;
+use serde_json;
+use futures_cpupool::CpuPool;
 
 use self::error::Error;
-use services::system::SystemService;
-use services::users::UsersService;
-use services::jwt::JWTService;
-use serde_json;
+use services::system::{SystemServiceImpl, SystemService};
+use services::users::{UsersServiceImpl, UsersService};
+use services::jwt::{JWTService, JWTServiceImpl};
+use repos::types::DbPool;
 
 use models;
 use self::utils::parse_body;
 use self::types::ControllerFuture;
 use self::routes::{Route, RouteParser};
+use http::client::ClientHandle;
+use config::Config;
+
 
 /// Controller handles route parsing and calling `Service` layer
 pub struct Controller {
+    pub r2d2_pool: DbPool, 
+    pub cpu_pool: CpuPool,
     pub route_parser: Arc<RouteParser>,
-    pub system_service: Arc<SystemService>,
-    pub users_service: Arc<UsersService>,
-    pub jwt_service: Arc<JWTService>
+    pub config : Config,
+    pub client_handle: ClientHandle
 }
 
 macro_rules! serialize_future {
@@ -41,89 +48,104 @@ macro_rules! serialize_future {
 impl Controller {
     /// Create a new controller based on services
     pub fn new(
-        system_service: Arc<SystemService>,
-        users_service: Arc<UsersService>,
-        jwt_service: Arc<JWTService>
+        r2d2_pool: DbPool, 
+        cpu_pool: CpuPool,
+        client_handle: ClientHandle,
+        config: Config
     ) -> Self {
         let route_parser = Arc::new(routes::create_route_parser());
-        Controller {
+        Self {
             route_parser,
-            system_service,
-            users_service,
-            jwt_service,
+            r2d2_pool,
+            cpu_pool,
+            client_handle,
+            config
         }
     }
 
     /// Handle a request and get future response
     pub fn call(&self, req: Request) -> ControllerFuture
     {
+        let headers = req.headers().clone();
+        let auth_header = headers.get::<Authorization<String>>();
+        let user_email = auth_header.map (move |auth| {
+                auth.0.clone()
+            });
+        let system_service = SystemServiceImpl::new();
+        let users_service = UsersServiceImpl::new(self.r2d2_pool.clone(), self.cpu_pool.clone(), user_email);
+        let jwt_service = JWTServiceImpl::new(self.r2d2_pool.clone(), self.cpu_pool.clone(), self.client_handle.clone(), self.config.clone());
+
         match (req.method(), self.route_parser.test(req.path())) {
             // GET /healthcheck
             (&Get, Some(Route::Healthcheck)) =>
-                serialize_future!(self.system_service.healthcheck().map_err(|e| Error::from(e))),
+                {
+                    serialize_future!(system_service.healthcheck().map_err(|e| Error::from(e)))
+                },
 
             // GET /users/<user_id>
-            (&Get, Some(Route::User(user_id))) =>
-                serialize_future!(self.users_service.get(user_id)),
+            (&Get, Some(Route::User(user_id))) => {
+                serialize_future!(users_service.get(user_id))
+            },
+
+            // GET /users/current
+            (&Get, Some(Route::Current)) => {
+                serialize_future!(users_service.current())
+            },
 
             // GET /users
             (&Get, Some(Route::Users)) => {
                 if let (Some(from), Some(to)) = parse_query!(req.query().unwrap_or_default(), "from" => i32, "to" => i64) {
-                    serialize_future!(self.users_service.list(from, to))
+                    serialize_future!(users_service.list(from, to))
                 } else {
-                    Box::new(future::err(Error::UnprocessableEntity("Error parsing request body".to_string())))
+                    Box::new(future::err(Error::UnprocessableEntity("Error parsing request from gateway body".to_string())))
                 }
             },
 
             // POST /users
             (&Post, Some(Route::Users)) => {
-                let users_service = self.users_service.clone();
                 serialize_future!(
-                    parse_body::<models::user::NewUser>(req.body())
-                        .map_err(|_| Error::UnprocessableEntity("Error parsing request body".to_string()))
-                        .and_then(move |new_user| users_service.create(new_user).map_err(|e| Error::from(e)))
+                    parse_body::<models::identity::NewIdentity>(req.body())
+                        .map_err(|_| Error::UnprocessableEntity("Error parsing request from gateway body".to_string()))
+                        .and_then(move |new_ident| users_service.create(new_ident).map_err(|e| Error::from(e)))
                 )
             },
 
             // PUT /users/<user_id>
             (&Put, Some(Route::User(user_id))) => {
-                let users_service = self.users_service.clone();
                 serialize_future!(
                     parse_body::<models::user::UpdateUser>(req.body())
-                        .map_err(|_| Error::UnprocessableEntity("Error parsing request body".to_string()))
+                        .map_err(|_| Error::UnprocessableEntity("Error parsing request from gateway body".to_string()))
                         .and_then(move |update_user| users_service.update(user_id, update_user).map_err(|e| Error::from(e)))
                 )
             }
 
             // DELETE /users/<user_id>
-            (&Delete, Some(Route::User(user_id))) =>
-                serialize_future!(self.users_service.deactivate(user_id)),
+            (&Delete, Some(Route::User(user_id))) => {
+                serialize_future!(users_service.deactivate(user_id))
+            },
 
             // POST /jwt/email
             (&Post, Some(Route::JWTEmail)) => {
-                let jwt_service = self.jwt_service.clone();
                 serialize_future!(
-                    parse_body::<models::user::NewUser>(req.body())
-                        .map_err(|_| Error::UnprocessableEntity("Error parsing request body".to_string()))
-                        .and_then(move |new_user| jwt_service.create_token_email(new_user).map_err(|e| Error::from(e)))
+                    parse_body::<models::identity::NewIdentity>(req.body())
+                        .map_err(|_| Error::UnprocessableEntity("Error parsing request from gateway body".to_string()))
+                        .and_then(move |new_ident| jwt_service.create_token_email(new_ident).map_err(|e| Error::from(e)))
                 )
             },
 
             // POST /jwt/google
             (&Post, Some(Route::JWTGoogle)) =>  {
-                let jwt_service = self.jwt_service.clone();
                 serialize_future!(
                     parse_body::<models::jwt::ProviderOauth>(req.body())
-                        .map_err(|_| Error::UnprocessableEntity("Error parsing request body".to_string()))
+                        .map_err(|_| Error::UnprocessableEntity("Error parsing request from gateway body".to_string()))
                         .and_then(move |oauth| jwt_service.create_token_google(oauth).map_err(|e| Error::from(e)))
                 )
             },
             // POST /jwt/facebook
             (&Post, Some(Route::JWTFacebook)) => {
-                let jwt_service = self.jwt_service.clone();
                 serialize_future!(
                     parse_body::<models::jwt::ProviderOauth>(req.body())
-                        .map_err(|_| Error::UnprocessableEntity("Error parsing request body".to_string()))
+                        .map_err(|_| Error::UnprocessableEntity("Error parsing request from gateway body".to_string()))
                         .and_then(move |oauth| jwt_service.create_token_facebook(oauth).map_err(|e| Error::from(e)))
                 )
             },

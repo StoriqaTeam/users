@@ -2,15 +2,7 @@
 secret_key = "jwt secret key"
 
 [google]
-id = "855404608988-qpfdqtvf458rpj782leve1728u688nam.apps.googleusercontent.com"
-key = "lMt1UTS22m4DOu8HP3_epIGT"
 info_url = "https://www.googleapis.com/userinfo/v2/me"
-code_to_token_url= "https://www.googleapis.com/oauth2/v4/token"
-redirect_url="http://localhost:3003/go"
 
 [facebook]
-id = "148962589140408"
-key = "9926ceb8bd833f602e559a8b93ac299b"
 info_url = "https://graph.facebook.com/me"
-code_to_token_url= "https://graph.facebook.com/v2.11/oauth/access_token"
-redirect_url="http://localhost:3003/fb"

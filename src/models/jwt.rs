@@ -7,5 +7,10 @@ pub struct JWT {
 /// Payload for creating JWT token by provider
 #[derive(Serialize, Deserialize)]
 pub struct ProviderOauth {
-    pub code: String,
+    pub token: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct JWTPayload {
+    pub user_email: String,
 }

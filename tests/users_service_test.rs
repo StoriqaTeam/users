@@ -1,24 +1,32 @@
+extern crate futures;
 extern crate hyper;
 extern crate serde_json;
 extern crate tokio_core;
 extern crate users_lib;
-extern crate futures;
+extern crate sha3;
+extern crate base64;
+extern crate rand;
 
-use std::sync::Arc;
+
+use std::time::SystemTime;
 
 use tokio_core::reactor::Core;
+use sha3::{Digest, Sha3_256};
+use base64::encode;
 
 use users_lib::repos::users::UsersRepo;
+use users_lib::repos::identities::IdentitiesRepo;
 use users_lib::repos::types::RepoFuture;
-use users_lib::services::users::{UsersServiceImpl, UsersService};
-use users_lib::models::user::{NewUser, UpdateUser, User};
+use users_lib::services::users::{UsersService, UsersServiceImpl};
+use users_lib::models::user::{Gender, NewUser, UpdateUser, User};
+use users_lib::models::identity::{NewIdentity, Identity, Provider};
 
-struct UsersRepoMock;
+#[derive(Clone)]
+pub struct UsersRepoMock;
 
 impl UsersRepo for UsersRepoMock {
-
     fn find(&self, user_id: i32) -> RepoFuture<User> {
-        let user = User {  id: user_id, email: MOCK_EMAIL.to_string(), password: MOCK_PASSWORD.to_string(), is_active: true };
+        let user = create_user(user_id, MOCK_EMAIL.to_string());
         Box::new(futures::future::ok(user))
     }
 
@@ -26,47 +34,163 @@ impl UsersRepo for UsersRepoMock {
         Box::new(futures::future::ok(email_arg == MOCK_EMAIL.to_string()))
     }
 
+    fn find_by_email(&self, email_arg: String) -> RepoFuture<User> {
+        let user = create_user(1, email_arg);
+        Box::new(futures::future::ok(user))
+    }
+
     fn list(&self, from: i32, count: i64) -> RepoFuture<Vec<User>> {
         let mut users = vec![];
         for i in from..(from + count as i32) {
-            let user = User {  id: i, email: MOCK_EMAIL.to_string(), password: MOCK_PASSWORD.to_string(), is_active: true };
+            let user = create_user(i, MOCK_EMAIL.to_string());
             users.push(user);
         }
         Box::new(futures::future::ok(users))
     }
 
     fn create(&self, payload: NewUser) -> RepoFuture<User> {
-        let user = User {  id: 1, email: payload.email, password: payload.password, is_active: true };
+        let user = create_user(1, payload.email);
         Box::new(futures::future::ok(user))
     }
 
     fn update(&self, user_id: i32, payload: UpdateUser) -> RepoFuture<User> {
-        let user = User {  id: user_id, email: payload.email, password: MOCK_PASSWORD.to_string(), is_active: true };
+        let user = create_user(user_id, payload.email.unwrap_or(MOCK_EMAIL.to_string()));
+
         Box::new(futures::future::ok(user))
     }
 
     fn deactivate(&self, user_id: i32) -> RepoFuture<User> {
-        let user = User {  id: user_id, email: MOCK_EMAIL.to_string(), password: MOCK_PASSWORD.to_string(), is_active: false };
+        let mut user = create_user(user_id, MOCK_EMAIL.to_string());
+        user.is_active = false;
         Box::new(futures::future::ok(user))
     }
+}
 
-    fn verify_password(&self, _email_arg: String, _password_arg: String) -> RepoFuture<bool> {
-        Box::new(futures::future::ok(true))
+
+#[derive(Clone)]
+pub struct IdentitiesRepoMock;
+
+impl IdentitiesRepo for IdentitiesRepoMock {
+    fn email_provider_exists(&self, email_arg: String, provider_arg: Provider) -> RepoFuture<bool> {
+        Box::new(futures::future::ok(email_arg == MOCK_EMAIL.to_string() && provider_arg == Provider::Email))
+    }
+
+    fn create(
+        &self,
+        email: String,
+        password: Option<String>,
+        provider_arg: Provider,
+        user_id: i32,
+    ) -> RepoFuture<Identity> {
+        let ident = create_identity(email, password, user_id, provider_arg);
+        Box::new(futures::future::ok(ident))
+    }
+
+    fn verify_password(&self, email_arg: String, password_arg: String) -> RepoFuture<bool> {
+        Box::new(futures::future::ok(
+            email_arg == MOCK_EMAIL.to_string() && password_arg == password_create(MOCK_PASSWORD.to_string()),
+        ))
+    }
+
+    fn find_by_email_provider(&self, email_arg: String, provider_arg: Provider) -> RepoFuture<Identity>{
+        let ident = create_identity(email_arg, Some(password_create(MOCK_PASSWORD.to_string())), 1, provider_arg);
+        Box::new(futures::future::ok(ident))
     }
 }
 
-fn create_service () -> UsersServiceImpl<UsersRepoMock> {
-    UsersServiceImpl { users_repo : Arc::new(MOCK) } 
+
+
+
+pub fn new_service(
+    users_repo: UsersRepoMock,
+    ident_repo: IdentitiesRepoMock,
+    user_email: Option<String>,
+) -> UsersServiceImpl<UsersRepoMock, IdentitiesRepoMock> {
+    UsersServiceImpl {
+        users_repo,
+        ident_repo,
+        user_email,
+    }
 }
 
-const MOCK : UsersRepoMock = UsersRepoMock{};
+fn create_service(
+    users_email: Option<String>,
+) -> UsersServiceImpl<UsersRepoMock, IdentitiesRepoMock> {
+    new_service(MOCK_USERS, MOCK_IDENT, users_email)
+}
+
+fn create_user(id: i32, email: String) -> User {
+    User {
+        id: id,
+        email: email,
+        email_verified: false,
+        phone: None,
+        phone_verified: false,
+        is_active: true,
+        first_name: None,
+        last_name: None,
+        middle_name: None,
+        gender: Gender::Male,
+        birthdate: None,
+        last_login_at: SystemTime::now(),
+        created_at: SystemTime::now(),
+        updated_at: SystemTime::now(),
+    }
+}
+
+fn create_new_identity(email: String, password: String) -> NewIdentity {
+    NewIdentity {
+        email: email,
+        password: password,
+    }
+}
+
+fn create_update_user(email: String) -> UpdateUser {
+    UpdateUser {
+        email: Some(email),
+        phone: None,
+        first_name: None,
+        last_name: None,
+        middle_name: None,
+        gender: None,
+        birthdate: None,
+        last_login_at: Some(SystemTime::now()),
+    }
+}
+
+fn create_identity(
+    email: String,
+    password: Option<String>,
+    user_id: i32, 
+    provider: Provider) 
+    -> Identity {
+        Identity {
+            user_email: email,
+            user_password: password,
+            user_id: user_id,
+            provider: provider,
+        }
+}
+
+fn password_create(clear_password: String) -> String {
+    let salt = rand::random::<u64>().to_string().split_off(10);
+    let pass = clear_password + &salt;
+    let mut hasher = Sha3_256::default();
+    hasher.input(pass.as_bytes());
+    let out = hasher.result();
+    let computed_hash = encode(&out[..]);
+    computed_hash + "." + &salt
+}
+
+const MOCK_USERS: UsersRepoMock = UsersRepoMock {};
+const MOCK_IDENT: IdentitiesRepoMock = IdentitiesRepoMock {};
 static MOCK_EMAIL: &'static str = "example@mail.com";
 static MOCK_PASSWORD: &'static str = "password";
 
 
 #[test]
 fn test_get_user() {
-    let service = create_service();
+    let service = create_service(Some(MOCK_EMAIL.to_string()));
     let mut core = Core::new().unwrap();
     let work = service.get(1);
     let result = core.run(work).unwrap();
@@ -74,8 +198,26 @@ fn test_get_user() {
 }
 
 #[test]
+fn test_current_user() {
+    let service = create_service(Some(MOCK_EMAIL.to_string()));
+    let mut core = Core::new().unwrap();
+    let work = service.current();
+    let result = core.run(work).unwrap();
+    assert_eq!(result.email, MOCK_EMAIL.to_string());
+}
+
+#[test]
+fn test_current_user_without_user_email() {
+    let service = create_service(None);
+    let mut core = Core::new().unwrap();
+    let work = service.current();
+    let result = core.run(work);
+    assert_eq!(result.is_err(), true);
+}
+
+#[test]
 fn test_list() {
-    let service = create_service();
+    let service = create_service(Some(MOCK_EMAIL.to_string()));
     let mut core = Core::new().unwrap();
     let work = service.list(1, 5);
     let result = core.run(work).unwrap();
@@ -84,30 +226,30 @@ fn test_list() {
 
 #[test]
 fn test_create_allready_existed() {
-    let service = create_service();
+    let service = create_service(Some(MOCK_EMAIL.to_string()));
     let mut core = Core::new().unwrap();
-    let new_user = NewUser { email: MOCK_EMAIL.to_string(), password: MOCK_PASSWORD.to_string() };
-    let work = service.create(new_user);
+    let new_ident = create_new_identity(MOCK_EMAIL.to_string(), MOCK_PASSWORD.to_string());
+    let work = service.create(new_ident);
     let result = core.run(work);
     assert_eq!(result.is_err(), true);
 }
 
 #[test]
 fn test_create_user() {
-    let service = create_service();
+    let service = create_service(Some(MOCK_EMAIL.to_string()));
     let mut core = Core::new().unwrap();
-    let new_user = NewUser { email: "new_user@mail.com".to_string(), password: MOCK_PASSWORD.to_string() };
-    let work = service.create(new_user);
+    let new_ident = create_new_identity("new_user@mail.com".to_string(), MOCK_PASSWORD.to_string());
+    let work = service.create(new_ident);
     let result = core.run(work).unwrap();
     assert_eq!(result.email, "new_user@mail.com".to_string());
 }
 
 #[test]
 fn test_update() {
-    let service = create_service();
+    let service = create_service(Some(MOCK_EMAIL.to_string()));
     let mut core = Core::new().unwrap();
-    let update_user = UpdateUser {email: MOCK_EMAIL.to_string()};
-    let work = service.update(1, update_user);
+    let new_user = create_update_user(MOCK_EMAIL.to_string());
+    let work = service.update(1, new_user);
     let result = core.run(work).unwrap();
     assert_eq!(result.id, 1);
     assert_eq!(result.email, MOCK_EMAIL.to_string());
@@ -115,7 +257,7 @@ fn test_update() {
 
 #[test]
 fn test_deactivate() {
-    let service = create_service();
+    let service = create_service(Some(MOCK_EMAIL.to_string()));
     let mut core = Core::new().unwrap();
     let work = service.deactivate(1);
     let result = core.run(work).unwrap();

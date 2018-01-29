@@ -8,7 +8,7 @@ pub enum Error {
     NotFound,
     BadRequest(String),
     UnprocessableEntity(String),
-    InternalServerError,
+    InternalServerError(String),
 }
 
 impl From<serde_json::error::Error> for Error {
@@ -23,10 +23,10 @@ impl From<ServiceError> for Error {
             ServiceError::NotFound => Error::NotFound,
             ServiceError::Rollback => Error::BadRequest("Transaction rollback".to_string()),
             ServiceError::Validate(msg) => Error::BadRequest(serde_json::to_string(&msg).unwrap_or("Unable to serialize validation errors".to_string())),
-            ServiceError::Parse(e) => Error::UnprocessableEntity(format!("Parse error: {}", e)),
-            ServiceError::Database(_) => Error::InternalServerError,
-            ServiceError::HttpClient(_) => Error::InternalServerError,
-            ServiceError::Unknown(_) => Error::InternalServerError
+            ServiceError::Parse(msg) => Error::UnprocessableEntity(format!("Parse error: {}", msg)),
+            ServiceError::Database(msg) => Error::InternalServerError(format!("Database error: {}", msg)),
+            ServiceError::HttpClient(msg) => Error::InternalServerError(format!("Http Client error: {}", msg)),
+            ServiceError::Unknown(msg) => Error::InternalServerError(format!("Unknown: {}", msg))
         }
     }
 }
@@ -41,7 +41,7 @@ impl Error {
             &NotFound => StatusCode::NotFound,
             &BadRequest(_) => StatusCode::BadRequest,
             &UnprocessableEntity(_) => StatusCode::UnprocessableEntity,
-            &InternalServerError => StatusCode::InternalServerError,
+            &InternalServerError(_) => StatusCode::InternalServerError,
         }
     }
 
@@ -54,7 +54,7 @@ impl Error {
             &NotFound => "Not found".to_string(),
             &BadRequest(ref msg) => msg.to_string(),
             &UnprocessableEntity(ref msg) => msg.to_string(),
-            &InternalServerError => "Internal server Error".to_string(),
+            &InternalServerError(ref msg) => msg.to_string(),
         }
     }
 }
@@ -74,7 +74,7 @@ mod tests {
         assert_eq!(error, StatusCode::BadRequest);
         error = Error::UnprocessableEntity("bad".to_string()).code();
         assert_eq!(error, StatusCode::UnprocessableEntity);
-        error = Error::InternalServerError.code();
+        error = Error::InternalServerError("bad".to_string()).code();
         assert_eq!(error, StatusCode::InternalServerError);
     }
 
@@ -86,7 +86,7 @@ mod tests {
         assert_eq!(error, "bad".to_string());
         error = Error::UnprocessableEntity("bad".to_string()).message();
         assert_eq!(error, "bad".to_string());
-        error = Error::InternalServerError.message();
-        assert_eq!(error, "Internal server Error".to_string());
+        error = Error::InternalServerError("bad".to_string()).message();
+        assert_eq!(error, "bad".to_string());
     }
 }
