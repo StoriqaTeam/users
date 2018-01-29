@@ -5,6 +5,7 @@ use std::str;
 use models::user::{NewUser, UpdateUser, Gender, User};
 
 
+/// User profile from google
 #[derive(Serialize, Deserialize, Clone)]
 pub struct GoogleProfile {
   pub family_name: String,
@@ -12,8 +13,6 @@ pub struct GoogleProfile {
   pub picture: String,
   pub email: String,
   pub given_name: String,
-  pub id: String,
-  pub hd: Option<String>,
   pub verified_email: bool
 }
 
