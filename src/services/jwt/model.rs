@@ -70,7 +70,6 @@ impl IntoUser for FacebookProfile {
             None
         };
         UpdateUser {
-            email: None,
             phone: None,
             first_name: first_name,
             last_name: last_name,
@@ -95,7 +94,6 @@ impl IntoUser for GoogleProfile {
             None
         };
         UpdateUser {
-            email: None,
             phone: None,
             first_name: first_name,
             last_name: last_name,

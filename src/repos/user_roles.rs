@@ -5,9 +5,6 @@
 use diesel;
 use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
-use diesel::query_dsl::LoadQuery;
-use diesel::pg::PgConnection;
-use futures::future;
 use futures_cpupool::CpuPool;
 
 use models::user_role::user_roles::dsl::*;
@@ -19,7 +16,7 @@ use super::types::{RepoFuture, DbConnection, DbPool};
 /// UserRoles repository for handling UserRoles
 pub trait UserRolesRepo {
     /// Returns list of user_roles for a specific user
-    fn list_for_user(&self, user_id: i32) -> RepoFuture<UserRole>;
+    fn list_for_user(&self, user_id: i32) -> RepoFuture<Vec<UserRole>>;
 
     /// Create a new user role
     fn create(&self, payload: NewUserRole) -> RepoFuture<UserRole>;
@@ -41,33 +38,16 @@ impl UserRolesRepoImpl {
             Err(e) => panic!("Error obtaining connection from pool: {}", e),
         }
     }
-
-    fn execute_query<T: Send + 'static, U: LoadQuery<PgConnection, T> + Send + 'static>(&self, query: U) -> RepoFuture<T> {
-        let conn = match self.r2d2_pool.get() {
-            Ok(connection) => connection,
-            Err(_) => return Box::new(future::err(Error::Connection("Cannot connect to users db".to_string())))
-        };
-
-        Box::new(
-            self.cpu_pool.spawn_fn(move || {
-                query.get_result::<T>(&*conn).map_err(|e| Error::from(e))
-            })
-        )
-    }
 }
 
 impl UserRolesRepo for UserRolesRepoImpl {
-    fn list_for_user(&self, user_id_value: i32) -> RepoFuture<UserRole> {
-        // self.execute_query(user_roles.filter(user_id.eq(user_id_value)))
-        let conn = match self.r2d2_pool.get() {
-            Ok(connection) => connection,
-            Err(_) => return Box::new(future::err(Error::Connection("Cannot connect to users db".to_string())))
-        };
+    fn list_for_user(&self, user_id_value: i32) -> RepoFuture<Vec<UserRole>> {
+        let conn = self.get_connection();
 
         Box::new(
             self.cpu_pool.spawn_fn(move || {
-                let query = user_roles.find(user_id_value);
-                query.get_result::<UserRole>(&*conn).map_err(|e| Error::from(e))
+                let query = user_roles.filter(id.eq(user_id_value));
+                query.get_results(&*conn).map_err(|e| Error::from(e))
             })
         )
     }

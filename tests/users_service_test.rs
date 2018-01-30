@@ -53,8 +53,8 @@ impl UsersRepo for UsersRepoMock {
         Box::new(futures::future::ok(user))
     }
 
-    fn update(&self, user_id: i32, payload: UpdateUser) -> RepoFuture<User> {
-        let user = create_user(user_id, payload.email.unwrap_or(MOCK_EMAIL.to_string()));
+    fn update(&self, user_id: i32, _payload: UpdateUser) -> RepoFuture<User> {
+        let user = create_user(user_id, MOCK_EMAIL.to_string());
 
         Box::new(futures::future::ok(user))
     }
@@ -145,9 +145,8 @@ fn create_new_identity(email: String, password: String) -> NewIdentity {
     }
 }
 
-fn create_update_user(email: String) -> UpdateUser {
+fn create_update_user(_email: String) -> UpdateUser {
     UpdateUser {
-        email: Some(email),
         phone: None,
         first_name: None,
         last_name: None,

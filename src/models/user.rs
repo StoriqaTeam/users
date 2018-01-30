@@ -64,7 +64,6 @@ pub struct NewUser {
 #[derive(Serialize, Deserialize, Insertable, AsChangeset)]
 #[table_name = "users"]
 pub struct UpdateUser {
-    pub email: Option<String>,
     pub phone: Option<Option<String>>,
     pub first_name: Option<Option<String>>,
     pub last_name: Option<Option<String>>,

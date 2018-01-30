@@ -1,13 +1,10 @@
 //! Authorization module contains authorization logic for the repo layer app
 
-use std::iter;
 use std::collections::HashMap;
-use std::collections::hash_map::Entry::{Occupied, Vacant};
-use std::time::SystemTime;
+use futures::Future;
 
-use ::models::user_role::UserRole;
 use ::models::authorization::*;
-use ::models::user::Gender;
+use repos::user_roles::UserRolesRepo;
 
 macro_rules! permission {
     ($resource: expr) => { Permission { resource: $resource, action: Action::All, scope: Scope::All }  };
@@ -18,26 +15,61 @@ macro_rules! permission {
 /// Access control layer for repos. It tells if a user can do a certain action with
 /// certain resource. All logic for roles and permissions should be hardcoded into implementation
 /// of this trait.
-trait Acl {
-    /// Tells of a user with id `user_id` a list of `roles` can do `action` on `resource`.
+pub trait Acl {
+    /// Tells that a user with id `user_id` can do `action` on `resource`.
     /// `resource_with_scope` can tell if this resource is in some scope, which is also a part of `acl` for some
     /// permissions. E.g. You can say that a user can do `Create` (`Action`) on `Store` (`Resource`) only if he's the
     /// `Owner` (`Scope`) of the store.
-    fn can(&self, resource: Resource, action: Action, roles: &[Role], user_id: i32,resource_with_scope: &WithScope) -> bool;
+    fn can (&mut self, resource: Resource, action: Action, user_id: i32, resources_with_scope: Vec<&WithScope>) -> bool;
 }
 
-struct AclImpl {
+pub trait Cacheable<ID, T> {
+    fn get(&mut self, id: ID) -> &mut T ;
+}
+
+pub struct CachedRoles<U: UserRolesRepo + 'static + Clone> {
+    roles_cache: HashMap<i32, Vec<Role>>,
+    users_role_repo: U,
+}
+
+impl<U: UserRolesRepo + 'static + Clone> CachedRoles<U> {
+    pub fn new (repo: U) -> Self {
+        Self {
+            roles_cache: HashMap::new(),
+            users_role_repo: repo
+        }
+    }
+}
+
+impl<U: UserRolesRepo + 'static + Clone> Cacheable<i32, Vec<Role>> for CachedRoles<U> {
+    fn get(&mut self, id: i32) -> &mut Vec<Role> {
+        let id_clone = id.clone();
+        let repo = self.users_role_repo.clone();
+        self.roles_cache.entry(id_clone)
+            .or_insert_with(|| {
+                repo
+                    .list_for_user(id)
+                    .wait()
+                    .map(|users| users.into_iter().map(|u| u.role).collect())
+                    .unwrap_or_default()
+            })
+    }
+}
+
+// TODO: remove info about deleted user from cache
+pub struct AclImpl<T: Cacheable<i32, Vec<Role>>> {
     acls: HashMap<Role, Vec<Permission>>,
+    cached_roles: T 
 }
 
-impl AclImpl {
-    pub fn new() -> Self {
-        let mut result = Self { acls: HashMap::new() };
+
+impl<T: Cacheable<i32, Vec<Role>>> AclImpl<T> {
+    pub fn new(cached_roles: T) -> Self {
+        let mut result = Self { acls: HashMap::new(), cached_roles: cached_roles };
         result.add_permission_to_role(Role::Superuser, permission!(Resource::Users));
         result.add_permission_to_role(Role::Superuser, permission!(Resource::UserRoles));
         result.add_permission_to_role(Role::User, permission!(Resource::Users, Action::Read));
         result.add_permission_to_role(Role::User, permission!(Resource::Users, Action::All, Scope::Owned));
-        result.add_permission_to_role(Role::User, permission!(Resource::UserRoles, Action::Index, Scope::Owned));
         result.add_permission_to_role(Role::User, permission!(Resource::UserRoles, Action::Read, Scope::Owned));
         result
     }
@@ -48,23 +80,22 @@ impl AclImpl {
     }
 
     fn get_permissions_for_role(&mut self, role: Role) -> &mut Vec<Permission> {
-        match self.acls.entry(role) {
-            Occupied(entry) => entry.into_mut(),
-            Vacant(entry) => entry.insert(Vec::new())
-        }
+        self.acls.entry(role).or_insert(Vec::new())
     }
 }
 
-impl Acl for AclImpl {
-    fn can(&self, resource: Resource, action: Action, roles: &[Role], user_id: i32,resource_with_scope: &WithScope) -> bool {
+impl<T: Cacheable<i32, Vec<Role>>> Acl for AclImpl<T> {
+    fn can(&mut self, resource: Resource, action: Action, user_id: i32, resources_with_scope: Vec<&WithScope>) -> bool {
         let empty: Vec<Permission> = Vec::new();
-        let acls = roles.iter()
-            .flat_map(|role| self.acls.get(&role).unwrap_or(&empty))
+        let roles = self.cached_roles.get(user_id);
+        let hashed_acls = &self.acls;
+        let acls = roles.into_iter()
+            .flat_map(|role| hashed_acls.get(&role).unwrap_or(&empty))
             .filter(|permission|
                 (permission.resource == resource) &&
                 ((permission.action == action) || (permission.action == Action::All))
             )
-            .filter(|permission| resource_with_scope.is_in_scope(&permission.scope, user_id));
+            .filter(|permission| resources_with_scope.iter().all(|res| res.is_in_scope(&permission.scope, user_id)));
 
         acls.count() > 0
     }
@@ -72,14 +103,39 @@ impl Acl for AclImpl {
 
 #[cfg(test)]
 mod tests {
+    use std::time::SystemTime;
     use super::*;
     use ::models::user::*;
     use ::models::user_role::*;
-    use ::models::authorization::*;
+
+    struct MockCachedRoles {
+        roles_cache: HashMap<i32, Vec<Role>>
+    }
+
+    impl MockCachedRoles {
+        fn new() -> Self {
+            let mut hash = HashMap::new();
+            hash.insert(1, vec![Role::Superuser]);
+            hash.insert(2, vec![Role::User]);
+            Self {
+                roles_cache: hash
+            }
+        }
+    }
+
+
+    impl Cacheable<i32, Vec<Role>> for MockCachedRoles {
+        fn get(&mut self, id: i32) -> &mut Vec<Role> {
+            self.roles_cache.entry(id)
+                .or_insert(vec![Role::User])
+        }
+    }
+    
 
     #[test]
     fn test_super_user_for_users() {
-        let acl = AclImpl::new();
+        let cache = MockCachedRoles::new();
+        let mut acl = AclImpl::new(cache);
 
         let resource = User {
             id: 1,
@@ -98,19 +154,17 @@ mod tests {
             updated_at: SystemTime::now(),
         };
 
-        assert_eq!(acl.can(Resource::Users, Action::All, &vec![Role::Superuser][..], 1, &resource), true);
-        assert_eq!(acl.can(Resource::Users, Action::All, &vec![Role::Superuser][..], 2, &resource), true);
-        assert_eq!(acl.can(Resource::Users, Action::Read, &vec![Role::Superuser][..], 1, &resource), true);
-        assert_eq!(acl.can(Resource::Users, Action::Read, &vec![Role::Superuser][..], 2, &resource), true);
-        assert_eq!(acl.can(Resource::Users, Action::Write, &vec![Role::Superuser][..], 1, &resource), true);
-        assert_eq!(acl.can(Resource::Users, Action::Write, &vec![Role::Superuser][..], 2, &resource), true);
-        assert_eq!(acl.can(Resource::Users, Action::Index, &vec![Role::Superuser][..], 1, &resource), true);
-        assert_eq!(acl.can(Resource::Users, Action::Index, &vec![Role::Superuser][..], 2, &resource), true);
+        let resources = vec![&resource as &WithScope];
+
+        assert_eq!(acl.can(Resource::Users, Action::All,   1, resources.clone()), true);
+        assert_eq!(acl.can(Resource::Users, Action::Read,  1, resources.clone()), true);
+        assert_eq!(acl.can(Resource::Users, Action::Write, 1, resources.clone()), true);
     }
 
     #[test]
     fn test_ordinary_user_for_users() {
-        let acl = AclImpl::new();
+        let cache = MockCachedRoles::new();
+        let mut acl = AclImpl::new(cache);
 
         let resource = User {
             id: 1,
@@ -128,55 +182,45 @@ mod tests {
             created_at: SystemTime::now(),
             updated_at: SystemTime::now(),
         };
+        let resources = vec![&resource as &WithScope];
 
-        assert_eq!(acl.can(Resource::Users, Action::All, &vec![Role::User][..], 1, &resource), true);
-        assert_eq!(acl.can(Resource::Users, Action::All, &vec![Role::User][..], 2, &resource), false);
-        assert_eq!(acl.can(Resource::Users, Action::Read, &vec![Role::User][..], 1, &resource), true);
-        assert_eq!(acl.can(Resource::Users, Action::Read, &vec![Role::User][..], 2, &resource), true);
-        assert_eq!(acl.can(Resource::Users, Action::Write, &vec![Role::User][..], 1, &resource), true);
-        assert_eq!(acl.can(Resource::Users, Action::Write, &vec![Role::User][..], 2, &resource), false);
-        assert_eq!(acl.can(Resource::Users, Action::Index, &vec![Role::User][..], 1, &resource), true);
-        assert_eq!(acl.can(Resource::Users, Action::Index, &vec![Role::User][..], 2, &resource), false);
+        assert_eq!(acl.can(Resource::Users, Action::All,   2, resources.clone()), false);
+        assert_eq!(acl.can(Resource::Users, Action::Read,  2, resources.clone()), true);
+        assert_eq!(acl.can(Resource::Users, Action::Write, 2, resources.clone()), false);
     }
 
     #[test]
     fn test_super_user_for_user_roles() {
-        let acl = AclImpl::new();
+        let cache = MockCachedRoles::new();
+        let mut acl = AclImpl::new(cache);
 
         let resource = UserRole {
             id: 1,
             user_id: 1,
             role: Role::User,
         };
+        let resources = vec![&resource as &WithScope];
 
-        assert_eq!(acl.can(Resource::UserRoles, Action::All, &vec![Role::Superuser][..], 1, &resource), true);
-        assert_eq!(acl.can(Resource::UserRoles, Action::All, &vec![Role::Superuser][..], 2, &resource), true);
-        assert_eq!(acl.can(Resource::UserRoles, Action::Read, &vec![Role::Superuser][..], 1, &resource), true);
-        assert_eq!(acl.can(Resource::UserRoles, Action::Read, &vec![Role::Superuser][..], 2, &resource), true);
-        assert_eq!(acl.can(Resource::UserRoles, Action::Write, &vec![Role::Superuser][..], 1, &resource), true);
-        assert_eq!(acl.can(Resource::UserRoles, Action::Write, &vec![Role::Superuser][..], 2, &resource), true);
-        assert_eq!(acl.can(Resource::UserRoles, Action::Index, &vec![Role::Superuser][..], 1, &resource), true);
-        assert_eq!(acl.can(Resource::UserRoles, Action::Index, &vec![Role::Superuser][..], 2, &resource), true);
+        assert_eq!(acl.can(Resource::UserRoles, Action::All,   1, resources.clone()), true);
+        assert_eq!(acl.can(Resource::UserRoles, Action::Read,  1, resources.clone()), true);
+        assert_eq!(acl.can(Resource::UserRoles, Action::Write, 1, resources.clone()), true);
     }
 
     #[test]
     fn test_user_for_user_roles() {
-        let acl = AclImpl::new();
+        let cache = MockCachedRoles::new();
+        let mut acl = AclImpl::new(cache);
 
         let resource = UserRole {
             id: 1,
             user_id: 1,
             role: Role::User,
         };
+        let resources = vec![&resource as &WithScope];
 
-        assert_eq!(acl.can(Resource::UserRoles, Action::All, &vec![Role::User][..], 1, &resource), false);
-        assert_eq!(acl.can(Resource::UserRoles, Action::All, &vec![Role::User][..], 2, &resource), false);
-        assert_eq!(acl.can(Resource::UserRoles, Action::Read, &vec![Role::User][..], 1, &resource), true);
-        assert_eq!(acl.can(Resource::UserRoles, Action::Read, &vec![Role::User][..], 2, &resource), false);
-        assert_eq!(acl.can(Resource::UserRoles, Action::Write, &vec![Role::User][..], 1, &resource), false);
-        assert_eq!(acl.can(Resource::UserRoles, Action::Write, &vec![Role::User][..], 2, &resource), false);
-        assert_eq!(acl.can(Resource::UserRoles, Action::Index, &vec![Role::User][..], 1, &resource), true);
-        assert_eq!(acl.can(Resource::UserRoles, Action::Index, &vec![Role::User][..], 2, &resource), false);
+        assert_eq!(acl.can(Resource::UserRoles, Action::All,   2, resources.clone()), false);
+        assert_eq!(acl.can(Resource::UserRoles, Action::Read,  2, resources.clone()), false);
+        assert_eq!(acl.can(Resource::UserRoles, Action::Write, 2, resources.clone()), false);
     }
 }
 
