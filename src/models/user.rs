@@ -50,9 +50,13 @@ pub struct User {
 pub struct NewUser {
     #[validate(email(message = "Invalid email format"))]
     pub email: String,
+    #[validate(phone(message = "Invalid phone format"))]
     pub phone: Option<String>,
+    #[validate(length(min = "1", message = "First name must not be empty"))]
     pub first_name: Option<String>,
+    #[validate(length(min = "1", message = "Last name must not be empty"))]
     pub last_name: Option<String>,
+    #[validate(length(min = "1", message = "Middle name must not be empty"))]
     pub middle_name: Option<String>,
     pub gender: Gender,
     pub birthdate: Option<SystemTime>,
@@ -60,13 +64,18 @@ pub struct NewUser {
 }
 
 /// Payload for updating users
-#[derive(Serialize, Deserialize, Insertable, AsChangeset)]
+#[derive(Serialize, Deserialize, Insertable, Validate, AsChangeset)]
 #[table_name = "users"]
 pub struct UpdateUser {
+    #[validate(email(message = "Invalid email format"))]
     pub email: Option<String>,
+    //#[validate(phone(message = "Invalid phone format"))]
     pub phone: Option<Option<String>>,
+    //#[validate(length(min = "1", message = "First name must not be empty"))]
     pub first_name: Option<Option<String>>,
+    //#[validate(length(min = "1", message = "Last name must not be empty"))]
     pub last_name: Option<Option<String>>,
+    //#[validate(length(min = "1", message = "Middle name must not be empty"))]
     pub middle_name: Option<Option<String>>,
     pub gender: Option<Gender>,
     pub birthdate: Option<Option<SystemTime>>,
@@ -108,8 +117,8 @@ impl FromStr for Gender {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "male" => Ok(Gender::Male),
-            "female" => Ok(Gender::Female),
+            "Male" => Ok(Gender::Male),
+            "Female" => Ok(Gender::Female),
             _ => Ok(Gender::Undefined),
         }
     }
@@ -152,9 +161,9 @@ mod impls_for_insert_and_query {
             out: &mut Output<W, Pg>,
         ) -> Result<IsNull, Box<Error + Send + Sync>> {
             match *self {
-                Gender::Male => out.write_all(b"male")?,
-                Gender::Female => out.write_all(b"female")?,
-                Gender::Undefined => out.write_all(b"undefined")?,
+                Gender::Male => out.write_all(b"Male")?,
+                Gender::Female => out.write_all(b"Female")?,
+                Gender::Undefined => out.write_all(b"Undefined")?,
             }
             Ok(IsNull::No)
         }
@@ -163,9 +172,9 @@ mod impls_for_insert_and_query {
     impl FromSqlRow<Nullable<VarChar>, Pg> for Gender {
         fn build_from_row<T: Row<Pg>>(row: &mut T) -> Result<Self, Box<Error + Send + Sync>> {
             match row.take() {
-                Some(b"male") => Ok(Gender::Male),
-                Some(b"female") => Ok(Gender::Female),
-                Some(b"undefined") => Ok(Gender::Undefined),
+                Some(b"Male") => Ok(Gender::Male),
+                Some(b"Female") => Ok(Gender::Female),
+                Some(b"Undefined") => Ok(Gender::Undefined),
                 Some(_) => Err("Unrecognized enum variant".into()),
                 None => Ok(Gender::Undefined),
             }

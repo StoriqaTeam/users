@@ -7,3 +7,7 @@ ALTER TABLE identities ALTER COLUMN provider DROP NOT NULL;
 
 DROP TYPE IF EXISTS provider_type;
 DROP TYPE IF EXISTS gender_type;
+
+-- email to lower case
+UPDATE users SET email=lower(email);
+UPDATE identities SET user_email=lower(user_email);

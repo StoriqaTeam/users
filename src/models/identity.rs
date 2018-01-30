@@ -18,7 +18,7 @@ pub struct Identity
     pub user_id: i32,
     #[validate(email(message = "Invalid email format"))]
     pub user_email: String,
-    #[validate(length(min = "6", max = "30", message = "Password should be between 6 and 30 symbols"))]
+    #[validate(length(min = "8", max = "30", message = "Password should be between 6 and 30 symbols"))]
     pub user_password: Option<String>,
     pub provider: Provider
 }
@@ -28,7 +28,7 @@ pub struct Identity
 pub struct NewIdentity {
     #[validate(email(message = "Invalid email format"))]
     pub email: String,
-    #[validate(length(min = "6", max = "30", message = "Password should be between 6 and 30 symbols"))]
+    #[validate(length(min = "8", max = "30", message = "Password should be between 6 and 30 symbols"))]
     pub password: String,
 }
 
@@ -77,10 +77,10 @@ mod impls_for_insert_and_query {
             out: &mut Output<W, Pg>,
         ) -> Result<IsNull, Box<Error + Send + Sync>> {
             match *self {
-                Provider::Email => out.write_all(b"email")?,
-                Provider::UnverifiedEmail => out.write_all(b"unverified_email")?,
-                Provider::Facebook => out.write_all(b"facebook")?,
-                Provider::Google => out.write_all(b"google")?,
+                Provider::Email => out.write_all(b"Email")?,
+                Provider::UnverifiedEmail => out.write_all(b"UnverifiedEmail")?,
+                Provider::Facebook => out.write_all(b"Facebook")?,
+                Provider::Google => out.write_all(b"Google")?,
             }
             Ok(IsNull::No)
         }
@@ -89,10 +89,10 @@ mod impls_for_insert_and_query {
     impl FromSqlRow<Nullable<Varchar>, Pg> for Provider {
         fn build_from_row<T: Row<Pg>>(row: &mut T) -> Result<Self, Box<Error + Send + Sync>> {
             match row.take() {
-                Some(b"email") => Ok(Provider::Email),
-                Some(b"unverified_email") => Ok(Provider::UnverifiedEmail),
-                Some(b"facebook") => Ok(Provider::Facebook),
-                Some(b"google") => Ok(Provider::Google),
+                Some(b"Email") => Ok(Provider::Email),
+                Some(b"UnverifiedEmail") => Ok(Provider::UnverifiedEmail),
+                Some(b"Facebook") => Ok(Provider::Facebook),
+                Some(b"Google") => Ok(Provider::Google),
                 Some(_) => Err("Unrecognized enum variant".into()),
                 None => Err("Unrecognized enum variant".into()),
             }
