@@ -8,7 +8,6 @@ use super::authorization::{Scope, WithScope};
 
 table! {
     use diesel::sql_types::*;
-    use models::user::GenderType;
     users (id) {
         id -> Integer,
         email -> Varchar,
@@ -19,7 +18,7 @@ table! {
         first_name -> Nullable<VarChar>,
         last_name -> Nullable<VarChar>,
         middle_name -> Nullable<VarChar>,
-        gender -> GenderType,
+        gender -> Nullable<VarChar>,
         birthdate -> Nullable<Timestamp>, //
         last_login_at -> Timestamp, //
         created_at -> Timestamp, // UTC 0, generated at db level
@@ -116,9 +115,6 @@ impl FromStr for Gender {
     }
 }
 
-#[derive(QueryId)]
-pub struct GenderType;
-
 mod impls_for_insert_and_query {
     use diesel::Queryable;
     use diesel::expression::AsExpression;
@@ -132,34 +128,25 @@ mod impls_for_insert_and_query {
     use std::error::Error;
     use std::io::Write;
 
-    use super::{Gender, GenderType};
+    use super::{Gender};
 
-    impl HasSqlType<GenderType> for Pg {
-        fn metadata(lookup: &Self::MetadataLookup) -> Self::TypeMetadata {
-            lookup.lookup_type("gender_type")
-        }
-    }
-
-    impl NotNull for GenderType {}
-    impl SingleValue for GenderType {}
-
-    impl<'a> AsExpression<GenderType> for &'a Gender {
-        type Expression = Bound<GenderType, &'a Gender>;
+    impl<'a> AsExpression<Nullable<VarChar>> for &'a Gender {
+        type Expression = Bound<Nullable<VarChar>, &'a Gender>;
 
         fn as_expression(self) -> Self::Expression {
             Bound::new(self)
         }
     }
 
-    impl AsExpression<GenderType> for Gender {
-        type Expression = Bound<GenderType, Gender>;
+    impl AsExpression<Nullable<VarChar>> for Gender {
+        type Expression = Bound<Nullable<VarChar>, Gender>;
 
         fn as_expression(self) -> Self::Expression {
             Bound::new(self)
         }
     }
 
-    impl ToSql<GenderType, Pg> for Gender {
+    impl ToSql<Nullable<VarChar>, Pg> for Gender {
         fn to_sql<W: Write>(
             &self,
             out: &mut Output<W, Pg>,
@@ -173,19 +160,19 @@ mod impls_for_insert_and_query {
         }
     }
 
-    impl FromSqlRow<GenderType, Pg> for Gender {
+    impl FromSqlRow<Nullable<VarChar>, Pg> for Gender {
         fn build_from_row<T: Row<Pg>>(row: &mut T) -> Result<Self, Box<Error + Send + Sync>> {
             match row.take() {
                 Some(b"male") => Ok(Gender::Male),
                 Some(b"female") => Ok(Gender::Female),
                 Some(b"undefined") => Ok(Gender::Undefined),
                 Some(_) => Err("Unrecognized enum variant".into()),
-                None => Err("Unexpected null for non-null column".into()),
+                None => Ok(Gender::Undefined),
             }
         }
     }
 
-    impl Queryable<GenderType, Pg> for Gender {
+    impl Queryable<Nullable<VarChar>, Pg> for Gender {
         type Row = Self;
 
         fn build(row: Self::Row) -> Self {

@@ -2,12 +2,11 @@ use validator::Validate;
 
 table! {
     use diesel::sql_types::*;
-    use models::identity::ProviderType;
     identities (user_id) {
         user_id -> Integer,
         user_email -> Varchar,
         user_password -> Nullable<Varchar>,
-        provider -> ProviderType,
+        provider -> Nullable<Varchar>,
     }
 }
 
@@ -41,9 +40,6 @@ pub enum Provider {
    Google
 }
 
-#[derive(QueryId)]
-pub struct ProviderType;
-
 mod impls_for_insert_and_query {
     use diesel::Queryable;
     use diesel::expression::AsExpression;
@@ -57,34 +53,25 @@ mod impls_for_insert_and_query {
     use std::error::Error;
     use std::io::Write;
 
-    use super::{Provider, ProviderType};
+    use super::{Provider};
 
-    impl HasSqlType<ProviderType> for Pg {
-        fn metadata(lookup: &Self::MetadataLookup) -> Self::TypeMetadata {
-            lookup.lookup_type("provider_type")
-        }
-    }
-
-    impl NotNull for ProviderType {}
-    impl SingleValue for ProviderType {}
-
-    impl<'a> AsExpression<ProviderType> for &'a Provider {
-        type Expression = Bound<ProviderType, &'a Provider>;
+    impl<'a> AsExpression<Nullable<Varchar>> for &'a Provider {
+        type Expression = Bound<Nullable<Varchar>, &'a Provider>;
 
         fn as_expression(self) -> Self::Expression {
             Bound::new(self)
         }
     }
 
-    impl AsExpression<ProviderType> for Provider {
-        type Expression = Bound<ProviderType, Provider>;
+    impl AsExpression<Nullable<Varchar>> for Provider {
+        type Expression = Bound<Nullable<Varchar>, Provider>;
 
         fn as_expression(self) -> Self::Expression {
             Bound::new(self)
         }
     }
 
-    impl ToSql<ProviderType, Pg> for Provider {
+    impl ToSql<Nullable<Varchar>, Pg> for Provider {
         fn to_sql<W: Write>(
             &self,
             out: &mut Output<W, Pg>,
@@ -99,7 +86,7 @@ mod impls_for_insert_and_query {
         }
     }
 
-    impl FromSqlRow<ProviderType, Pg> for Provider {
+    impl FromSqlRow<Nullable<Varchar>, Pg> for Provider {
         fn build_from_row<T: Row<Pg>>(row: &mut T) -> Result<Self, Box<Error + Send + Sync>> {
             match row.take() {
                 Some(b"email") => Ok(Provider::Email),
@@ -107,12 +94,12 @@ mod impls_for_insert_and_query {
                 Some(b"facebook") => Ok(Provider::Facebook),
                 Some(b"google") => Ok(Provider::Google),
                 Some(_) => Err("Unrecognized enum variant".into()),
-                None => Err("Unexpected null for non-null column".into()),
+                None => Err("Unrecognized enum variant".into()),
             }
         }
     }
 
-    impl Queryable<ProviderType, Pg> for Provider {
+    impl Queryable<Nullable<Varchar>, Pg> for Provider {
         type Row = Self;
 
         fn build(row: Self::Row) -> Self {
