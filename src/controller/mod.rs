@@ -122,24 +122,7 @@ impl Controller {
                 serialize_future!(
                     parse_body::<models::user::UpdateUser>(req.body())
                         .map_err(|_| Error::UnprocessableEntity("Error parsing request from gateway body".to_string()))
-                        .and_then(move |update_user| {
-                            let checked_email = match update_user.email {
-                                Some(val) => Some(val.to_lowercase()),
-                                None => None,
-                            };
-                            let checked_update_user = models::user::UpdateUser {
-                                email: checked_email,
-                                phone: update_user.phone,
-                                first_name: update_user.first_name,
-                                last_name: update_user.last_name,
-                                middle_name: update_user.middle_name,
-                                gender: update_user.gender,
-                                birthdate: update_user.birthdate,
-                                last_login_at: update_user.last_login_at,
-                            };
-
-                            users_service.update(user_id, checked_update_user).map_err(|e| Error::from(e))
-                        })
+                        .and_then(move |update_user| users_service.update(user_id, update_user).map_err(|e| Error::from(e)))
                 )
             }
 

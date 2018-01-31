@@ -1,6 +1,6 @@
 use validator::Validate;
 
-use super::authorization::{Role, Scope, WithScope};
+use models::{Role, Scope, WithScope};
 
 table! {
     user_roles (id) {

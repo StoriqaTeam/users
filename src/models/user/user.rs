@@ -1,13 +1,13 @@
 use std::time::SystemTime;
 
-use models::types::UserId;
+use models::UserId;
 
 use validator::Validate;
 
-use models::identity::NewIdentity;
-use models::authorization::{Scope, WithScope};
+use models::NewIdentity;
+use models::{Scope, WithScope};
 
-use super::Gender;
+use models::Gender;
 
 table! {
     use diesel::sql_types::*;
@@ -22,10 +22,10 @@ table! {
         last_name -> Nullable<VarChar>,
         middle_name -> Nullable<VarChar>,
         gender -> Nullable<VarChar>,
-        birthdate -> Nullable<Timestamp>, //
-        last_login_at -> Timestamp, //
-        created_at -> Timestamp, // UTC 0, generated at db level
-        updated_at -> Timestamp, // UTC 0, generated at db level
+        birthdate -> Nullable<Timestamp>,
+        last_login_at -> Timestamp,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 
@@ -70,8 +70,6 @@ pub struct NewUser {
 #[derive(Serialize, Deserialize, Insertable, Validate, AsChangeset)]
 #[table_name = "users"]
 pub struct UpdateUser {
-    #[validate(email(message = "Invalid email format"))]
-    pub email: Option<String>,
     pub phone: Option<String>,
     pub first_name: Option<String>,
     pub last_name: Option<String>,

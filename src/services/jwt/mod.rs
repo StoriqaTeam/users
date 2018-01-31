@@ -13,9 +13,9 @@ use base64::decode;
 use serde;
 
 
-use models::jwt::{JWT, ProviderOauth};
-use models::user::{NewUser};
-use models::identity::{Provider, NewIdentity};
+use models::{JWT, ProviderOauth};
+use models::{NewUser};
+use models::{Provider, NewIdentity};
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
 use http::client::ClientHandle;
@@ -146,7 +146,7 @@ impl<P, U, I> ProfileService<P> for JWTServiceImpl<U, I>
                 .map(|user| (profile, user))
                 .and_then(move |(profile, user)| {
                     ident_repo
-                        .create(profile.get_email(), None, Provider::Facebook, user.id.0)
+                        .create(profile.get_email(), None, Provider::Facebook, user.id)
                         .map_err(Error::from)
                         .map(|u| u.user_email)
                 })
@@ -163,7 +163,7 @@ impl<P, U, I> ProfileService<P> for JWTServiceImpl<U, I>
                 .and_then(move |(profile, user)| {
                     let update_user = profile.merge_into_user(user.clone());
                     Box::new(
-                        users_repo.update(user.id.0, update_user)
+                        users_repo.update(user.id, update_user)
                         .map_err(Error::from)
                         .map(|u| u.email)
                     )

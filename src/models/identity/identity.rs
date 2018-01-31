@@ -1,6 +1,7 @@
 use validator::Validate;
 
-use super::Provider;
+use models::Provider;
+use models::UserId;
 
 table! {
     use diesel::sql_types::*;
@@ -17,7 +18,7 @@ table! {
 #[table_name = "identities"]
 pub struct Identity
 {
-    pub user_id: i32,
+    pub user_id: UserId,
     #[validate(email(message = "Invalid email format"))]
     pub user_email: String,
     #[validate(length(min = "8", max = "30", message = "Password should be between 6 and 30 symbols"))]

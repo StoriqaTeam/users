@@ -1,10 +1,23 @@
 // UserId type
+use std::str::FromStr;
 
 #[derive(Debug)]
 #[derive(Clone)]
+#[derive(PartialEq)]
 #[derive(Serialize)]
 #[derive(Deserialize)]
 pub struct UserId(pub i32);
+
+impl FromStr for UserId {
+    type Err = (String);
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match i32::from_str(s) {
+            Ok(i) => Ok(UserId(i)),
+            Err(_) => Err("Cannot parse user id".into()),
+        }
+    }
+}
 
 mod diesel_impl {
     use diesel::Queryable;

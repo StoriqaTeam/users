@@ -10,7 +10,8 @@ use diesel::pg::PgConnection;
 use futures::future;
 use futures_cpupool::CpuPool;
 
-use models::identity::{Identity, Provider};
+use models::UserId;
+use models::{Identity, Provider};
 use models::identity::identity::identities::dsl::*;
 use super::error::Error;
 use super::types::{DbConnection, DbPool, RepoFuture};
@@ -28,7 +29,7 @@ pub trait IdentitiesRepo {
     fn email_provider_exists(&self, email_arg: String, provider: Provider) -> RepoFuture<bool>;
 
     /// Creates new identity
-    fn create(&self, email_arg: String, password_arg: Option<String>, provider_arg: Provider, user_id_arg: i32) -> RepoFuture<Identity>;
+    fn create(&self, email_arg: String, password_arg: Option<String>, provider_arg: Provider, user_id_arg: UserId) -> RepoFuture<Identity>;
 
     /// Verifies password
     fn verify_password(&self, email_arg: String, password_arg: String) -> RepoFuture<bool>;
@@ -92,7 +93,7 @@ impl IdentitiesRepo for IdentitiesRepoImpl {
 
     /// Creates new user
     // TODO - set e-mail uniqueness in database
-    fn create(&self, email_arg: String, password_arg: Option<String>, provider_arg: Provider, user_id_arg: i32) -> RepoFuture<Identity> {
+    fn create(&self, email_arg: String, password_arg: Option<String>, provider_arg: Provider, user_id_arg: UserId) -> RepoFuture<Identity> {
         let conn = self.get_connection();
         Box::new(self.cpu_pool.spawn_fn(move || {
             let identity_arg = Identity {

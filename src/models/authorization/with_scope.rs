@@ -1,6 +1,6 @@
 //! Trait for telling if current resource is in scope
 
-use super::Scope;
+use models::Scope;
 
 /// Implement this trait on resource to signal if it's in the current scope
 pub trait WithScope {
