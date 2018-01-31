@@ -7,8 +7,8 @@ table! {
     use diesel::sql_types::*;
     identities (user_id) {
         user_id -> Integer,
-        user_email -> Varchar,
-        user_password -> Nullable<Varchar>,
+        email -> Varchar,
+        password -> Nullable<Varchar>,
         provider -> Nullable<Varchar>,
     }
 }
@@ -20,9 +20,9 @@ pub struct Identity
 {
     pub user_id: UserId,
     #[validate(email(message = "Invalid email format"))]
-    pub user_email: String,
+    pub email: String,
     #[validate(length(min = "8", max = "30", message = "Password should be between 6 and 30 symbols"))]
-    pub user_password: Option<String>,
+    pub password: Option<String>,
     pub provider: Provider
 }
 

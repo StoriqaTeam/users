@@ -77,7 +77,7 @@ impl IdentitiesRepo for IdentitiesRepoImpl {
     fn email_provider_exists(&self, email_arg: String, provider_arg: Provider) -> RepoFuture<bool> {
         self.execute_query(select(exists(
             identities
-                .filter(user_email.eq(email_arg))
+                .filter(email.eq(email_arg))
                 .filter(provider.eq(provider_arg)),
         )))
     }
@@ -86,8 +86,8 @@ impl IdentitiesRepo for IdentitiesRepoImpl {
     fn verify_password(&self, email_arg: String, password_arg: String) -> RepoFuture<bool> {
         self.execute_query(select(exists(
             identities
-                .filter(user_email.eq(email_arg))
-                .filter(user_password.eq(password_arg)),
+                .filter(email.eq(email_arg))
+                .filter(password.eq(password_arg)),
         )))
     }
 
@@ -98,9 +98,9 @@ impl IdentitiesRepo for IdentitiesRepoImpl {
         Box::new(self.cpu_pool.spawn_fn(move || {
             let identity_arg = Identity {
                 user_id: user_id_arg,
-                user_email: email_arg,
+                email: email_arg,
                 provider: provider_arg,
-                user_password: password_arg,
+                password: password_arg,
             };
             let ident_query = diesel::insert_into(identities).values(&identity_arg);
             ident_query
@@ -113,7 +113,7 @@ impl IdentitiesRepo for IdentitiesRepoImpl {
     fn find_by_email_provider(&self, email_arg: String, provider_arg: Provider) -> RepoFuture<Identity>{
         let conn = self.get_connection();
         let query = identities
-            .filter(user_email.eq(email_arg))
+            .filter(email.eq(email_arg))
             .filter(provider.eq(provider_arg));
 
         Box::new(self.cpu_pool.spawn_fn(move || {
