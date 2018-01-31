@@ -11,7 +11,7 @@ use futures::future;
 use futures_cpupool::CpuPool;
 
 use models::user::{UpdateUser, User, NewUser};
-use models::user::users::dsl::*;
+use models::user::user::users::dsl::*;
 use super::error::Error;
 use super::types::{DbConnection, DbPool, RepoFuture};
 

@@ -11,7 +11,7 @@ use futures::future;
 use futures_cpupool::CpuPool;
 
 use models::identity::{Identity, Provider};
-use models::identity::identities::dsl::*;
+use models::identity::identity::identities::dsl::*;
 use super::error::Error;
 use super::types::{DbConnection, DbPool, RepoFuture};
 
