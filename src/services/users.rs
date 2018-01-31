@@ -14,6 +14,8 @@ use repos::users::{UsersRepo, UsersRepoImpl};
 use super::types::ServiceFuture;
 use super::error::Error;
 use repos::types::DbPool;
+use repos::acl::AclWithContextImpl;
+
 
 pub trait UsersService {
     /// Returns user by ID
@@ -33,20 +35,21 @@ pub trait UsersService {
 }
 
 /// Users services, responsible for User-related CRUD operations
-pub struct UsersServiceImpl<U: 'static + UsersRepo + Clone, I: 'static + IdentitiesRepo+ Clone> {
+pub struct UsersServiceImpl<U: 'static + UsersRepo + Clone, I: 'static + IdentitiesRepo + Clone> {
     pub users_repo: U,
     pub ident_repo: I,
-    pub user_email: Option<String>
+    pub user_id: Option<i32>
 }
 
 impl UsersServiceImpl<UsersRepoImpl, IdentitiesRepoImpl> {
-    pub fn new(r2d2_pool: DbPool, cpu_pool:CpuPool, user_email: Option<String>) -> Self {
-        let users_repo = UsersRepoImpl::new(r2d2_pool.clone(), cpu_pool.clone());
-        let ident_repo = IdentitiesRepoImpl::new(r2d2_pool, cpu_pool);
+    pub fn new(r2d2_pool: DbPool, cpu_pool:CpuPool, user_id: Option<i32>) -> Self {
+        let ident_repo = IdentitiesRepoImpl::new(r2d2_pool.clone(), cpu_pool.clone());
+        let acl_with_context = AclWithContextImpl::new(r2d2_pool.clone(), cpu_pool.clone(), user_id);
+        let users_repo = UsersRepoImpl::new(r2d2_pool, cpu_pool, acl_with_context);
         Self {
             users_repo: users_repo,
             ident_repo: ident_repo,
-            user_email: user_email
+            user_id: user_id
         }
     }
 }
@@ -59,8 +62,8 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> UsersService for UsersServ
 
     /// Returns current user
     fn current(&self) -> ServiceFuture<User>{
-        if let Some(ref email) = self.user_email {
-            Box::new(self.users_repo.find_by_email(email.to_string()).map_err(Error::from))
+        if let Some(ref id) = self.user_id {
+            Box::new(self.users_repo.find(*id).map_err(Error::from))
         } else {
             Box::new(future::err(Error::Unknown(format!("There is no user email in request header."))))
         }

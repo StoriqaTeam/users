@@ -134,13 +134,13 @@ impl From<FacebookProfile> for NewUser {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct JWTPayload {
-    pub user_email: String,
+    pub user_id: i32,
 }
 
 impl JWTPayload {
-    pub fn new<S: Into<String>>(email: S) -> Self {
+    pub fn new(id: i32) -> Self {
         Self {
-            user_email: email.into(),
+            user_id: id,
         }
     }
 }

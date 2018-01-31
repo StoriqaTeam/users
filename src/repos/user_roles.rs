@@ -26,6 +26,7 @@ pub trait UserRolesRepo {
 }
 
 /// Implementation of UserRoles trait
+#[derive(Clone)]
 pub struct UserRolesRepoImpl {
     pub r2d2_pool: DbPool,
     pub cpu_pool: CpuPool
@@ -36,6 +37,13 @@ impl UserRolesRepoImpl {
         match self.r2d2_pool.get() {
             Ok(connection) => connection,
             Err(e) => panic!("Error obtaining connection from pool: {}", e),
+        }
+    }
+
+    pub fn new(r2d2_pool: DbPool, cpu_pool: CpuPool) -> Self {
+        Self {
+            r2d2_pool,
+            cpu_pool
         }
     }
 }

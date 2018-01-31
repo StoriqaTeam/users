@@ -2,9 +2,15 @@
 
 use std::collections::HashMap;
 use futures::Future;
+use futures_cpupool::CpuPool;
+
 
 use ::models::authorization::*;
-use repos::user_roles::UserRolesRepo;
+use repos::error::Error;
+use repos::user_roles::{UserRolesRepo, UserRolesRepoImpl};
+use repos::types::DbPool;
+use repos::singleton_acl::{get_acl, SingletonAcl};
+
 
 macro_rules! permission {
     ($resource: expr) => { Permission { resource: $resource, action: Action::All, scope: Scope::All }  };
@@ -48,7 +54,7 @@ impl<U: UserRolesRepo + 'static + Clone> Cacheable<i32, Vec<Role>> for CachedRol
         self.roles_cache.entry(id_clone)
             .or_insert_with(|| {
                 repo
-                    .list_for_user(id)
+                    .list_for_user(id_clone)
                     .wait()
                     .map(|users| users.into_iter().map(|u| u.role).collect())
                     .unwrap_or_default()
@@ -100,6 +106,41 @@ impl<T: Cacheable<i32, Vec<Role>>> Acl for AclImpl<T> {
         acls.count() > 0
     }
 }
+
+
+pub trait AclWithContext {
+    fn can(&self, resource: Resource, action: Action, resources_with_scope: Vec<&WithScope>) -> Result<bool, Error>;
+}
+
+#[derive(Clone)]
+pub struct AclWithContextImpl {
+    acl: SingletonAcl,
+    user_id: Option<i32>
+}
+
+impl AclWithContextImpl {
+    pub fn new(r2d2_pool: DbPool, cpu_pool:CpuPool, user_id: Option<i32>) -> Self {
+        let user_roles_repo = UserRolesRepoImpl::new(r2d2_pool, cpu_pool);
+        let acl = get_acl(user_roles_repo);
+        Self {
+            acl: acl,
+            user_id: user_id
+        }
+    }
+}
+
+impl AclWithContext for AclWithContextImpl {
+    fn can(&self, resource: Resource, action: Action, resources_with_scope: Vec<&WithScope>) -> Result<bool, Error> {
+        if let Some(id) = self.user_id {
+            Ok(self.acl.inner.lock().unwrap().can(resource, action, id, resources_with_scope))
+        } else {
+            Err(Error::ContstaintViolation(format!("Unauthorized request")))
+        }
+    }
+}
+
+
+
 
 #[cfg(test)]
 mod tests {

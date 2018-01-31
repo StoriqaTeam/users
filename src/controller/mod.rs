@@ -9,6 +9,7 @@ pub mod types;
 pub mod utils;
 
 use std::sync::Arc;
+use std::str::FromStr;
 
 use futures::Future;
 use futures::future;
@@ -68,11 +69,14 @@ impl Controller {
     {
         let headers = req.headers().clone();
         let auth_header = headers.get::<Authorization<String>>();
-        let user_email = auth_header.map (move |auth| {
-                auth.0.clone()
-            });
+        let user_id = auth_header.map (move |auth| {
+            auth.0.clone() 
+        }).map (|id| {
+            i32::from_str(&id).ok()
+        }).unwrap_or(None);
+
         let system_service = SystemServiceImpl::new();
-        let users_service = UsersServiceImpl::new(self.r2d2_pool.clone(), self.cpu_pool.clone(), user_email);
+        let users_service = UsersServiceImpl::new(self.r2d2_pool.clone(), self.cpu_pool.clone(), user_id);
         let jwt_service = JWTServiceImpl::new(self.r2d2_pool.clone(), self.cpu_pool.clone(), self.client_handle.clone(), self.config.clone());
 
         match (req.method(), self.route_parser.test(req.path())) {

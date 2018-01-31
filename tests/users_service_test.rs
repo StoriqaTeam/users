@@ -104,19 +104,19 @@ impl IdentitiesRepo for IdentitiesRepoMock {
 pub fn new_service(
     users_repo: UsersRepoMock,
     ident_repo: IdentitiesRepoMock,
-    user_email: Option<String>,
+    user_id: Option<i32>,
 ) -> UsersServiceImpl<UsersRepoMock, IdentitiesRepoMock> {
     UsersServiceImpl {
         users_repo,
         ident_repo,
-        user_email,
+        user_id,
     }
 }
 
 fn create_service(
-    users_email: Option<String>,
+    users_id: Option<i32>,
 ) -> UsersServiceImpl<UsersRepoMock, IdentitiesRepoMock> {
-    new_service(MOCK_USERS, MOCK_IDENT, users_email)
+    new_service(MOCK_USERS, MOCK_IDENT, users_id)
 }
 
 fn create_user(id: i32, email: String) -> User {
@@ -189,7 +189,7 @@ static MOCK_PASSWORD: &'static str = "password";
 
 #[test]
 fn test_get_user() {
-    let service = create_service(Some(MOCK_EMAIL.to_string()));
+    let service = create_service(Some(1));
     let mut core = Core::new().unwrap();
     let work = service.get(1);
     let result = core.run(work).unwrap();
@@ -198,7 +198,7 @@ fn test_get_user() {
 
 #[test]
 fn test_current_user() {
-    let service = create_service(Some(MOCK_EMAIL.to_string()));
+    let service = create_service(Some(1));
     let mut core = Core::new().unwrap();
     let work = service.current();
     let result = core.run(work).unwrap();
@@ -216,7 +216,7 @@ fn test_current_user_without_user_email() {
 
 #[test]
 fn test_list() {
-    let service = create_service(Some(MOCK_EMAIL.to_string()));
+    let service = create_service(Some(1));
     let mut core = Core::new().unwrap();
     let work = service.list(1, 5);
     let result = core.run(work).unwrap();
@@ -225,7 +225,7 @@ fn test_list() {
 
 #[test]
 fn test_create_allready_existed() {
-    let service = create_service(Some(MOCK_EMAIL.to_string()));
+    let service = create_service(Some(1));
     let mut core = Core::new().unwrap();
     let new_ident = create_new_identity(MOCK_EMAIL.to_string(), MOCK_PASSWORD.to_string());
     let work = service.create(new_ident);
@@ -235,7 +235,7 @@ fn test_create_allready_existed() {
 
 #[test]
 fn test_create_user() {
-    let service = create_service(Some(MOCK_EMAIL.to_string()));
+    let service = create_service(Some(1));
     let mut core = Core::new().unwrap();
     let new_ident = create_new_identity("new_user@mail.com".to_string(), MOCK_PASSWORD.to_string());
     let work = service.create(new_ident);
@@ -245,7 +245,7 @@ fn test_create_user() {
 
 #[test]
 fn test_update() {
-    let service = create_service(Some(MOCK_EMAIL.to_string()));
+    let service = create_service(Some(1));
     let mut core = Core::new().unwrap();
     let new_user = create_update_user(MOCK_EMAIL.to_string());
     let work = service.update(1, new_user);
@@ -256,7 +256,7 @@ fn test_update() {
 
 #[test]
 fn test_deactivate() {
-    let service = create_service(Some(MOCK_EMAIL.to_string()));
+    let service = create_service(Some(1));
     let mut core = Core::new().unwrap();
     let work = service.deactivate(1);
     let result = core.run(work).unwrap();

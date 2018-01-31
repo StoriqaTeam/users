@@ -6,3 +6,4 @@ pub mod user_roles;
 pub mod identities;
 pub mod error;
 pub mod types;
+pub mod singleton_acl;

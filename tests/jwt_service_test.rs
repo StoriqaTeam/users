@@ -197,7 +197,7 @@ fn test_jwt_email() {
     let new_user = create_new_identity (MOCK_EMAIL.to_string(), MOCK_PASSWORD.to_string());
     let work = service.create_token_email(new_user);
     let result = core.run(work).unwrap();
-    assert_eq!(result.token, "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2VtYWlsIjoiZXhhbXBsZUBtYWlsLmNvbSJ9.EiRpbadz8jGW0_wGPKXKhlmrWC9QJNIDv8eRWp0-VG0");
+    assert_eq!(result.token, "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoxfQ.u29q4XLsMSDxPJngHHQV4THkbx-Tn9g7HjcLPEKMT1U");
 }
 
 #[test]
