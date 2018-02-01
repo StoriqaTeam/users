@@ -26,7 +26,6 @@ use super::types::ServiceFuture;
 use super::error::Error;
 use repos::types::DbPool;
 use self::model::{GoogleProfile, FacebookProfile, JWTPayload, Email, IntoUser};
-use repos::acl::AclWithContextImpl;
 
 
 /// JWT services, responsible for JsonWebToken operations
@@ -54,8 +53,7 @@ pub struct JWTServiceImpl <U:'static + UsersRepo + Clone, I: 'static + Identitie
 
 impl JWTServiceImpl<UsersRepoImpl, IdentitiesRepoImpl> {
     pub fn new(r2d2_pool: DbPool, cpu_pool:CpuPool, http_client: ClientHandle, config: Config) -> Self {
-        let acl_with_context = AclWithContextImpl::new(r2d2_pool.clone(), cpu_pool.clone(), None);
-        let users_repo = UsersRepoImpl::new(r2d2_pool.clone(), cpu_pool.clone(), acl_with_context);
+        let users_repo = UsersRepoImpl::new(r2d2_pool.clone(), cpu_pool.clone());
         let ident_repo = IdentitiesRepoImpl::new(r2d2_pool, cpu_pool);
         Self {
             users_repo: users_repo,

@@ -1,4 +1,3 @@
-
 use futures::future;
 use futures::Future;
 use futures_cpupool::CpuPool;
@@ -6,15 +5,15 @@ use sha3::{Digest, Sha3_256};
 use rand;
 use base64::encode;
 
-
+use models::authorization::*;
 use models::user::{NewUser, UpdateUser, User};
-use models::identity::{Provider, NewIdentity};
+use models::identity::{NewIdentity, Provider};
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
 use super::types::ServiceFuture;
 use super::error::Error;
 use repos::types::DbPool;
-use repos::acl::AclWithContextImpl;
+use repos::acl::{Acl, SingletonAcl};
 
 
 pub trait UsersService {
@@ -30,45 +29,80 @@ pub trait UsersService {
     fn create(&self, payload: NewIdentity) -> ServiceFuture<User>;
     /// Updates specific user
     fn update(&self, user_id: i32, payload: UpdateUser) -> ServiceFuture<User>;
-    /// creates hashed password 
+    /// creates hashed password
     fn password_create(clear_password: String) -> String;
 }
 
 /// Users services, responsible for User-related CRUD operations
-pub struct UsersServiceImpl<U: 'static + UsersRepo + Clone, I: 'static + IdentitiesRepo + Clone> {
+pub struct UsersServiceImpl<
+    U: 'static + UsersRepo + Clone,
+    I: 'static + IdentitiesRepo + Clone,
+    A: 'static + Acl + Clone,
+> {
     pub users_repo: U,
     pub ident_repo: I,
-    pub user_id: Option<i32>
+    pub user_id: Option<i32>,
+    pub acl: A,
 }
 
-impl UsersServiceImpl<UsersRepoImpl, IdentitiesRepoImpl> {
-    pub fn new(r2d2_pool: DbPool, cpu_pool:CpuPool, user_id: Option<i32>) -> Self {
-        let ident_repo = IdentitiesRepoImpl::new(r2d2_pool.clone(), cpu_pool.clone());
-        let acl_with_context = AclWithContextImpl::new(r2d2_pool.clone(), cpu_pool.clone(), user_id);
-        let users_repo = UsersRepoImpl::new(r2d2_pool, cpu_pool, acl_with_context);
-        Self {
-            users_repo: users_repo,
-            ident_repo: ident_repo,
-            user_id: user_id
+impl<
+    U: 'static + UsersRepo + Clone,
+    I: 'static + IdentitiesRepo + Clone,
+    A: 'static + Acl + Clone,
+> UsersServiceImpl<U, I, A> {
+    pub fn authorization(
+        mut acl: A,
+        user_id: i32,
+        user: User,
+        action: Action,
+    ) -> ServiceFuture<User> {
+        let can = {
+            let resources = vec![&user as &WithScope];
+            acl.can(Resource::Users, action, user_id, resources)
+        };
+        match can {
+            true => Box::new(future::ok(user)),
+            false => Box::new(future::err(Error::Unknown(format!("Unauthorized access")))),
         }
     }
 }
 
-impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> UsersService for UsersServiceImpl<U, I> {
+
+impl<
+    U: 'static + UsersRepo + Clone,
+    I: 'static + IdentitiesRepo + Clone,
+    A: 'static + Acl + Clone,
+> UsersService for UsersServiceImpl<U, I, A> {
     /// Returns user by ID
     fn get(&self, user_id: i32) -> ServiceFuture<User> {
-        Box::new(self.users_repo.find(user_id).map_err(Error::from))
+        match self.user_id {
+            Some(id) => {
+                let users_repo = self.users_repo.clone();
+                let acl = self.acl.clone();
+                Box::new(
+                    users_repo
+                        .find(user_id)
+                        .map_err(Error::from)
+                        .and_then(move |user| Self::authorization(acl, id, user, Action::Read)),
+                )
+            }
+            None => Box::new(future::err(Error::Unknown(
+                format!("There is no user id in request header."),
+            ))),
+        }
     }
 
     /// Returns current user
-    fn current(&self) -> ServiceFuture<User>{
-        if let Some(ref id) = self.user_id {
-            Box::new(self.users_repo.find(*id).map_err(Error::from))
+    fn current(&self) -> ServiceFuture<User> {
+        if let Some(id) = self.user_id {
+            Box::new(self.users_repo.find(id).map_err(Error::from))
         } else {
-            Box::new(future::err(Error::Unknown(format!("There is no user email in request header."))))
+            Box::new(future::err(Error::Unknown(
+                format!("There is no user id in request header."),
+            )))
         }
     }
-    
+
     /// Lists users limited by `from` and `count` parameters
     fn list(&self, from: i32, count: i64) -> ServiceFuture<Vec<User>> {
         Box::new(
@@ -109,13 +143,17 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> UsersService for UsersServ
                         .map_err(|e| Error::from(e))
                         .map(|user| (new_ident, user))
                 })
-                .and_then(move |(new_ident, user)| 
-                        ident_repo
-                            .create(new_ident.email, Some(Self::password_create(new_ident.password.clone())), Provider::Email, user.id)
-                            .map_err(|e| Error::from(e))
-                            .map(|_| user)
-                    )
-                ,
+                .and_then(move |(new_ident, user)| {
+                    ident_repo
+                        .create(
+                            new_ident.email,
+                            Some(Self::password_create(new_ident.password.clone())),
+                            Provider::Email,
+                            user.id,
+                        )
+                        .map_err(|e| Error::from(e))
+                        .map(|_| user)
+                }),
         )
     }
 
@@ -141,3 +179,22 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> UsersService for UsersServ
         computed_hash + "." + &salt
     }
 }
+
+impl UsersServiceImpl<UsersRepoImpl, IdentitiesRepoImpl, SingletonAcl> {
+    pub fn new(
+        r2d2_pool: DbPool,
+        cpu_pool: CpuPool,
+        user_id: Option<i32>,
+        acl: SingletonAcl,
+    ) -> Self {
+        let ident_repo = IdentitiesRepoImpl::new(r2d2_pool.clone(), cpu_pool.clone());
+        let users_repo = UsersRepoImpl::new(r2d2_pool, cpu_pool);
+        Self {
+            users_repo: users_repo,
+            ident_repo: ident_repo,
+            user_id: user_id,
+            acl: acl,
+        }
+    }
+}
+

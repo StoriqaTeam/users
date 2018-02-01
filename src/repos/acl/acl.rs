@@ -1,15 +1,14 @@
 //! Authorization module contains authorization logic for the repo layer app
 
+use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
+
 use futures::Future;
 use futures_cpupool::CpuPool;
 
-
 use ::models::authorization::*;
-use repos::error::Error;
 use repos::user_roles::{UserRolesRepo, UserRolesRepoImpl};
 use repos::types::DbPool;
-use repos::singleton_acl::{get_acl, SingletonAcl};
 
 
 macro_rules! permission {
@@ -22,15 +21,11 @@ macro_rules! permission {
 /// certain resource. All logic for roles and permissions should be hardcoded into implementation
 /// of this trait.
 pub trait Acl {
-    /// Tells that a user with id `user_id` can do `action` on `resource`.
+    /// Tells if a user with id `user_id` can do `action` on `resource`.
     /// `resource_with_scope` can tell if this resource is in some scope, which is also a part of `acl` for some
     /// permissions. E.g. You can say that a user can do `Create` (`Action`) on `Store` (`Resource`) only if he's the
     /// `Owner` (`Scope`) of the store.
     fn can (&mut self, resource: Resource, action: Action, user_id: i32, resources_with_scope: Vec<&WithScope>) -> bool;
-}
-
-pub trait Cacheable<ID, T> {
-    fn get(&mut self, id: ID) -> &mut T ;
 }
 
 pub struct CachedRoles<U: UserRolesRepo + 'static + Clone> {
@@ -45,10 +40,8 @@ impl<U: UserRolesRepo + 'static + Clone> CachedRoles<U> {
             users_role_repo: repo
         }
     }
-}
 
-impl<U: UserRolesRepo + 'static + Clone> Cacheable<i32, Vec<Role>> for CachedRoles<U> {
-    fn get(&mut self, id: i32) -> &mut Vec<Role> {
+    pub fn get(&mut self, id: i32) -> &mut Vec<Role> {
         let id_clone = id.clone();
         let repo = self.users_role_repo.clone();
         self.roles_cache.entry(id_clone)
@@ -63,14 +56,14 @@ impl<U: UserRolesRepo + 'static + Clone> Cacheable<i32, Vec<Role>> for CachedRol
 }
 
 // TODO: remove info about deleted user from cache
-pub struct AclImpl<T: Cacheable<i32, Vec<Role>>> {
+pub struct AclImpl<U: UserRolesRepo + 'static + Clone> {
     acls: HashMap<Role, Vec<Permission>>,
-    cached_roles: T 
+    cached_roles: CachedRoles<U>
 }
 
 
-impl<T: Cacheable<i32, Vec<Role>>> AclImpl<T> {
-    pub fn new(cached_roles: T) -> Self {
+impl<U: UserRolesRepo + 'static + Clone> AclImpl<U> {
+    pub fn new(cached_roles: CachedRoles<U>) -> Self {
         let mut result = Self { acls: HashMap::new(), cached_roles: cached_roles };
         result.add_permission_to_role(Role::Superuser, permission!(Resource::Users));
         result.add_permission_to_role(Role::Superuser, permission!(Resource::UserRoles));
@@ -90,7 +83,7 @@ impl<T: Cacheable<i32, Vec<Role>>> AclImpl<T> {
     }
 }
 
-impl<T: Cacheable<i32, Vec<Role>>> Acl for AclImpl<T> {
+impl<U: UserRolesRepo + 'static + Clone> Acl for AclImpl<U> {
     fn can(&mut self, resource: Resource, action: Action, user_id: i32, resources_with_scope: Vec<&WithScope>) -> bool {
         let empty: Vec<Permission> = Vec::new();
         let roles = self.cached_roles.get(user_id);
@@ -107,75 +100,83 @@ impl<T: Cacheable<i32, Vec<Role>>> Acl for AclImpl<T> {
     }
 }
 
-
-pub trait AclWithContext {
-    fn can(&self, resource: Resource, action: Action, resources_with_scope: Vec<&WithScope>) -> Result<bool, Error>;
-}
-
 #[derive(Clone)]
-pub struct AclWithContextImpl {
-    acl: SingletonAcl,
-    user_id: Option<i32>
+pub struct SingletonAcl {
+    inner: Arc<Mutex<AclImpl<UserRolesRepoImpl>>>,
 }
 
-impl AclWithContextImpl {
-    pub fn new(r2d2_pool: DbPool, cpu_pool:CpuPool, user_id: Option<i32>) -> Self {
+impl SingletonAcl {
+     pub fn new(r2d2_pool: DbPool, cpu_pool:CpuPool) -> Self {
         let user_roles_repo = UserRolesRepoImpl::new(r2d2_pool, cpu_pool);
-        let acl = get_acl(user_roles_repo);
+        let cached_roles = CachedRoles::new(user_roles_repo);
+        let aclimpl = AclImpl::new(cached_roles);
         Self {
-            acl: acl,
-            user_id: user_id
+            inner: Arc::new(Mutex::new(aclimpl)),
         }
     }
 }
 
-impl AclWithContext for AclWithContextImpl {
-    fn can(&self, resource: Resource, action: Action, resources_with_scope: Vec<&WithScope>) -> Result<bool, Error> {
-        if let Some(id) = self.user_id {
-            Ok(self.acl.inner.lock().unwrap().can(resource, action, id, resources_with_scope))
-        } else {
-            Err(Error::ContstaintViolation(format!("Unauthorized request")))
-        }
-    }
+impl Acl for SingletonAcl {
+    fn can (&mut self, resource: Resource, action: Action, user_id: i32, resources_with_scope: Vec<&WithScope>) -> bool {
+        self.inner.lock().unwrap().can(resource, action, user_id, resources_with_scope)
+    }    
 }
-
 
 
 
 #[cfg(test)]
 mod tests {
     use std::time::SystemTime;
+
+    use futures;
+
     use super::*;
     use ::models::user::*;
     use ::models::user_role::*;
+    use repos::types::RepoFuture;
 
-    struct MockCachedRoles {
-        roles_cache: HashMap<i32, Vec<Role>>
-    }
-
-    impl MockCachedRoles {
-        fn new() -> Self {
-            let mut hash = HashMap::new();
-            hash.insert(1, vec![Role::Superuser]);
-            hash.insert(2, vec![Role::User]);
-            Self {
-                roles_cache: hash
-            }
-        }
-    }
-
-
-    impl Cacheable<i32, Vec<Role>> for MockCachedRoles {
-        fn get(&mut self, id: i32) -> &mut Vec<Role> {
-            self.roles_cache.entry(id)
-                .or_insert(vec![Role::User])
-        }
-    }
     
+    #[derive(Clone)]
+    pub struct UserRolesRepoMock;
+
+    impl UserRolesRepo for UserRolesRepoMock {
+        fn list_for_user(&self, user_id_value: i32) -> RepoFuture<Vec<UserRole>> {
+            let superuser = UserRole {
+                id: 1,
+                user_id: user_id_value,
+                role: Role::Superuser
+            };
+            let roles = vec![superuser];
+            Box::new(futures::future::ok(roles))
+        }
+
+        fn create(&self, payload: NewUserRole) -> RepoFuture<UserRole> {
+            Box::new( futures::future::ok(
+                UserRole {
+                    id: 1,
+                    user_id: payload.user_id,
+                    role: payload.role
+                }
+            ))
+        }
+
+        fn delete(&self, user_id_value: i32, role_value: Role) -> RepoFuture<UserRole> {
+            Box::new( futures::future::ok(
+                UserRole {
+                    id: 1,
+                    user_id: user_id_value,
+                    role: role_value
+                }
+            ))
+        }
+    }
+
+    const MOCK_USER_ROLE: UserRolesRepoMock = UserRolesRepoMock {};
+
 
     #[test]
     fn test_super_user_for_users() {
-        let cache = MockCachedRoles::new();
+        let cache = CachedRoles::new(MOCK_USER_ROLE);
         let mut acl = AclImpl::new(cache);
 
         let resource = User {
@@ -204,7 +205,7 @@ mod tests {
 
     #[test]
     fn test_ordinary_user_for_users() {
-        let cache = MockCachedRoles::new();
+        let cache = CachedRoles::new(MOCK_USER_ROLE);
         let mut acl = AclImpl::new(cache);
 
         let resource = User {
@@ -232,7 +233,7 @@ mod tests {
 
     #[test]
     fn test_super_user_for_user_roles() {
-        let cache = MockCachedRoles::new();
+        let cache = CachedRoles::new(MOCK_USER_ROLE);
         let mut acl = AclImpl::new(cache);
 
         let resource = UserRole {
@@ -249,7 +250,7 @@ mod tests {
 
     #[test]
     fn test_user_for_user_roles() {
-        let cache = MockCachedRoles::new();
+        let cache = CachedRoles::new(MOCK_USER_ROLE);
         let mut acl = AclImpl::new(cache);
 
         let resource = UserRole {

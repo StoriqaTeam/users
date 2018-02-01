@@ -9,15 +9,11 @@ use diesel::query_dsl::LoadQuery;
 use diesel::pg::PgConnection;
 use futures::future;
 use futures_cpupool::CpuPool;
-use futures::Future;
 
-use models::authorization::*;
-use repos::acl::AclWithContext;
 use models::user::{UpdateUser, User, NewUser};
 use models::user::users::dsl::*;
 use super::error::Error;
 use super::types::{DbConnection, DbPool, RepoFuture};
-use repos::acl::AclWithContextImpl;
 
 
 /// Users repository, responsible for handling users
@@ -26,7 +22,6 @@ pub struct UsersRepoImpl {
     // Todo - no need for Arc, since pool is itself an ARC-like structure
     pub r2d2_pool: DbPool,
     pub cpu_pool: CpuPool,
-    pub acl: AclWithContextImpl
 }
 
 pub trait UsersRepo {
@@ -52,11 +47,10 @@ pub trait UsersRepo {
 }
 
 impl UsersRepoImpl {
-    pub fn new(r2d2_pool: DbPool, cpu_pool: CpuPool, acl: AclWithContextImpl) -> Self {
+    pub fn new(r2d2_pool: DbPool, cpu_pool: CpuPool) -> Self {
         Self {
             r2d2_pool,
             cpu_pool,
-            acl
         }
     }
 
@@ -89,22 +83,7 @@ impl UsersRepoImpl {
 impl UsersRepo for UsersRepoImpl {
     /// Find specific user by ID
     fn find(&self, user_id_arg: i32) -> RepoFuture<User> {
-        let acl = self.acl.clone();
-        Box::new( 
-            self.execute_query(users.find(user_id_arg))
-                .and_then(move |u: User| {
-                    let resources = vec![&u as &WithScope];
-                    acl.can(Resource::Users, Action::Read, resources)
-                        .map(|can| (u.clone(), can))
-                })
-                .and_then(|(user, can)| {
-                    if can {
-                        future::ok(user)
-                    } else {
-                        future::err(Error::ContstaintViolation(format!("Unauthorized access")))
-                    }
-                })
-        )
+        self.execute_query(users.find(user_id_arg))
     }
 
     fn email_exists(&self, email_arg: String) -> RepoFuture<bool> {

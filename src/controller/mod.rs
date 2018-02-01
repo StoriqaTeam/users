@@ -31,7 +31,7 @@ use self::types::ControllerFuture;
 use self::routes::{Route, RouteParser};
 use http::client::ClientHandle;
 use config::Config;
-
+use repos::acl::SingletonAcl;
 
 /// Controller handles route parsing and calling `Service` layer
 pub struct Controller {
@@ -39,7 +39,8 @@ pub struct Controller {
     pub cpu_pool: CpuPool,
     pub route_parser: Arc<RouteParser>,
     pub config : Config,
-    pub client_handle: ClientHandle
+    pub client_handle: ClientHandle,
+    pub acl: SingletonAcl
 }
 
 macro_rules! serialize_future {
@@ -55,12 +56,14 @@ impl Controller {
         config: Config
     ) -> Self {
         let route_parser = Arc::new(routes::create_route_parser());
+        let acl = SingletonAcl::new(r2d2_pool.clone(), cpu_pool.clone());
         Self {
             route_parser,
             r2d2_pool,
             cpu_pool,
             client_handle,
-            config
+            config,
+            acl
         }
     }
 
@@ -71,12 +74,12 @@ impl Controller {
         let auth_header = headers.get::<Authorization<String>>();
         let user_id = auth_header.map (move |auth| {
             auth.0.clone() 
-        }).map (|id| {
+        }).and_then(|id| {
             i32::from_str(&id).ok()
-        }).unwrap_or(None);
+        });
 
         let system_service = SystemServiceImpl::new();
-        let users_service = UsersServiceImpl::new(self.r2d2_pool.clone(), self.cpu_pool.clone(), user_id);
+        let users_service = UsersServiceImpl::new(self.r2d2_pool.clone(), self.cpu_pool.clone(), user_id, self.acl.clone());
         let jwt_service = JWTServiceImpl::new(self.r2d2_pool.clone(), self.cpu_pool.clone(), self.client_handle.clone(), self.config.clone());
 
         match (req.method(), self.route_parser.test(req.path())) {
