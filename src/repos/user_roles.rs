@@ -11,8 +11,8 @@ use futures::future;
 use futures_cpupool::CpuPool;
 
 use models::user_role::user_roles::dsl::*;
-use models::user_role::{NewUserRole, UserRole};
-use models::authorization::Role;
+use models::{NewUserRole, UserRole};
+use models::Role;
 use super::error::Error;
 use super::types::{RepoFuture, DbConnection, DbPool};
 

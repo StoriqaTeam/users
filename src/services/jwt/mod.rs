@@ -13,9 +13,9 @@ use base64::decode;
 use serde;
 
 
-use models::jwt::{JWT, ProviderOauth};
-use models::user::{NewUser};
-use models::identity::{Provider, NewIdentity};
+use models::{JWT, ProviderOauth};
+use models::{NewUser};
+use models::{Provider, NewIdentity};
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
 use http::client::ClientHandle;
@@ -148,7 +148,7 @@ impl<P, U, I> ProfileService<P> for JWTServiceImpl<U, I>
                     ident_repo
                         .create(profile.get_email(), None, Provider::Facebook, user.id)
                         .map_err(Error::from)
-                        .map(|u| u.user_email)
+                        .map(|u| u.email)
                 })
         )
     }
@@ -225,7 +225,7 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> JWTService for JWTServiceI
                                         .find_by_email_provider(new_user.email.clone(), Provider::Email)
                                         .map_err(Error::from)
                                         .and_then (move |identity| 
-                                            Self::password_verify(identity.user_password.unwrap().clone(), new_user.password.clone())
+                                            Self::password_verify(identity.password.unwrap().clone(), new_user.password.clone())
                                         )
                                         .map(move |verified| (verified, new_user_clone))
                                         .and_then( move |(verified, user)| -> ServiceFuture<String> {
