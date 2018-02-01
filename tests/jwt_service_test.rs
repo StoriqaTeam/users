@@ -1,3 +1,4 @@
+#![allow(unused)]
 include!("tests_setup.rs");
 
 #[test]

@@ -116,12 +116,16 @@ pub struct UserRolesRepoMock;
 
 impl UserRolesRepo for UserRolesRepoMock {
     fn list_for_user(&self, user_id_value: i32) -> RepoFuture<Vec<UserRole>> {
-        let superuser = UserRole {
+        let role = match user_id_value {
+            1 => Role::Superuser,
+            _ => Role::User,
+        };
+        let user_role = UserRole {
                 id: 1,
                 user_id: user_id_value,
-                role: Role::Superuser
+                role: role
             };
-        let roles = vec![superuser];
+        let roles = vec![user_role];
         Box::new(futures::future::ok(roles))
     }
 
