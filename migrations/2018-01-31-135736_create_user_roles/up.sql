@@ -13,4 +13,4 @@ SELECT diesel_manage_updated_at('user_roles');
 
 INSERT INTO users (email, last_login_at) VALUES ('admin@storiqa.com', now()) ON CONFLICT (id) DO NOTHING;
 INSERT INTO identities (user_id, email, password) SELECT id, email, 'bqF5BkdsCS' FROM users WHERE email = 'admin@storiqa.com' LIMIT 1;
-INSERT INTO user_roles (user_id, role_id) SELECT id, 0 FROM users WHERE email = 'admin@storiqa.com' LIMIT 1;
+INSERT INTO user_roles (user_id, role_id) SELECT id, 1 FROM users WHERE email = 'admin@storiqa.com' LIMIT 1;

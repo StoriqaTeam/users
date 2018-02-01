@@ -1,7 +1,7 @@
 -- Your SQL goes here
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
-    email VARCHAR NOT NULL,
+    email VARCHAR NOT NULL CHECK (email = tolower(email)),
     email_verified BOOLEAN NOT NULL DEFAULT 'f',
     phone VARCHAR,
     phone_verified BOOLEAN NOT NULL DEFAULT 'f',
@@ -15,3 +15,7 @@ CREATE TABLE users (
     created_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
     updated_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
+
+CREATE UNIQUE INDEX users_email_idx ON users (email);
+
+SELECT diesel_manage_updated_at('users');
