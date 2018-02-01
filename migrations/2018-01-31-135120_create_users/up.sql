@@ -1,7 +1,7 @@
 -- Your SQL goes here
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
-    email VARCHAR NOT NULL CHECK (email = tolower(email)),
+    email VARCHAR NOT NULL CHECK (email = lower(email)),
     email_verified BOOLEAN NOT NULL DEFAULT 'f',
     phone VARCHAR,
     phone_verified BOOLEAN NOT NULL DEFAULT 'f',

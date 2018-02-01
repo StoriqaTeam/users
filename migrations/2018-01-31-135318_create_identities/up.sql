@@ -1,7 +1,7 @@
 -- Your SQL goes here
 CREATE TABLE identities (
     user_id INTEGER UNIQUE REFERENCES users ON DELETE CASCADE,
-    email VARCHAR NOT NULL CHECK (email = tolower(email)),
+    email VARCHAR NOT NULL CHECK (email = lower(email)),
     password VARCHAR NULL,
     provider VARCHAR
 );
