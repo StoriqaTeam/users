@@ -24,6 +24,8 @@ use services::system::{SystemServiceImpl, SystemService};
 use services::users::{UsersServiceImpl, UsersService};
 use services::jwt::{JWTService, JWTServiceImpl};
 use repos::types::DbPool;
+use repos::user_roles::{UserRolesRepoImpl};
+use repos::acl::{CachedRoles};
 
 use models;
 use self::utils::parse_body;
@@ -31,7 +33,6 @@ use self::types::ControllerFuture;
 use self::routes::{Route, RouteParser};
 use http::client::ClientHandle;
 use config::Config;
-use repos::acl::SingletonAcl;
 
 /// Controller handles route parsing and calling `Service` layer
 pub struct Controller {
@@ -40,7 +41,7 @@ pub struct Controller {
     pub route_parser: Arc<RouteParser>,
     pub config : Config,
     pub client_handle: ClientHandle,
-    pub acl: SingletonAcl
+    pub cached_roles: CachedRoles<UserRolesRepoImpl>
 }
 
 macro_rules! serialize_future {
@@ -53,17 +54,17 @@ impl Controller {
         r2d2_pool: DbPool, 
         cpu_pool: CpuPool,
         client_handle: ClientHandle,
-        config: Config
+        config: Config,
+        cached_roles: CachedRoles<UserRolesRepoImpl>
     ) -> Self {
         let route_parser = Arc::new(routes::create_route_parser());
-        let acl = SingletonAcl::new(r2d2_pool.clone(), cpu_pool.clone());
         Self {
             route_parser,
             r2d2_pool,
             cpu_pool,
             client_handle,
             config,
-            acl
+            cached_roles
         }
     }
 
@@ -78,8 +79,9 @@ impl Controller {
             i32::from_str(&id).ok()
         });
 
+        let cached_roles = self.cached_roles.clone();
         let system_service = SystemServiceImpl::new();
-        let users_service = UsersServiceImpl::new(self.r2d2_pool.clone(), self.cpu_pool.clone(), user_id, self.acl.clone());
+        let users_service = UsersServiceImpl::new(self.r2d2_pool.clone(), self.cpu_pool.clone(), cached_roles, user_id);
         let jwt_service = JWTServiceImpl::new(self.r2d2_pool.clone(), self.cpu_pool.clone(), self.client_handle.clone(), self.config.clone());
 
         match (req.method(), self.route_parser.test(req.path())) {

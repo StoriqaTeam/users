@@ -14,14 +14,17 @@ use models::user::{UpdateUser, User, NewUser};
 use models::user::users::dsl::*;
 use super::error::Error;
 use super::types::{DbConnection, DbPool, RepoFuture};
+use repos::acl::Acl;
+//use models::authorization::*;
 
 
 /// Users repository, responsible for handling users
 #[derive(Clone)]
-pub struct UsersRepoImpl {
+pub struct UsersRepoImpl<A:Acl> {
     // Todo - no need for Arc, since pool is itself an ARC-like structure
     pub r2d2_pool: DbPool,
     pub cpu_pool: CpuPool,
+    pub acl : Option<A>
 }
 
 pub trait UsersRepo {
@@ -46,11 +49,12 @@ pub trait UsersRepo {
     fn deactivate(&self, user_id: i32) -> RepoFuture<User>;
 }
 
-impl UsersRepoImpl {
-    pub fn new(r2d2_pool: DbPool, cpu_pool: CpuPool) -> Self {
+impl<A: Acl> UsersRepoImpl<A> {
+    pub fn new(r2d2_pool: DbPool, cpu_pool: CpuPool, acl : Option<A>) -> Self {
         Self {
             r2d2_pool,
             cpu_pool,
+            acl
         }
     }
 
@@ -80,7 +84,7 @@ impl UsersRepoImpl {
     }
 }
 
-impl UsersRepo for UsersRepoImpl {
+impl<A: Acl> UsersRepo for UsersRepoImpl<A> {
     /// Find specific user by ID
     fn find(&self, user_id_arg: i32) -> RepoFuture<User> {
         self.execute_query(users.find(user_id_arg))

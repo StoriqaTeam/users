@@ -5,15 +5,16 @@ use sha3::{Digest, Sha3_256};
 use rand;
 use base64::encode;
 
-use models::authorization::*;
 use models::user::{NewUser, UpdateUser, User};
 use models::identity::{NewIdentity, Provider};
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
+use repos::user_roles::UserRolesRepoImpl;
+
 use super::types::ServiceFuture;
 use super::error::Error;
 use repos::types::DbPool;
-use repos::acl::{Acl, SingletonAcl};
+use repos::acl::{AclImpl, CachedRoles};
 
 
 pub trait UsersService {
@@ -37,59 +38,74 @@ pub trait UsersService {
 pub struct UsersServiceImpl<
     U: 'static + UsersRepo + Clone,
     I: 'static + IdentitiesRepo + Clone,
-    A: 'static + Acl + Clone,
 > {
     pub users_repo: U,
     pub ident_repo: I,
     pub user_id: Option<i32>,
-    pub acl: A,
 }
 
-impl<
-    U: 'static + UsersRepo + Clone,
-    I: 'static + IdentitiesRepo + Clone,
-    A: 'static + Acl + Clone,
-> UsersServiceImpl<U, I, A> {
-    pub fn authorization(
-        mut acl: A,
-        user_id: i32,
-        user: User,
-        action: Action,
-    ) -> ServiceFuture<User> {
-        let can = {
-            let resources = vec![&user as &WithScope];
-            acl.can(Resource::Users, action, user_id, resources)
-        };
-        match can {
-            true => Box::new(future::ok(user)),
-            false => Box::new(future::err(Error::Unknown(format!("Unauthorized access")))),
+impl UsersServiceImpl<UsersRepoImpl<AclImpl<UserRolesRepoImpl>>, IdentitiesRepoImpl> {
+    pub fn new(
+        r2d2_pool: DbPool,
+        cpu_pool: CpuPool,
+        cached_roles: CachedRoles<UserRolesRepoImpl>,
+        user_id: Option<i32>,
+    ) -> Self {
+        let ident_repo = IdentitiesRepoImpl::new(r2d2_pool.clone(), cpu_pool.clone());
+        let acl = user_id.map(|id| AclImpl::new(cached_roles.clone(), id));
+        let users_repo = UsersRepoImpl::new(r2d2_pool, cpu_pool, acl);
+        Self {
+            users_repo: users_repo,
+            ident_repo: ident_repo,
+            user_id: user_id,
         }
     }
 }
 
+// impl<
+//     U: 'static + UsersRepo + Clone,
+//     I: 'static + IdentitiesRepo + Clone,
+//     UR: 'static + UserRolesRepo + Clone,
+// > UsersServiceImpl<U, I, UR> {
+//     pub fn authorization(
+//         mut acl: A,
+//         user_id: i32,
+//         user: User,
+//         action: Action,
+//     ) -> ServiceFuture<User> {
+//         let can = {
+//             let resources = vec![&user as &WithScope];
+//             acl.can(Resource::Users, action, user_id, resources)
+//         };
+//         match can {
+//             true => Box::new(future::ok(user)),
+//             false => Box::new(future::err(Error::Unknown(format!("Unauthorized access")))),
+//         }
+//     }
+// }
+
 
 impl<
     U: 'static + UsersRepo + Clone,
     I: 'static + IdentitiesRepo + Clone,
-    A: 'static + Acl + Clone,
-> UsersService for UsersServiceImpl<U, I, A> {
+> UsersService for UsersServiceImpl<U, I> {
     /// Returns user by ID
     fn get(&self, user_id: i32) -> ServiceFuture<User> {
-        match self.user_id {
-            Some(id) => {
-                let users_repo = self.users_repo.clone();
-                let acl = self.acl.clone();
+        // match self.user_id {
+        //     Some(id) => {
+        //         let users_repo = self.users_repo.clone();
                 Box::new(
-                    users_repo
+                    self.users_repo
                         .find(user_id)
                         .map_err(Error::from)
-                        .and_then(move |user| Self::authorization(acl, id, user, Action::Read)),
-                )
-            }
-            None => Box::new(future::err(Error::Unknown(
-                format!("There is no user id in request header."),
-            ))),
-        }
+                        )
+        //                 .and_then(move |user| Self::authorization(acl, id, user, Action::Read)),
+        //         )
+        //     }
+        //     None => Box::new(future::err(Error::Unknown(
+        //         format!("There is no user id in request header."),
+        //     ))),
+        // }
     }
 
     /// Returns current user
@@ -180,21 +196,5 @@ impl<
     }
 }
 
-impl UsersServiceImpl<UsersRepoImpl, IdentitiesRepoImpl, SingletonAcl> {
-    pub fn new(
-        r2d2_pool: DbPool,
-        cpu_pool: CpuPool,
-        user_id: Option<i32>,
-        acl: SingletonAcl,
-    ) -> Self {
-        let ident_repo = IdentitiesRepoImpl::new(r2d2_pool.clone(), cpu_pool.clone());
-        let users_repo = UsersRepoImpl::new(r2d2_pool, cpu_pool);
-        Self {
-            users_repo: users_repo,
-            ident_repo: ident_repo,
-            user_id: user_id,
-            acl: acl,
-        }
-    }
-}
+
 
