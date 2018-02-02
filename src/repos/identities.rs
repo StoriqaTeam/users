@@ -7,74 +7,52 @@ use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::query_dsl::LoadQuery;
 use diesel::pg::PgConnection;
-use futures::future;
-use futures_cpupool::CpuPool;
 
 use models::UserId;
 use models::{Identity, Provider};
 use models::identity::identity::identities::dsl::*;
 use super::error::Error;
-use super::types::{DbConnection, DbPool, RepoFuture};
+use super::types::DbConnection;
 
 /// Identities repository, responsible for handling identities
-#[derive(Clone)]
-pub struct IdentitiesRepoImpl {
-    // Todo - no need for Arc, since pool is itself an ARC-like structure
-    pub r2d2_pool: DbPool,
-    pub cpu_pool: CpuPool,
+pub struct IdentitiesRepoImpl<'a> {
+    pub db_conn: &'a DbConnection
 }
 
 pub trait IdentitiesRepo {
     /// Checks if e-mail is already registered
-    fn email_provider_exists(&self, email_arg: String, provider: Provider) -> RepoFuture<bool>;
+    fn email_provider_exists(&self, email_arg: String, provider: Provider) -> Result<bool, Error>;
 
     /// Creates new identity
-    fn create(&self, email_arg: String, password_arg: Option<String>, provider_arg: Provider, user_id_arg: UserId) -> RepoFuture<Identity>;
+    fn create(&self, email_arg: String, password_arg: Option<String>, provider_arg: Provider, user_id_arg: UserId) -> Result<Identity, Error>;
 
     /// Verifies password
-    fn verify_password(&self, email_arg: String, password_arg: String) -> RepoFuture<bool>;
+    fn verify_password(&self, email_arg: String, password_arg: String) -> Result<bool, Error>;
 
     /// Find specific user by email
-    fn find_by_email_provider(&self, email_arg: String, provider_arg: Provider) -> RepoFuture<Identity>;
+    fn find_by_email_provider(&self, email_arg: String, provider_arg: Provider) -> Result<Identity, Error>;
 }
 
-impl IdentitiesRepoImpl {
-    pub fn new(r2d2_pool: DbPool, cpu_pool: CpuPool) -> Self {
+impl<'a> IdentitiesRepoImpl<'a> {
+    pub fn new(db_conn: &'a DbConnection) -> Self {
         Self {
-            r2d2_pool,
-            cpu_pool
-        }
-    }
-
-    fn get_connection(&self) -> DbConnection {
-        match self.r2d2_pool.get() {
-            Ok(connection) => connection,
-            Err(e) => panic!("Error obtaining connection from pool: {}", e),
+            db_conn
         }
     }
 
     fn execute_query<T: Send + 'static, U: LoadQuery<PgConnection, T> + Send + 'static>(
         &self,
         query: U,
-    ) -> RepoFuture<T> {
-        let conn = match self.r2d2_pool.get() {
-            Ok(connection) => connection,
-            Err(_) => {
-                return Box::new(future::err(
-                    Error::Connection("Cannot connect to users db".to_string()),
-                ))
-            }
-        };
+    ) -> Result<T, Error> {
+        let conn = self.db_conn;
 
-        Box::new(self.cpu_pool.spawn_fn(move || {
-            query.get_result::<T>(&*conn).map_err(|e| Error::from(e))
-        }))
+        query.get_result::<T>(&*conn).map_err(|e| Error::from(e))
     }
 }
 
-impl IdentitiesRepo for IdentitiesRepoImpl {
+impl<'a> IdentitiesRepo for IdentitiesRepoImpl<'a> {
     /// Checks if e-mail is already registered
-    fn email_provider_exists(&self, email_arg: String, provider_arg: Provider) -> RepoFuture<bool> {
+    fn email_provider_exists(&self, email_arg: String, provider_arg: Provider) -> Result<bool, Error> {
         self.execute_query(select(exists(
             identities
                 .filter(email.eq(email_arg))
@@ -83,7 +61,7 @@ impl IdentitiesRepo for IdentitiesRepoImpl {
     }
 
     /// Verifies password
-    fn verify_password(&self, email_arg: String, password_arg: String) -> RepoFuture<bool> {
+    fn verify_password(&self, email_arg: String, password_arg: String) -> Result<bool, Error> {
         self.execute_query(select(exists(
             identities
                 .filter(email.eq(email_arg))
@@ -93,31 +71,35 @@ impl IdentitiesRepo for IdentitiesRepoImpl {
 
     /// Creates new user
     // TODO - set e-mail uniqueness in database
-    fn create(&self, email_arg: String, password_arg: Option<String>, provider_arg: Provider, user_id_arg: UserId) -> RepoFuture<Identity> {
-        let conn = self.get_connection();
-        Box::new(self.cpu_pool.spawn_fn(move || {
-            let identity_arg = Identity {
-                user_id: user_id_arg,
-                email: email_arg,
-                provider: provider_arg,
-                password: password_arg,
-            };
-            let ident_query = diesel::insert_into(identities).values(&identity_arg);
-            ident_query
-                .get_result::<Identity>(&*conn)
-                .map_err(Error::from)
-        }))
+    fn create(
+        &self,
+        email_arg: String,
+        password_arg: Option<String>,
+        provider_arg: Provider,
+        user_id_arg: UserId
+    ) -> Result<Identity, Error> {
+        let conn = self.db_conn;
+
+        let identity_arg = Identity {
+            user_id: user_id_arg,
+            email: email_arg,
+            provider: provider_arg,
+            password: password_arg,
+        };
+        
+        let ident_query = diesel::insert_into(identities).values(&identity_arg);
+        ident_query
+            .get_result::<Identity>(&**conn)
+            .map_err(Error::from)
     }
 
     /// Find specific user by email
-    fn find_by_email_provider(&self, email_arg: String, provider_arg: Provider) -> RepoFuture<Identity>{
-        let conn = self.get_connection();
+    fn find_by_email_provider(&self, email_arg: String, provider_arg: Provider) -> Result<Identity, Error> {
+        let conn = self.db_conn;
         let query = identities
             .filter(email.eq(email_arg))
             .filter(provider.eq(provider_arg));
 
-        Box::new(self.cpu_pool.spawn_fn(move || {
-            query.first::<Identity>(&*conn).map_err(|e| Error::from(e))
-        }))
+        query.first::<Identity>(&**conn).map_err(|e| Error::from(e))
     }
 }

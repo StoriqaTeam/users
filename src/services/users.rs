@@ -5,7 +5,8 @@ use futures_cpupool::CpuPool;
 use sha3::{Digest, Sha3_256};
 use rand;
 use base64::encode;
-
+use diesel::Connection;
+use std::sync::Arc;
 
 use models::{NewUser, UpdateUser, User, UserId};
 use models::{Provider, NewIdentity};
@@ -13,7 +14,7 @@ use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
 use super::types::ServiceFuture;
 use super::error::Error;
-use repos::types::DbPool;
+use repos::types::{DbPool, DbConnection};
 
 pub trait UsersService {
     /// Returns user by ID
@@ -33,34 +34,51 @@ pub trait UsersService {
 }
 
 /// Users services, responsible for User-related CRUD operations
-pub struct UsersServiceImpl<U: 'static + UsersRepo + Clone, I: 'static + IdentitiesRepo+ Clone> {
-    pub users_repo: U,
-    pub ident_repo: I,
+pub struct UsersServiceImpl {
+    pub r2d2_pool: DbPool,
+    pub cpu_pool: CpuPool,
     pub user_email: Option<String>
 }
 
-impl UsersServiceImpl<UsersRepoImpl, IdentitiesRepoImpl> {
+impl UsersServiceImpl {
     pub fn new(r2d2_pool: DbPool, cpu_pool:CpuPool, user_email: Option<String>) -> Self {
-        let users_repo = UsersRepoImpl::new(r2d2_pool.clone(), cpu_pool.clone());
-        let ident_repo = IdentitiesRepoImpl::new(r2d2_pool, cpu_pool);
         Self {
-            users_repo: users_repo,
-            ident_repo: ident_repo,
+            r2d2_pool: r2d2_pool,
+            cpu_pool: cpu_pool,
             user_email: user_email
         }
     }
 }
 
-impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> UsersService for UsersServiceImpl<U, I> {
+fn get_connection(r2d2_pool: &DbPool) -> DbConnection {
+    match r2d2_pool.get() {
+        Ok(conn) => conn,
+        Err(e) => panic!("Error obtaining connection from pool: {}", e),
+    }
+}
+
+impl UsersService for UsersServiceImpl {
     /// Returns user by ID
     fn get(&self, user_id: UserId) -> ServiceFuture<User> {
-        Box::new(self.users_repo.find(user_id).map_err(Error::from))
+        let r2d2_clone = self.r2d2_pool.clone();
+        
+        Box::new(self.cpu_pool.spawn_fn(move || {
+            let conn = get_connection(&r2d2_clone);
+            let users_repo = UsersRepoImpl::new(&conn);
+            users_repo.find(user_id).map_err(Error::from)
+        }))
     }
 
     /// Returns current user
     fn current(&self) -> ServiceFuture<User>{
-        if let Some(ref email) = self.user_email {
-            Box::new(self.users_repo.find_by_email(email.to_string()).map_err(Error::from))
+        if let Some(email) = self.user_email.clone() {
+            let r2d2_clone = self.r2d2_pool.clone();
+
+            Box::new(self.cpu_pool.spawn_fn(move || {
+                let conn = get_connection(&r2d2_clone);
+                let users_repo = UsersRepoImpl::new(&conn);
+                users_repo.find_by_email(email.to_string()).map_err(Error::from)
+            }))
         } else {
             Box::new(future::err(Error::Unknown(format!("There is no user email in request header."))))
         }
@@ -68,68 +86,88 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> UsersService for UsersServ
     
     /// Lists users limited by `from` and `count` parameters
     fn list(&self, from: i32, count: i64) -> ServiceFuture<Vec<User>> {
+        let r2d2_clone = self.r2d2_pool.clone();
+
         Box::new(
-            self.users_repo
-                .list(from, count)
-                .map_err(|e| Error::from(e)),
+            self.cpu_pool.spawn_fn(move || {
+                let conn = get_connection(&r2d2_clone);
+                let users_repo = UsersRepoImpl::new(&conn);
+                users_repo
+                    .list(from, count)
+                    .map_err(|e| Error::from(e))
+            })
         )
     }
 
     /// Deactivates specific user
     fn deactivate(&self, user_id: UserId) -> ServiceFuture<User> {
+        let r2d2_clone = self.r2d2_pool.clone();
+
         Box::new(
-            self.users_repo
-                .deactivate(user_id)
-                .map_err(|e| Error::from(e)),
+            self.cpu_pool.spawn_fn(move || {
+                let conn = get_connection(&r2d2_clone);
+                let users_repo = UsersRepoImpl::new(&conn);
+                users_repo
+                    .deactivate(user_id)
+                    .map_err(|e| Error::from(e))
+            })
         )
     }
 
     /// Creates new user
     fn create(&self, payload: NewIdentity) -> ServiceFuture<User> {
-        let users_repo = self.users_repo.clone();
-        let ident_repo = self.ident_repo.clone();
+        let r2d2_clone = self.r2d2_pool.clone();
+
         Box::new(
-            ident_repo
-                .email_provider_exists(payload.email.to_string(), Provider::Email)
-                .map(move |exists| (payload, exists))
-                .map_err(Error::from)
-                .and_then(|(payload, exists)| match exists {
-                    false => future::ok(payload),
-                    true => future::err(Error::Validate(
-                        validation_errors!({"email": ["email" => "Email already exists"]}),
-                    )),
+            self.cpu_pool.spawn_fn(move || {
+                let conn = get_connection(&r2d2_clone);
+                let users_repo = UsersRepoImpl::new(&conn);
+                let ident_repo = IdentitiesRepoImpl::new(&conn);
+                conn.transaction::<User, Error, _>(move || {
+                    ident_repo
+                        .email_provider_exists(payload.email.to_string(), Provider::Email)
+                        .map(move |exists| (payload, exists))
+                        .map_err(Error::from)
+                        .and_then(|(payload, exists)| match exists {
+                            false => Ok(payload),
+                            true => Err(Error::Database("Email already exists".into())),
+                        })
+                        .and_then(move |new_ident| {
+                            let new_user = NewUser::from(new_ident.clone());
+                            users_repo
+                                .create(new_user)
+                                .map_err(|e| Error::from(e))
+                                .map(|user| (new_ident, user))
+                        })
+                        .and_then(move |(new_ident, user)| 
+                            ident_repo
+                                .create(
+                                    new_ident.email, 
+                                    Some(Self::password_create(new_ident.password.clone())), 
+                                    Provider::Email, 
+                                    user.id.clone()
+                                )
+                                .map_err(|e| Error::from(e))
+                                .map(|_| user)
+                        )
                 })
-                .and_then(move |new_ident| {
-                    let new_user = NewUser::from(new_ident.clone());
-                    users_repo
-                        .create(new_user)
-                        .map_err(|e| Error::from(e))
-                        .map(|user| (new_ident, user))
-                })
-                .and_then(move |(new_ident, user)| 
-                        ident_repo
-                            .create(
-                                new_ident.email, 
-                                Some(Self::password_create(new_ident.password.clone())), 
-                                Provider::Email, 
-                                user.id.clone()
-                            )
-                            .map_err(|e| Error::from(e))
-                            .map(|_| user)
-                    )
-                ,
+            })
         )
     }
 
     /// Updates specific user
     fn update(&self, user_id: UserId, payload: UpdateUser) -> ServiceFuture<User> {
-        let users_repo = self.users_repo.clone();
+        let r2d2_clone = self.r2d2_pool.clone();
 
         Box::new(
-            users_repo
-                .find(user_id.clone())
-                .and_then(move |_user| users_repo.update(user_id, payload))
-                .map_err(|e| Error::from(e)),
+            self.cpu_pool.spawn_fn(move || {
+                let conn = get_connection(&r2d2_clone);
+                let users_repo = UsersRepoImpl::new(&conn);
+                users_repo
+                    .find(user_id.clone())
+                    .and_then(move |_user| users_repo.update(user_id, payload))
+                    .map_err(|e| Error::from(e))
+            })
         )
     }
 
