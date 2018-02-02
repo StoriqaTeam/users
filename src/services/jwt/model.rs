@@ -76,7 +76,6 @@ impl IntoUser for FacebookProfile {
             middle_name:  None,
             gender: gender,
             birthdate: None,
-            last_login_at: Some(SystemTime::now()),
         }
     }
 }
@@ -100,7 +99,6 @@ impl IntoUser for GoogleProfile {
             middle_name:  None,
             gender: None,
             birthdate: None,
-            last_login_at: Some(SystemTime::now()),
         }
     }
 }

@@ -76,7 +76,6 @@ pub struct UpdateUser {
     pub middle_name: Option<String>,
     pub gender: Option<Gender>,
     pub birthdate: Option<SystemTime>,
-    pub last_login_at: Option<SystemTime>,
 }
 
 impl WithScope for User {
