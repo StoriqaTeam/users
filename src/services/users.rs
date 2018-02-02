@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use futures::future;
 use futures::Future;
 use futures_cpupool::CpuPool;
@@ -13,7 +15,7 @@ use repos::users::{UsersRepo, UsersRepoImpl};
 use super::types::ServiceFuture;
 use super::error::Error;
 use repos::types::DbPool;
-use repos::acl::{AclImpl, CachedRoles};
+use repos::acl::{ApplicationAcl, RolesCache, Acl, UNAUTHANTICATEDACL};
 
 
 pub trait UsersService {
@@ -43,22 +45,23 @@ pub struct UsersServiceImpl<
     pub user_id: Option<i32>,
 }
 
-impl UsersServiceImpl<UsersRepoImpl<AclImpl>, IdentitiesRepoImpl> {
-    pub fn new(
-        r2d2_pool: DbPool,
+impl UsersServiceImpl<UsersRepoImpl, IdentitiesRepoImpl> {
+    pub fn new<>(
+        db_pool: DbPool,
         cpu_pool: CpuPool,
-        cached_roles: CachedRoles,
+        cached_roles: RolesCache,
         user_id: Option<i32>,
     ) -> Self {
-        let ident_repo = IdentitiesRepoImpl::new(r2d2_pool.clone(), cpu_pool.clone());
-        let acl = user_id.map(|id| AclImpl::new(cached_roles.clone(), id, r2d2_pool.clone(), cpu_pool.clone()));
-        let users_repo = UsersRepoImpl::new(r2d2_pool, cpu_pool, acl);
+        let ident_repo = IdentitiesRepoImpl::new(db_pool.clone(), cpu_pool.clone());
+        let acl =  user_id.map_or((Arc::new(UNAUTHANTICATEDACL) as Arc<Acl>), |id| (Arc::new(ApplicationAcl::new(cached_roles.clone(), id, db_pool.clone(), cpu_pool.clone())) as Arc<Acl>));
+        let users_repo = UsersRepoImpl::new(db_pool, cpu_pool, acl);
         Self {
             users_repo: users_repo,
             ident_repo: ident_repo,
             user_id: user_id,
         }
     }
+
 }
 
 // impl<

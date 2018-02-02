@@ -60,7 +60,7 @@ use tokio_core::reactor::Core;
 
 use app::Application;
 use config::Config;
-use repos::acl::CachedRoles;
+use repos::acl::RolesCache;
 
 
 /// Starts new web service from provided `Config`
@@ -95,9 +95,9 @@ pub fn start_server(config: Config) {
         // Prepare CPU pool
         let cpu_pool = CpuPool::new(thread_count);
 
-        let chached_roles = CachedRoles::new();
+        let roles_cache = RolesCache::new();
 
-        let controller = controller::Controller::new(r2d2_pool, cpu_pool, client_handle.clone(), config.clone(), chached_roles);
+        let controller = controller::Controller::new(r2d2_pool, cpu_pool, client_handle.clone(), config.clone(), roles_cache);
 
         // Prepare application
         let app = Application {

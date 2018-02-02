@@ -9,13 +9,13 @@ use repos::types::DbPool;
 use models::authorization::*;
 
 #[derive(Clone)]
-pub struct CachedRoles {
+pub struct RolesCache {
     roles_cache: Arc<Mutex<HashMap<i32, Vec<Role>>>>,
 }
 
-impl CachedRoles {
+impl RolesCache {
     pub fn new() -> Self {
-        Self {
+        RolesCache {
             roles_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }

@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use futures_cpupool::CpuPool;
 
 use models::authorization::*;
-use super::CachedRoles;
+use super::RolesCache;
 use repos::types::DbPool;
 
 macro_rules! permission {
@@ -27,28 +27,37 @@ pub trait Acl {
 }
 
 #[derive(Clone)]
-pub struct SystemAcl {}
-
-impl SystemAcl {
-    pub fn new() -> Self {
-        Self{}
-    }
-}
+pub struct SystemACL {}
 
 #[allow(unused)]
-impl Acl for SystemAcl {
-    fn can (&mut self, resource: Resource, action: Action, resources_with_scope: Vec<&WithScope>) -> bool {
+impl Acl for SystemACL {
+    fn can (&mut self, resource: Resource, action: Action, resources_with_scope: Vec<&WithScope>) -> bool{
         true
     }
 }
 
+pub const SYSTEMACL : SystemACL = SystemACL{};
+
+
+#[derive(Clone)]
+pub struct UnAuthanticatedACL {}
+
+#[allow(unused)]
+impl Acl for UnAuthanticatedACL {
+    fn can (&mut self, resource: Resource, action: Action, resources_with_scope: Vec<&WithScope>) -> bool{
+        false
+    }
+}
+
+pub const UNAUTHANTICATEDACL : UnAuthanticatedACL = UnAuthanticatedACL{};
+
 
 // TODO: remove info about deleted user from cache
 #[derive(Clone)]
-pub struct AclImpl {
+pub struct ApplicationAcl {
     acls: Rc<RefCell<HashMap<Role, Vec<Permission>>>>,
-    cached_roles: CachedRoles,
-    r2d2_pool: DbPool, 
+    roles_cache: RolesCache,
+    db_pool: DbPool, 
     cpu_pool: CpuPool,
     user_id: i32
 }
@@ -66,8 +75,8 @@ macro_rules! hashmap(
 );
 
 
-impl AclImpl {
-    pub fn new(cached_roles: CachedRoles, user_id: i32, r2d2_pool: DbPool, cpu_pool: CpuPool) -> Self {
+impl ApplicationAcl {
+    pub fn new(roles_cache: RolesCache, user_id: i32, db_pool: DbPool, cpu_pool: CpuPool) -> Self {
         let hash = hashmap! {
                 Role::Superuser => vec![
                     permission!(Resource::Users), 
@@ -78,21 +87,21 @@ impl AclImpl {
                     permission!(Resource::UserRoles, Action::Read, Scope::Owned)],
         };
 
-        Self { 
+        ApplicationAcl { 
             acls: Rc::new(RefCell::new(hash)), 
-            cached_roles: cached_roles, 
+            roles_cache: roles_cache, 
             user_id: user_id,
-            r2d2_pool: r2d2_pool,
+            db_pool: db_pool,
             cpu_pool: cpu_pool
         }
     }
 }
 
-impl Acl for AclImpl {
+impl Acl for ApplicationAcl {
     fn can(&mut self, resource: Resource, action: Action, resources_with_scope: Vec<&WithScope>) -> bool {
         let empty: Vec<Permission> = Vec::new();
         let user_id = &self.user_id;
-        let roles = self.cached_roles.get(*user_id, self.r2d2_pool.clone(), self.cpu_pool.clone());
+        let roles = self.roles_cache.get(*user_id, self.db_pool.clone(), self.cpu_pool.clone());
         let hashed_acls = self.acls.borrow_mut();
         let acls = roles.into_iter()
             .flat_map(|role| hashed_acls.get(&role).unwrap_or(&empty))

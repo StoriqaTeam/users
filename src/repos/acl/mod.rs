@@ -4,5 +4,5 @@
 pub mod acl;
 pub mod cached_roles;
 
-pub use self::acl::{Acl, AclImpl, SystemAcl};
-pub use self::cached_roles::CachedRoles;
+pub use self::acl::{Acl, ApplicationAcl, SYSTEMACL, UNAUTHANTICATEDACL};
+pub use self::cached_roles::RolesCache;

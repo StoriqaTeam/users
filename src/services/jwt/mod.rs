@@ -1,5 +1,6 @@
 pub mod model;
 
+use std::sync::Arc;
 use std::str;
 
 use futures::future;
@@ -26,7 +27,7 @@ use super::types::ServiceFuture;
 use super::error::Error;
 use repos::types::DbPool;
 use self::model::{GoogleProfile, FacebookProfile, JWTPayload, Email, IntoUser};
-use repos::acl::SystemAcl;
+use repos::acl::{SYSTEMACL};
 
 
 
@@ -55,11 +56,10 @@ pub struct JWTServiceImpl <U:'static + UsersRepo + Clone, I: 'static + Identitie
     pub jwt_config: JWTConfig,
 }
 
-impl JWTServiceImpl<UsersRepoImpl<SystemAcl>, IdentitiesRepoImpl> {
-    pub fn new(r2d2_pool: DbPool, cpu_pool:CpuPool, http_client: ClientHandle, config: Config) -> Self {
-        let acl = Some(SystemAcl::new());
-        let users_repo = UsersRepoImpl::new(r2d2_pool.clone(), cpu_pool.clone(), acl);
-        let ident_repo = IdentitiesRepoImpl::new(r2d2_pool, cpu_pool);
+impl JWTServiceImpl<UsersRepoImpl, IdentitiesRepoImpl> {
+    pub fn new(db_pool: DbPool, cpu_pool:CpuPool, http_client: ClientHandle, config: Config) -> Self {
+        let users_repo = UsersRepoImpl::new(db_pool.clone(), cpu_pool.clone(), Arc::new(SYSTEMACL));
+        let ident_repo = IdentitiesRepoImpl::new(db_pool, cpu_pool);
         Self {
             users_repo: users_repo,
             ident_repo: ident_repo,
