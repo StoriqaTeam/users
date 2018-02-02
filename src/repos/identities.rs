@@ -78,7 +78,6 @@ impl<'a> IdentitiesRepo for IdentitiesRepoImpl<'a> {
         provider_arg: Provider,
         user_id_arg: UserId
     ) -> Result<Identity, Error> {
-        let conn = self.db_conn;
 
         let identity_arg = Identity {
             user_id: user_id_arg,
@@ -89,17 +88,16 @@ impl<'a> IdentitiesRepo for IdentitiesRepoImpl<'a> {
         
         let ident_query = diesel::insert_into(identities).values(&identity_arg);
         ident_query
-            .get_result::<Identity>(&**conn)
+            .get_result::<Identity>(&**self.db_conn)
             .map_err(Error::from)
     }
 
     /// Find specific user by email
     fn find_by_email_provider(&self, email_arg: String, provider_arg: Provider) -> Result<Identity, Error> {
-        let conn = self.db_conn;
         let query = identities
             .filter(email.eq(email_arg))
             .filter(provider.eq(provider_arg));
 
-        query.first::<Identity>(&**conn).map_err(|e| Error::from(e))
+        query.first::<Identity>(&**self.db_conn).map_err(|e| Error::from(e))
     }
 }

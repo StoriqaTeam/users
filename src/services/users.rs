@@ -1,12 +1,9 @@
-
 use futures::future;
-use futures::Future;
 use futures_cpupool::CpuPool;
 use sha3::{Digest, Sha3_256};
 use rand;
 use base64::encode;
 use diesel::Connection;
-use std::sync::Arc;
 
 use models::{NewUser, UpdateUser, User, UserId};
 use models::{Provider, NewIdentity};
@@ -14,7 +11,7 @@ use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
 use super::types::ServiceFuture;
 use super::error::Error;
-use repos::types::{DbPool, DbConnection};
+use repos::types::DbPool;
 
 pub trait UsersService {
     /// Returns user by ID
@@ -50,22 +47,18 @@ impl UsersServiceImpl {
     }
 }
 
-fn get_connection(r2d2_pool: &DbPool) -> DbConnection {
-    match r2d2_pool.get() {
-        Ok(conn) => conn,
-        Err(e) => panic!("Error obtaining connection from pool: {}", e),
-    }
-}
-
 impl UsersService for UsersServiceImpl {
     /// Returns user by ID
     fn get(&self, user_id: UserId) -> ServiceFuture<User> {
         let r2d2_clone = self.r2d2_pool.clone();
         
         Box::new(self.cpu_pool.spawn_fn(move || {
-            let conn = get_connection(&r2d2_clone);
-            let users_repo = UsersRepoImpl::new(&conn);
-            users_repo.find(user_id).map_err(Error::from)
+            r2d2_clone.get()
+                    .map_err(|e| Error::Database(format!("Connection error {}", e)))
+                    .and_then(move |conn| {
+                        let users_repo = UsersRepoImpl::new(&conn);
+                        users_repo.find(user_id).map_err(Error::from)
+                    })
         }))
     }
 
@@ -75,9 +68,12 @@ impl UsersService for UsersServiceImpl {
             let r2d2_clone = self.r2d2_pool.clone();
 
             Box::new(self.cpu_pool.spawn_fn(move || {
-                let conn = get_connection(&r2d2_clone);
-                let users_repo = UsersRepoImpl::new(&conn);
-                users_repo.find_by_email(email.to_string()).map_err(Error::from)
+                r2d2_clone.get()
+                    .map_err(|e| Error::Database(format!("Connection error {}", e)))
+                    .and_then(move |conn| {
+                        let users_repo = UsersRepoImpl::new(&conn);
+                        users_repo.find_by_email(email.to_string()).map_err(Error::from)
+                    })
             }))
         } else {
             Box::new(future::err(Error::Unknown(format!("There is no user email in request header."))))
@@ -90,11 +86,14 @@ impl UsersService for UsersServiceImpl {
 
         Box::new(
             self.cpu_pool.spawn_fn(move || {
-                let conn = get_connection(&r2d2_clone);
-                let users_repo = UsersRepoImpl::new(&conn);
-                users_repo
-                    .list(from, count)
-                    .map_err(|e| Error::from(e))
+                r2d2_clone.get()
+                    .map_err(|e| Error::Database(format!("Connection error {}", e)))
+                    .and_then(move |conn| {
+                        let users_repo = UsersRepoImpl::new(&conn);
+                        users_repo
+                            .list(from, count)
+                            .map_err(|e| Error::from(e))
+                    })
             })
         )
     }
@@ -105,11 +104,14 @@ impl UsersService for UsersServiceImpl {
 
         Box::new(
             self.cpu_pool.spawn_fn(move || {
-                let conn = get_connection(&r2d2_clone);
-                let users_repo = UsersRepoImpl::new(&conn);
-                users_repo
-                    .deactivate(user_id)
-                    .map_err(|e| Error::from(e))
+                r2d2_clone.get()
+                    .map_err(|e| Error::Database(format!("Connection error {}", e)))
+                    .and_then(move |conn| {
+                        let users_repo = UsersRepoImpl::new(&conn);
+                        users_repo
+                            .deactivate(user_id)
+                            .map_err(|e| Error::from(e))
+                    })
             })
         )
     }
@@ -120,37 +122,40 @@ impl UsersService for UsersServiceImpl {
 
         Box::new(
             self.cpu_pool.spawn_fn(move || {
-                let conn = get_connection(&r2d2_clone);
-                let users_repo = UsersRepoImpl::new(&conn);
-                let ident_repo = IdentitiesRepoImpl::new(&conn);
-                conn.transaction::<User, Error, _>(move || {
-                    ident_repo
-                        .email_provider_exists(payload.email.to_string(), Provider::Email)
-                        .map(move |exists| (payload, exists))
-                        .map_err(Error::from)
-                        .and_then(|(payload, exists)| match exists {
-                            false => Ok(payload),
-                            true => Err(Error::Database("Email already exists".into())),
-                        })
-                        .and_then(move |new_ident| {
-                            let new_user = NewUser::from(new_ident.clone());
-                            users_repo
-                                .create(new_user)
-                                .map_err(|e| Error::from(e))
-                                .map(|user| (new_ident, user))
-                        })
-                        .and_then(move |(new_ident, user)| 
+                r2d2_clone.get()
+                    .map_err(|e| Error::Database(format!("Connection error {}", e)))
+                    .and_then(move |conn| {
+                        let users_repo = UsersRepoImpl::new(&conn);
+                        let ident_repo = IdentitiesRepoImpl::new(&conn);
+                        conn.transaction::<User, Error, _>(move || {
                             ident_repo
-                                .create(
-                                    new_ident.email, 
-                                    Some(Self::password_create(new_ident.password.clone())), 
-                                    Provider::Email, 
-                                    user.id.clone()
+                                .email_provider_exists(payload.email.to_string(), Provider::Email)
+                                .map(move |exists| (payload, exists))
+                                .map_err(Error::from)
+                                .and_then(|(payload, exists)| match exists {
+                                    false => Ok(payload),
+                                    true => Err(Error::Database("Email already exists".into())),
+                                })
+                                .and_then(move |new_ident| {
+                                    let new_user = NewUser::from(new_ident.clone());
+                                    users_repo
+                                        .create(new_user)
+                                        .map_err(|e| Error::from(e))
+                                        .map(|user| (new_ident, user))
+                                })
+                                .and_then(move |(new_ident, user)| 
+                                    ident_repo
+                                        .create(
+                                            new_ident.email, 
+                                            Some(Self::password_create(new_ident.password.clone())), 
+                                            Provider::Email, 
+                                            user.id.clone()
+                                        )
+                                        .map_err(|e| Error::from(e))
+                                        .map(|_| user)
                                 )
-                                .map_err(|e| Error::from(e))
-                                .map(|_| user)
-                        )
-                })
+                        })
+                    })
             })
         )
     }
@@ -161,12 +166,15 @@ impl UsersService for UsersServiceImpl {
 
         Box::new(
             self.cpu_pool.spawn_fn(move || {
-                let conn = get_connection(&r2d2_clone);
-                let users_repo = UsersRepoImpl::new(&conn);
-                users_repo
-                    .find(user_id.clone())
-                    .and_then(move |_user| users_repo.update(user_id, payload))
-                    .map_err(|e| Error::from(e))
+                r2d2_clone.get()
+                    .map_err(|e| Error::Database(format!("Connection error {}", e)))
+                    .and_then(move |conn| {
+                        let users_repo = UsersRepoImpl::new(&conn);
+                        users_repo
+                            .find(user_id.clone())
+                            .and_then(move |_user| users_repo.update(user_id, payload))
+                            .map_err(|e| Error::from(e))
+                    })
             })
         )
     }

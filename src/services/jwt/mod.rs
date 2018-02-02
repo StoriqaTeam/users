@@ -25,7 +25,7 @@ use config::OAuth;
 use config::Config;
 use super::types::ServiceFuture;
 use super::error::Error;
-use repos::types::{DbPool, DbConnection};
+use repos::types::DbPool;
 use self::model::{GoogleProfile, FacebookProfile, JWTPayload, Email, IntoUser};
 
 
@@ -65,13 +65,6 @@ impl JWTServiceImpl {
     }
 }
 
-fn get_connection(r2d2_pool: &DbPool) -> DbConnection {
-    match r2d2_pool.get() {
-        Ok(conn) => conn,
-        Err(e) => panic!("Error obtaining connection from pool: {}", e),
-    }
-}
-
 trait ProfileService<P: Email> {
     fn create_token(&self, provider: Provider, secret: String, info_url: String, headers: Option<Headers>)  -> ServiceFuture<JWT> ;
 
@@ -95,7 +88,6 @@ trait ProfileService<P: Email> {
 
     fn create_or_update_profile(&self, profile: P) -> ServiceFuture<String>;
 }
-
 
 impl<P> ProfileService<P> for JWTServiceImpl 
     where   P: Email + Clone + Send + 'static,
@@ -156,7 +148,6 @@ impl<P> ProfileService<P> for JWTServiceImpl
     }
 
     fn update_profile(&self, users_repo: UsersRepoImpl, profile: P) -> Result<String, Error> {
-
         users_repo
             .find_by_email(profile.get_email())
             .map_err(Error::from)
@@ -176,23 +167,26 @@ impl<P> ProfileService<P> for JWTServiceImpl
 
         Box::new(
             self.cpu_pool.spawn_fn(move || {
-                let conn = get_connection(&r2d2_clone);
-                let users_repo = UsersRepoImpl::new(&conn);
-                let ident_repo = IdentitiesRepoImpl::new(&conn);
+                r2d2_clone.get()
+                    .map_err(|e| Error::Database(format!("Connection error {}", e)))
+                    .and_then(move |conn| {
+                        let users_repo = UsersRepoImpl::new(&conn);
+                        let ident_repo = IdentitiesRepoImpl::new(&conn);
 
-                conn.transaction::<String, Error, _>(move || {
-                    users_repo
-                        .email_exists(profile.get_email())
-                        .map_err(Error::from)
-                        .map(|email_exist| (profile, email_exist))
-                        .and_then(move |(profile, email_exist)| ->  Result<String, Error> {
-                            match email_exist {
-                                // user doesn't exist, creating user + identity
-                                false => service.create_profile(users_repo, ident_repo, profile),
-                                // user exists, creating identity and filling user info
-                                true => service.update_profile(users_repo, profile)
-                        }})
-                })
+                        conn.transaction::<String, Error, _>(move || {
+                            users_repo
+                                .email_exists(profile.get_email())
+                                .map_err(Error::from)
+                                .map(|email_exist| (profile, email_exist))
+                                .and_then(move |(profile, email_exist)| ->  Result<String, Error> {
+                                    match email_exist {
+                                        // user doesn't exist, creating user + identity
+                                        false => service.create_profile(users_repo, ident_repo, profile),
+                                        // user exists, creating identity and filling user info
+                                        true => service.update_profile(users_repo, profile)
+                                }})
+                        })
+                    })
             })
         )
     }
@@ -202,18 +196,20 @@ impl<P> ProfileService<P> for JWTServiceImpl
 
         Box::new(
             self.cpu_pool.spawn_fn(move || {
-                let conn = get_connection(&r2d2_clone);
-                let ident_repo = IdentitiesRepoImpl::new(&conn);
+                r2d2_clone.get()
+                    .map_err(|e| Error::Database(format!("Connection error {}", e)))
+                    .and_then(move |conn| {
+                        let ident_repo = IdentitiesRepoImpl::new(&conn);
 
-                ident_repo
-                    .email_provider_exists(profile.get_email(), provider)
-                    .map_err(Error::from)
+                        ident_repo
+                            .email_provider_exists(profile.get_email(), provider)
+                            .map_err(Error::from)
+                    })
             })
         )
     }
     
 }
- 
 
 impl JWTService for JWTServiceImpl {
     /// Creates new JWT token by email
@@ -224,55 +220,55 @@ impl JWTService for JWTServiceImpl {
         let r2d2_clone = self.r2d2_pool.clone();
         let jwt_secret_key = self.jwt_config.secret_key.clone();
 
-        let create_token = move || {
-            
-        };
-
         Box::new(
             self.cpu_pool.spawn_fn(move || {
-                let conn = get_connection(&r2d2_clone);
-                let ident_repo = IdentitiesRepoImpl::new(&conn);
+                r2d2_clone.get()
+                    .map_err(|e| Error::Database(format!("Connection error {}", e)))
+                    .and_then(move |conn| {
+                        let ident_repo = IdentitiesRepoImpl::new(&conn);
 
-                conn.transaction::<JWT, Error, _>(move || {
-                    ident_repo
-                        .email_provider_exists(payload.email.to_string(), Provider::Email)
-                        .map_err(Error::from)
-                        .map(|exists| (exists, payload))
-                        .and_then(
-                            move |(exists, new_user)| -> Result<String, Error> {
-                                match exists {
-                                    // email does not exist
-                                    false => Err(Error::NotFound),
-                                    // email exists, checking password
-                                    true => {
-                                        let new_user_clone = new_user.clone();
-                                        
-                                        ident_repo
-                                            .find_by_email_provider(new_user.email.clone(), Provider::Email)
-                                            .map_err(Error::from)
-                                            .and_then (move |identity| 
-                                                Self::password_verify(identity.password.unwrap().clone(), new_user.password.clone())
-                                            )
-                                            .map(move |verified| (verified, new_user_clone))
-                                            .and_then( move |(verified, user)| -> Result<String, Error> {
-                                                    match verified {
-                                                        //password not verified
-                                                        false => Err(Error::Database("Email or password are incorrect".into())),
-                                                        //password verified
-                                                        true => Ok(user.email)
-                                                    }
-                                            })
-                                    },
-                                }
-                            }
-                        )
-                        .and_then(move |email| {
-                            let tokenpayload = JWTPayload::new(email);
-                            encode(&Header::default(), &tokenpayload, jwt_secret_key.as_ref())
-                                .map_err(|_| Error::Parse(format!("Couldn't encode jwt: {:?}", tokenpayload)))
-                                .and_then(|t| Ok(JWT { token: t }))
+                        conn.transaction::<JWT, Error, _>(move || {
+                            ident_repo
+                                .email_provider_exists(payload.email.to_string(), Provider::Email)
+                                .map_err(Error::from)
+                                .map(|exists| (exists, payload))
+                                .and_then(
+                                    move |(exists, new_user)| -> Result<String, Error> {
+                                        match exists {
+                                            // email does not exist
+                                            false => Err(Error::NotFound),
+                                            // email exists, checking password
+                                            true => {
+                                                let new_user_clone = new_user.clone();
+                                                
+                                                ident_repo
+                                                    .find_by_email_provider(new_user.email.clone(), Provider::Email)
+                                                    .map_err(Error::from)
+                                                    .and_then (move |identity| 
+                                                        Self::password_verify(identity.password.unwrap().clone(), new_user.password.clone())
+                                                    )
+                                                    .map(move |verified| (verified, new_user_clone))
+                                                    .and_then( move |(verified, user)| -> Result<String, Error> {
+                                                            match verified {
+                                                                //password not verified
+                                                                false => Err(Error::Database("Email or password are incorrect".into())),
+                                                                //password verified
+                                                                true => Ok(user.email)
+                                                            }
+                                                    })
+                                            },
+                                        }
+                                    }
+                                )
+                                .and_then(move |email| {
+                                    let tokenpayload = JWTPayload::new(email);
+                                    encode(&Header::default(), &tokenpayload, jwt_secret_key.as_ref())
+                                        .map_err(|_| Error::Parse(format!("Couldn't encode jwt: {:?}", tokenpayload)))
+                                        .and_then(|t| Ok(JWT { token: t }))
+                                })
                         })
-                })
+                    })
+                
             })
         )
     }
