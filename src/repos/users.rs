@@ -11,8 +11,8 @@ use diesel::pg::PgConnection;
 use futures::future;
 use futures_cpupool::CpuPool;
 
-use models::user::{UpdateUser, User, NewUser};
-use models::user::users::dsl::*;
+use models::{UpdateUser, User, NewUser, UserId};
+use models::user::user::users::dsl::*;
 use super::error::Error;
 use super::types::{DbConnection, DbPool, RepoFuture};
 use repos::acl::Acl;
@@ -30,7 +30,7 @@ pub struct UsersRepoImpl {
 
 pub trait UsersRepo {
     /// Find specific user by ID
-    fn find(&self, user_id: i32) -> RepoFuture<User>;
+    fn find(&self, user_id: UserId) -> RepoFuture<User>;
 
     fn email_exists(&self, email_arg: String) -> RepoFuture<bool>;
 
@@ -44,10 +44,10 @@ pub trait UsersRepo {
     fn create(&self, payload: NewUser) -> RepoFuture<User>;
 
     /// Updates specific user
-    fn update(&self, user_id: i32, payload: UpdateUser) -> RepoFuture<User>;
+    fn update(&self, user_id: UserId, payload: UpdateUser) -> RepoFuture<User>;
 
     /// Deactivates specific user
-    fn deactivate(&self, user_id: i32) -> RepoFuture<User>;
+    fn deactivate(&self, user_id: UserId) -> RepoFuture<User>;
 }
 
 impl UsersRepoImpl {
@@ -87,7 +87,7 @@ impl UsersRepoImpl {
 
 impl UsersRepo for UsersRepoImpl {
     /// Find specific user by ID
-    fn find(&self, user_id_arg: i32) -> RepoFuture<User> {
+    fn find(&self, user_id_arg: UserId) -> RepoFuture<User> {
         self.execute_query(users.find(user_id_arg))
     }
 
@@ -137,7 +137,7 @@ impl UsersRepo for UsersRepoImpl {
     }
 
     /// Updates specific user
-    fn update(&self, user_id_arg: i32, payload: UpdateUser) -> RepoFuture<User> {
+    fn update(&self, user_id_arg: UserId, payload: UpdateUser) -> RepoFuture<User> {
         let conn = self.get_connection();
         let filter = users.filter(id.eq(user_id_arg)).filter(is_active.eq(true));
 
@@ -148,7 +148,7 @@ impl UsersRepo for UsersRepoImpl {
     }
 
     /// Deactivates specific user
-    fn deactivate(&self, user_id_arg: i32) -> RepoFuture<User> {
+    fn deactivate(&self, user_id_arg: UserId) -> RepoFuture<User> {
         let filter = users.filter(id.eq(user_id_arg)).filter(is_active.eq(true));
         let query = diesel::update(filter).set(is_active.eq(false));
         self.execute_query(query)

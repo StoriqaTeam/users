@@ -1,11 +1,12 @@
 use regex::{Regex};
+use models::UserId;
 
 /// List of all routes with params for the app
 #[derive(Clone, Debug, PartialEq)]
 pub enum Route {
     Healthcheck,
     Users,
-    User(i32),
+    User(UserId),
     Current,
     JWTEmail,
     JWTGoogle,
@@ -131,7 +132,7 @@ pub fn create_route_parser() -> RouteParser {
     // Users/:id route
     router.add_route_with_params(r"^/users/(\d+)$", |params| {
         params.get(0)
-            .and_then(|string_id| string_id.parse::<i32>().ok())
+            .and_then(|string_id| string_id.parse::<UserId>().ok())
             .map(|user_id| Route::User(user_id))
     });
 

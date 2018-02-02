@@ -14,9 +14,9 @@ use base64::decode;
 use serde;
 
 
-use models::jwt::{JWT, ProviderOauth};
-use models::user::{NewUser};
-use models::identity::{Provider, NewIdentity};
+use models::{JWT, ProviderOauth};
+use models::{NewUser};
+use models::{Provider, NewIdentity};
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
 use http::client::ClientHandle;
@@ -156,7 +156,7 @@ impl<P, U, I> ProfileService<P> for JWTServiceImpl<U, I>
                     ident_repo
                         .create(profile.get_email(), None, provider, user.id)
                         .map_err(Error::from)
-                        .map(|u| u.user_id)
+                        .map(|u| u.user_id.0)
                 })
         )
     }
@@ -173,7 +173,7 @@ impl<P, U, I> ProfileService<P> for JWTServiceImpl<U, I>
                     Box::new(
                         users_repo.update(user.id, update_user)
                         .map_err(Error::from)
-                        .map(|u| u.id)
+                        .map(|u| u.id.0)
                     )
                 }                                                
             ))
@@ -209,7 +209,7 @@ impl<P, U, I> ProfileService<P> for JWTServiceImpl<U, I>
             ident_repo
                 .find_by_email_provider(profile.get_email(), provider)
                 .map_err(Error::from)
-                .map(|ident| ident.user_id)
+                .map(|ident| ident.user_id.0)
         )
     }
 }
@@ -242,7 +242,7 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> JWTService for JWTServiceI
                                         .find_by_email_provider(new_ident.email.clone(), Provider::Email)
                                         .map_err(Error::from)
                                         .and_then (move |identity| 
-                                            Self::password_verify(identity.user_password.unwrap().clone(), new_ident.password.clone())
+                                            Self::password_verify(identity.password.unwrap().clone(), new_ident_clone.password.clone())
                                         )
                                         .map(move |verified| (verified, new_ident_clone))
                                         .and_then( move |(verified, new_ident)| -> ServiceFuture<i32> {
@@ -253,7 +253,7 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> JWTService for JWTServiceI
                                                     true => Box::new(ident_repo
                                                                         .find_by_email_provider(new_ident.email, Provider::Email)
                                                                         .map_err(Error::from)
-                                                                        .map(|ident| ident.user_id))
+                                                                        .map(|ident| ident.user_id.0))
                                                 }
                                         })
                                 )

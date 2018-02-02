@@ -114,7 +114,14 @@ impl Controller {
                 serialize_future!(
                     parse_body::<models::identity::NewIdentity>(req.body())
                         .map_err(|_| Error::UnprocessableEntity("Error parsing request from gateway body".to_string()))
-                        .and_then(move |new_ident| users_service.create(new_ident).map_err(|e| Error::from(e)))
+                        .and_then(move |new_ident| {
+                            let checked_new_ident = models::identity::NewIdentity {
+                                email: new_ident.email.to_lowercase(),
+                                password: new_ident.password,
+                            };
+
+                            users_service.create(checked_new_ident).map_err(|e| Error::from(e))
+                        })
                 )
             },
 
@@ -137,7 +144,14 @@ impl Controller {
                 serialize_future!(
                     parse_body::<models::identity::NewIdentity>(req.body())
                         .map_err(|_| Error::UnprocessableEntity("Error parsing request from gateway body".to_string()))
-                        .and_then(move |new_ident| jwt_service.create_token_email(new_ident).map_err(|e| Error::from(e)))
+                        .and_then(move |new_ident| {
+                            let checked_new_ident = models::identity::NewIdentity {
+                                email: new_ident.email.to_lowercase(),
+                                password: new_ident.password,
+                            };
+
+                            jwt_service.create_token_email(checked_new_ident).map_err(|e| Error::from(e))
+                        })
                 )
             },
 

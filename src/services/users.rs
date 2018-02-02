@@ -7,8 +7,8 @@ use sha3::{Digest, Sha3_256};
 use rand;
 use base64::encode;
 
-use models::user::{NewUser, UpdateUser, User};
-use models::identity::{NewIdentity, Provider};
+use models::{NewUser, UpdateUser, User, UserId};
+use models::{Provider, NewIdentity};
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
 
@@ -20,18 +20,18 @@ use repos::acl::{ApplicationAcl, RolesCacheImpl, Acl, UnAuthanticatedACL};
 
 pub trait UsersService {
     /// Returns user by ID
-    fn get(&self, user_id: i32) -> ServiceFuture<User>;
+    fn get(&self, user_id: UserId) -> ServiceFuture<User>;
     /// Returns current user
     fn current(&self) -> ServiceFuture<User>;
     /// Lists users limited by `from` and `count` parameters
     fn list(&self, from: i32, count: i64) -> ServiceFuture<Vec<User>>;
     /// Deactivates specific user
-    fn deactivate(&self, user_id: i32) -> ServiceFuture<User>;
+    fn deactivate(&self, user_id: UserId) -> ServiceFuture<User>;
     /// Creates new user
     fn create(&self, payload: NewIdentity) -> ServiceFuture<User>;
     /// Updates specific user
-    fn update(&self, user_id: i32, payload: UpdateUser) -> ServiceFuture<User>;
-    /// creates hashed password
+    fn update(&self, user_id: UserId, payload: UpdateUser) -> ServiceFuture<User>;
+    /// creates hashed password 
     fn password_create(clear_password: String) -> String;
 }
 
@@ -69,12 +69,8 @@ impl<
     I: 'static + IdentitiesRepo + Clone,
 > UsersService for UsersServiceImpl<U, I> {
     /// Returns user by ID
-    fn get(&self, user_id: i32) -> ServiceFuture<User> {
-        Box::new(
-            self.users_repo
-                .find(user_id)
-                .map_err(Error::from)
-                )
+    fn get(&self, user_id: UserId) -> ServiceFuture<User> {
+        Box::new(self.users_repo.find(user_id).map_err(Error::from))
     }
 
     /// Returns current user
@@ -98,7 +94,7 @@ impl<
     }
 
     /// Deactivates specific user
-    fn deactivate(&self, user_id: i32) -> ServiceFuture<User> {
+    fn deactivate(&self, user_id: UserId) -> ServiceFuture<User> {
         Box::new(
             self.users_repo
                 .deactivate(user_id)
@@ -128,31 +124,33 @@ impl<
                         .map_err(|e| Error::from(e))
                         .map(|user| (new_ident, user))
                 })
-                .and_then(move |(new_ident, user)| {
-                    ident_repo
-                        .create(
-                            new_ident.email,
-                            Some(Self::password_create(new_ident.password.clone())),
-                            Provider::Email,
-                            user.id,
-                        )
-                        .map_err(|e| Error::from(e))
-                        .map(|_| user)
-                }),
+                .and_then(move |(new_ident, user)| 
+                        ident_repo
+                            .create(
+                                new_ident.email, 
+                                Some(Self::password_create(new_ident.password.clone())), 
+                                Provider::Email, 
+                                user.id.clone()
+                            )
+                            .map_err(|e| Error::from(e))
+                            .map(|_| user)
+                    )
+                ,
         )
     }
 
     /// Updates specific user
-    fn update(&self, user_id: i32, payload: UpdateUser) -> ServiceFuture<User> {
+    fn update(&self, user_id: UserId, payload: UpdateUser) -> ServiceFuture<User> {
         let users_repo = self.users_repo.clone();
 
         Box::new(
             users_repo
-                .find(user_id)
+                .find(user_id.clone())
                 .and_then(move |_user| users_repo.update(user_id, payload))
                 .map_err(|e| Error::from(e)),
         )
     }
+    
 
     fn password_create(clear_password: String) -> String {
         let salt = rand::random::<u64>().to_string().split_off(10);
