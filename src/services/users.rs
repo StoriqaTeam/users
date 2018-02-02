@@ -9,7 +9,6 @@ use models::user::{NewUser, UpdateUser, User};
 use models::identity::{NewIdentity, Provider};
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
-use repos::user_roles::UserRolesRepoImpl;
 
 use super::types::ServiceFuture;
 use super::error::Error;
@@ -44,15 +43,15 @@ pub struct UsersServiceImpl<
     pub user_id: Option<i32>,
 }
 
-impl UsersServiceImpl<UsersRepoImpl<AclImpl<UserRolesRepoImpl>>, IdentitiesRepoImpl> {
+impl UsersServiceImpl<UsersRepoImpl<AclImpl>, IdentitiesRepoImpl> {
     pub fn new(
         r2d2_pool: DbPool,
         cpu_pool: CpuPool,
-        cached_roles: CachedRoles<UserRolesRepoImpl>,
+        cached_roles: CachedRoles,
         user_id: Option<i32>,
     ) -> Self {
         let ident_repo = IdentitiesRepoImpl::new(r2d2_pool.clone(), cpu_pool.clone());
-        let acl = user_id.map(|id| AclImpl::new(cached_roles.clone(), id));
+        let acl = user_id.map(|id| AclImpl::new(cached_roles.clone(), id, r2d2_pool.clone(), cpu_pool.clone()));
         let users_repo = UsersRepoImpl::new(r2d2_pool, cpu_pool, acl);
         Self {
             users_repo: users_repo,

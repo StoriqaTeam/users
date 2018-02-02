@@ -34,8 +34,7 @@ extern crate chrono;
 extern crate sha3;
 extern crate rand;
 extern crate base64;
-#[macro_use]
-extern crate lazy_static;
+
 
 #[macro_use]
 pub mod macros;
@@ -61,8 +60,7 @@ use tokio_core::reactor::Core;
 
 use app::Application;
 use config::Config;
-use repos::user_roles::{UserRolesRepoImpl};
-use repos::acl::{CachedRoles};
+use repos::acl::CachedRoles;
 
 
 /// Starts new web service from provided `Config`
@@ -97,8 +95,7 @@ pub fn start_server(config: Config) {
         // Prepare CPU pool
         let cpu_pool = CpuPool::new(thread_count);
 
-        let users_roles_repo = UserRolesRepoImpl::new(r2d2_pool.clone(), cpu_pool.clone());
-        let chached_roles = CachedRoles::new(users_roles_repo);
+        let chached_roles = CachedRoles::new();
 
         let controller = controller::Controller::new(r2d2_pool, cpu_pool, client_handle.clone(), config.clone(), chached_roles);
 

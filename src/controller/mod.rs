@@ -24,7 +24,6 @@ use services::system::{SystemServiceImpl, SystemService};
 use services::users::{UsersServiceImpl, UsersService};
 use services::jwt::{JWTService, JWTServiceImpl};
 use repos::types::DbPool;
-use repos::user_roles::{UserRolesRepoImpl};
 use repos::acl::{CachedRoles};
 
 use models;
@@ -41,7 +40,7 @@ pub struct Controller {
     pub route_parser: Arc<RouteParser>,
     pub config : Config,
     pub client_handle: ClientHandle,
-    pub cached_roles: CachedRoles<UserRolesRepoImpl>
+    pub cached_roles: CachedRoles
 }
 
 macro_rules! serialize_future {
@@ -55,7 +54,7 @@ impl Controller {
         cpu_pool: CpuPool,
         client_handle: ClientHandle,
         config: Config,
-        cached_roles: CachedRoles<UserRolesRepoImpl>
+        cached_roles: CachedRoles
     ) -> Self {
         let route_parser = Arc::new(routes::create_route_parser());
         Self {

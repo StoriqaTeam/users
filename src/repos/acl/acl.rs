@@ -1,12 +1,13 @@
 //! Authorization module contains authorization logic for the repo layer app
 use std::cell::RefCell;
 use std::rc::Rc;
-
 use std::collections::HashMap;
 
-use repos::user_roles::UserRolesRepo;
+use futures_cpupool::CpuPool;
+
 use models::authorization::*;
 use super::CachedRoles;
+use repos::types::DbPool;
 
 macro_rules! permission {
     ($resource: expr) => { Permission { resource: $resource, action: Action::All, scope: Scope::All }  };
@@ -44,9 +45,11 @@ impl Acl for SystemAcl {
 
 // TODO: remove info about deleted user from cache
 #[derive(Clone)]
-pub struct AclImpl<U: UserRolesRepo + 'static + Clone> {
+pub struct AclImpl {
     acls: Rc<RefCell<HashMap<Role, Vec<Permission>>>>,
-    cached_roles: CachedRoles<U>,
+    cached_roles: CachedRoles,
+    r2d2_pool: DbPool, 
+    cpu_pool: CpuPool,
     user_id: i32
 }
 
@@ -63,8 +66,8 @@ macro_rules! hashmap(
 );
 
 
-impl<U: UserRolesRepo + 'static + Clone> AclImpl<U> {
-    pub fn new(cached_roles: CachedRoles<U>, user_id: i32) -> Self {
+impl AclImpl {
+    pub fn new(cached_roles: CachedRoles, user_id: i32, r2d2_pool: DbPool, cpu_pool: CpuPool) -> Self {
         let hash = hashmap! {
                 Role::Superuser => vec![
                     permission!(Resource::Users), 
@@ -78,16 +81,18 @@ impl<U: UserRolesRepo + 'static + Clone> AclImpl<U> {
         Self { 
             acls: Rc::new(RefCell::new(hash)), 
             cached_roles: cached_roles, 
-            user_id: user_id 
+            user_id: user_id,
+            r2d2_pool: r2d2_pool,
+            cpu_pool: cpu_pool
         }
     }
 }
 
-impl<U: UserRolesRepo + 'static + Clone> Acl for AclImpl<U> {
+impl Acl for AclImpl {
     fn can(&mut self, resource: Resource, action: Action, resources_with_scope: Vec<&WithScope>) -> bool {
         let empty: Vec<Permission> = Vec::new();
         let user_id = &self.user_id;
-        let roles = self.cached_roles.get(*user_id);
+        let roles = self.cached_roles.get(*user_id, self.r2d2_pool.clone(), self.cpu_pool.clone());
         let hashed_acls = self.acls.borrow_mut();
         let acls = roles.into_iter()
             .flat_map(|role| hashed_acls.get(&role).unwrap_or(&empty))
