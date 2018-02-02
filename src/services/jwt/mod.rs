@@ -27,7 +27,7 @@ use super::types::ServiceFuture;
 use super::error::Error;
 use repos::types::DbPool;
 use self::model::{GoogleProfile, FacebookProfile, JWTPayload, Email, IntoUser};
-use repos::acl::{SYSTEMACL};
+use repos::acl::{SystemACL};
 
 
 
@@ -58,7 +58,7 @@ pub struct JWTServiceImpl <U:'static + UsersRepo + Clone, I: 'static + Identitie
 
 impl JWTServiceImpl<UsersRepoImpl, IdentitiesRepoImpl> {
     pub fn new(db_pool: DbPool, cpu_pool:CpuPool, http_client: ClientHandle, config: Config) -> Self {
-        let users_repo = UsersRepoImpl::new(db_pool.clone(), cpu_pool.clone(), Arc::new(SYSTEMACL));
+        let users_repo = UsersRepoImpl::new(db_pool.clone(), cpu_pool.clone(), Arc::new(SystemACL::new()));
         let ident_repo = IdentitiesRepoImpl::new(db_pool, cpu_pool);
         Self {
             users_repo: users_repo,

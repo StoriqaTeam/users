@@ -17,7 +17,6 @@ use base64::encode;
 
 use users_lib::repos::users::UsersRepo;
 use users_lib::repos::user_roles::UserRolesRepo;
-use users_lib::repos::acl::{CachedRoles, AclImpl, Acl};
 use users_lib::repos::identities::IdentitiesRepo;
 use users_lib::repos::types::RepoFuture;
 use users_lib::services::users::{UsersService, UsersServiceImpl};
@@ -110,69 +109,9 @@ impl IdentitiesRepo for IdentitiesRepoMock {
 }
 
 
-
-#[derive(Clone)]
-pub struct UserRolesRepoMock;
-
-impl UserRolesRepo for UserRolesRepoMock {
-    fn list_for_user(&self, user_id_value: i32) -> RepoFuture<Vec<UserRole>> {
-        let role = match user_id_value {
-            1 => Role::Superuser,
-            _ => Role::User,
-        };
-        let user_role = UserRole {
-                id: 1,
-                user_id: user_id_value,
-                role: role
-            };
-        let roles = vec![user_role];
-        Box::new(futures::future::ok(roles))
-    }
-
-    fn create(&self, payload: NewUserRole) -> RepoFuture<UserRole> {
-         Box::new( futures::future::ok(
-            UserRole {
-                id: 1,
-                user_id: payload.user_id,
-                role: payload.role
-            }
-         ))
-    }
-
-    fn delete(&self, user_id_value: i32, role_value: Role) -> RepoFuture<UserRole> {
-        Box::new( futures::future::ok(
-            UserRole {
-                id: 1,
-                user_id: user_id_value,
-                role: role_value
-            }
-         ))
-    }
-}
-
-#[derive(Clone)]
-pub struct AclImplMock {
-    inner: Arc<Mutex<AclImpl<UserRolesRepoMock>>>
-}
-
-impl AclImplMock {
-    fn new (aclimpl: AclImpl<UserRolesRepoMock>) -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(aclimpl)),
-        }
-    }
-}
-
-impl Acl for AclImplMock {
-    fn can (&mut self, resource: Resource, action: Action, user_id: i32, resources_with_scope: Vec<&WithScope>) -> bool {
-        self.inner.lock().unwrap().can(resource, action, user_id, resources_with_scope)
-    }    
-}
-
 pub fn new_users_service(
     users_repo: UsersRepoMock,
     ident_repo: IdentitiesRepoMock,
-    user_roles_repo: UserRolesRepoMock,
     user_id: Option<i32>,
 ) -> UsersServiceImpl<UsersRepoMock, IdentitiesRepoMock, AclImplMock> {
     let cache = CachedRoles::new(user_roles_repo);
@@ -288,7 +227,6 @@ fn password_create(clear_password: String) -> String {
 
 const MOCK_USERS: UsersRepoMock = UsersRepoMock {};
 const MOCK_IDENT: IdentitiesRepoMock = IdentitiesRepoMock {};
-const MOCK_USER_ROLE: UserRolesRepoMock = UserRolesRepoMock {};
 static MOCK_EMAIL: &'static str = "example@mail.com";
 static MOCK_PASSWORD: &'static str = "password";
 static GOOGLE_TOKEN: &'static str = "ya29.GlxRBXyOU1dfRmFEdVE1oOK3SyQ6UKh4RTESu0J-C19N2o5RCQVEALMi5DKlgctjTQclLCrLQkUovOb05ikfYQdZ2paFja9Uf4GN1hoysgp_dDr9NLgvfo7fGthY8A";

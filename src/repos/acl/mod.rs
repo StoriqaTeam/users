@@ -2,7 +2,7 @@
 
 #[macro_use]
 pub mod acl;
-pub mod cached_roles;
+pub mod roles_cache;
 
-pub use self::acl::{Acl, ApplicationAcl, SYSTEMACL, UNAUTHANTICATEDACL};
-pub use self::cached_roles::RolesCache;
+pub use self::acl::{Acl, ApplicationAcl, SystemACL, UnAuthanticatedACL};
+pub use self::roles_cache::{RolesCacheImpl, RolesCache};

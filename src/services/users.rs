@@ -15,7 +15,7 @@ use repos::users::{UsersRepo, UsersRepoImpl};
 use super::types::ServiceFuture;
 use super::error::Error;
 use repos::types::DbPool;
-use repos::acl::{ApplicationAcl, RolesCache, Acl, UNAUTHANTICATEDACL};
+use repos::acl::{ApplicationAcl, RolesCacheImpl, Acl, UnAuthanticatedACL};
 
 
 pub trait UsersService {
@@ -46,14 +46,14 @@ pub struct UsersServiceImpl<
 }
 
 impl UsersServiceImpl<UsersRepoImpl, IdentitiesRepoImpl> {
-    pub fn new<>(
+    pub fn new(
         db_pool: DbPool,
         cpu_pool: CpuPool,
-        cached_roles: RolesCache,
+        roles_cache: RolesCacheImpl,
         user_id: Option<i32>,
     ) -> Self {
         let ident_repo = IdentitiesRepoImpl::new(db_pool.clone(), cpu_pool.clone());
-        let acl =  user_id.map_or((Arc::new(UNAUTHANTICATEDACL) as Arc<Acl>), |id| (Arc::new(ApplicationAcl::new(cached_roles.clone(), id, db_pool.clone(), cpu_pool.clone())) as Arc<Acl>));
+        let acl =  user_id.map_or((Arc::new(UnAuthanticatedACL::new()) as Arc<Acl>), |id| (Arc::new(ApplicationAcl::new(roles_cache.clone(), id)) as Arc<Acl>));
         let users_repo = UsersRepoImpl::new(db_pool, cpu_pool, acl);
         Self {
             users_repo: users_repo,
@@ -64,50 +64,17 @@ impl UsersServiceImpl<UsersRepoImpl, IdentitiesRepoImpl> {
 
 }
 
-// impl<
-//     U: 'static + UsersRepo + Clone,
-//     I: 'static + IdentitiesRepo + Clone,
-//     UR: 'static + UserRolesRepo + Clone,
-// > UsersServiceImpl<U, I, UR> {
-//     pub fn authorization(
-//         mut acl: A,
-//         user_id: i32,
-//         user: User,
-//         action: Action,
-//     ) -> ServiceFuture<User> {
-//         let can = {
-//             let resources = vec![&user as &WithScope];
-//             acl.can(Resource::Users, action, user_id, resources)
-//         };
-//         match can {
-//             true => Box::new(future::ok(user)),
-//             false => Box::new(future::err(Error::Unknown(format!("Unauthorized access")))),
-//         }
-//     }
-// }
-
-
 impl<
     U: 'static + UsersRepo + Clone,
     I: 'static + IdentitiesRepo + Clone,
 > UsersService for UsersServiceImpl<U, I> {
     /// Returns user by ID
     fn get(&self, user_id: i32) -> ServiceFuture<User> {
-        // match self.user_id {
-        //     Some(id) => {
-        //         let users_repo = self.users_repo.clone();
-                Box::new(
-                    self.users_repo
-                        .find(user_id)
-                        .map_err(Error::from)
-                        )
-        //                 .and_then(move |user| Self::authorization(acl, id, user, Action::Read)),
-        //         )
-        //     }
-        //     None => Box::new(future::err(Error::Unknown(
-        //         format!("There is no user id in request header."),
-        //     ))),
-        // }
+        Box::new(
+            self.users_repo
+                .find(user_id)
+                .map_err(Error::from)
+                )
     }
 
     /// Returns current user
