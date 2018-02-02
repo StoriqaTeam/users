@@ -2,7 +2,7 @@ use std::time::SystemTime;
 use std::str::FromStr;
 use std::str;
 
-use models::user::{NewUser, UpdateUser, Gender, User};
+use models::{NewUser, UpdateUser, Gender, User};
 
 
 /// User profile from google
@@ -55,12 +55,12 @@ pub trait IntoUser {
 impl IntoUser for FacebookProfile {
     fn merge_into_user(&self, user: User) -> UpdateUser {
         let first_name = if user.first_name.is_none() {
-            Some(Some(self.first_name.clone()))
+            Some(self.first_name.clone())
         } else {
             None
         };
         let last_name = if user.last_name.is_none() {
-            Some(Some(self.last_name.clone()))
+            Some(self.last_name.clone())
         } else {
             None
         };
@@ -70,7 +70,6 @@ impl IntoUser for FacebookProfile {
             None
         };
         UpdateUser {
-            email: None,
             phone: None,
             first_name: first_name,
             last_name: last_name,
@@ -84,17 +83,16 @@ impl IntoUser for FacebookProfile {
 impl IntoUser for GoogleProfile {
     fn merge_into_user(&self, user: User) -> UpdateUser {
         let first_name = if user.first_name.is_none() {
-            Some(Some(self.name.clone()))
+            Some(self.name.clone())
         } else {
             None
         };
         let last_name = if user.last_name.is_none() {
-            Some(Some(self.family_name.clone()))
+            Some(self.family_name.clone())
         } else {
             None
         };
         UpdateUser {
-            email: None,
             phone: None,
             first_name: first_name,
             last_name: last_name,

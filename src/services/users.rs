@@ -7,8 +7,8 @@ use rand;
 use base64::encode;
 
 
-use models::user::{NewUser, UpdateUser, User};
-use models::identity::{Provider, NewIdentity};
+use models::{NewUser, UpdateUser, User, UserId};
+use models::{Provider, NewIdentity};
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
 use super::types::ServiceFuture;
@@ -17,17 +17,17 @@ use repos::types::DbPool;
 
 pub trait UsersService {
     /// Returns user by ID
-    fn get(&self, user_id: i32) -> ServiceFuture<User>;
+    fn get(&self, user_id: UserId) -> ServiceFuture<User>;
     /// Returns current user
     fn current(&self) -> ServiceFuture<User>;
     /// Lists users limited by `from` and `count` parameters
     fn list(&self, from: i32, count: i64) -> ServiceFuture<Vec<User>>;
     /// Deactivates specific user
-    fn deactivate(&self, user_id: i32) -> ServiceFuture<User>;
+    fn deactivate(&self, user_id: UserId) -> ServiceFuture<User>;
     /// Creates new user
     fn create(&self, payload: NewIdentity) -> ServiceFuture<User>;
     /// Updates specific user
-    fn update(&self, user_id: i32, payload: UpdateUser) -> ServiceFuture<User>;
+    fn update(&self, user_id: UserId, payload: UpdateUser) -> ServiceFuture<User>;
     /// creates hashed password 
     fn password_create(clear_password: String) -> String;
 }
@@ -53,7 +53,7 @@ impl UsersServiceImpl<UsersRepoImpl, IdentitiesRepoImpl> {
 
 impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> UsersService for UsersServiceImpl<U, I> {
     /// Returns user by ID
-    fn get(&self, user_id: i32) -> ServiceFuture<User> {
+    fn get(&self, user_id: UserId) -> ServiceFuture<User> {
         Box::new(self.users_repo.find(user_id).map_err(Error::from))
     }
 
@@ -76,7 +76,7 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> UsersService for UsersServ
     }
 
     /// Deactivates specific user
-    fn deactivate(&self, user_id: i32) -> ServiceFuture<User> {
+    fn deactivate(&self, user_id: UserId) -> ServiceFuture<User> {
         Box::new(
             self.users_repo
                 .deactivate(user_id)
@@ -108,7 +108,12 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> UsersService for UsersServ
                 })
                 .and_then(move |(new_ident, user)| 
                         ident_repo
-                            .create(new_ident.email, Some(Self::password_create(new_ident.password.clone())), Provider::Email, user.id)
+                            .create(
+                                new_ident.email, 
+                                Some(Self::password_create(new_ident.password.clone())), 
+                                Provider::Email, 
+                                user.id.clone()
+                            )
                             .map_err(|e| Error::from(e))
                             .map(|_| user)
                     )
@@ -117,12 +122,12 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> UsersService for UsersServ
     }
 
     /// Updates specific user
-    fn update(&self, user_id: i32, payload: UpdateUser) -> ServiceFuture<User> {
+    fn update(&self, user_id: UserId, payload: UpdateUser) -> ServiceFuture<User> {
         let users_repo = self.users_repo.clone();
 
         Box::new(
             users_repo
-                .find(user_id)
+                .find(user_id.clone())
                 .and_then(move |_user| users_repo.update(user_id, payload))
                 .map_err(|e| Error::from(e)),
         )
