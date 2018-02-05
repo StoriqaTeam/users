@@ -76,7 +76,7 @@ impl<
     /// Returns current user
     fn current(&self) -> ServiceFuture<User> {
         if let Some(id) = self.user_id {
-            Box::new(self.users_repo.find(id).map_err(Error::from))
+            Box::new(self.users_repo.find(UserId(id)).map_err(Error::from))
         } else {
             Box::new(future::err(Error::Unknown(
                 format!("There is no user id in request header."),

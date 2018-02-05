@@ -242,7 +242,7 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> JWTService for JWTServiceI
                                         .find_by_email_provider(new_ident.email.clone(), Provider::Email)
                                         .map_err(Error::from)
                                         .and_then (move |identity| 
-                                            Self::password_verify(identity.password.unwrap().clone(), new_ident_clone.password.clone())
+                                            Self::password_verify(identity.password.unwrap().clone(), new_ident.password.clone())
                                         )
                                         .map(move |verified| (verified, new_ident_clone))
                                         .and_then( move |(verified, new_ident)| -> ServiceFuture<i32> {
