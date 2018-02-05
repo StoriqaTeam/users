@@ -1,3 +1,4 @@
+//! Module containing info about enum Gender and its impls of service traits for converting to string in db
 use std::str::FromStr;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]

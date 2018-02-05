@@ -1,3 +1,4 @@
+//! Users repo, presents CRUD operations with db for users
 use std::convert::From;
 use std::sync::Arc;
 
@@ -16,7 +17,6 @@ use models::user::user::users::dsl::*;
 use super::error::Error;
 use super::types::{DbConnection, DbPool, RepoFuture};
 use repos::acl::Acl;
-//use models::authorization::*;
 
 
 /// Users repository, responsible for handling users

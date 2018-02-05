@@ -1,13 +1,10 @@
+//! Module containing info about User models 
 use std::time::SystemTime;
-
-use models::UserId;
 
 use validator::Validate;
 
-use models::NewIdentity;
-use models::{Scope, WithScope};
+use models::{UserId, NewIdentity, Gender, Scope, WithScope};
 
-use models::Gender;
 
 table! {
     use diesel::sql_types::*;
@@ -31,29 +28,29 @@ table! {
 
 #[derive(Debug, Serialize, Deserialize, Queryable, Clone)]
 pub struct User {
-   pub id: UserId,
-   pub email: String,
-   pub email_verified: bool,
-   pub phone: Option<String>,
-   pub phone_verified: bool,
-   pub is_active: bool ,
-   pub first_name: Option<String>,
-   pub last_name: Option<String>,
-   pub middle_name: Option<String>,
-   pub gender: Gender,
-   pub birthdate: Option<SystemTime>,
-   pub last_login_at: SystemTime,
-   pub created_at: SystemTime,
-   pub updated_at: SystemTime,
+    pub id: UserId,
+    pub email: String,
+    pub email_verified: bool,
+    pub phone: Option<String>,
+    pub phone_verified: bool,
+    pub is_active: bool,
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+    pub middle_name: Option<String>,
+    pub gender: Gender,
+    pub birthdate: Option<SystemTime>,
+    pub last_login_at: SystemTime,
+    pub created_at: SystemTime,
+    pub updated_at: SystemTime,
 }
 
 /// Payload for creating users
 #[derive(Serialize, Deserialize, Insertable, Validate, Clone)]
 #[table_name = "users"]
 pub struct NewUser {
-    #[validate(email(message = "Invalid email format"))]
+    #[validate(email(message = "Invalid email format"))] 
     pub email: String,
-    #[validate(phone(message = "Invalid phone format"))]
+    #[validate(phone(message = "Invalid phone format"))] 
     pub phone: Option<String>,
     #[validate(length(min = "1", message = "First name must not be empty"))]
     pub first_name: Option<String>,
@@ -82,7 +79,7 @@ impl WithScope for User {
     fn is_in_scope(&self, scope: &Scope, user_id: i32) -> bool {
         match *scope {
             Scope::All => true,
-            Scope::Owned => self.id.0 == user_id
+            Scope::Owned => self.id.0 == user_id,
         }
     }
 }
@@ -94,7 +91,7 @@ impl From<NewIdentity> for NewUser {
             phone: None,
             first_name: None,
             last_name: None,
-            middle_name:  None,
+            middle_name: None,
             gender: Gender::Undefined,
             birthdate: None,
             last_login_at: SystemTime::now(),

@@ -1,4 +1,5 @@
-pub mod model;
+//! Json Web Token Services, presents creating jwt from google, facebook and email + password
+pub mod profile;
 
 use std::sync::Arc;
 use std::str;
@@ -14,20 +15,18 @@ use base64::decode;
 use serde;
 
 
-use models::{JWT, ProviderOauth};
-use models::{NewUser};
-use models::{Provider, NewIdentity};
+use models::{JWT, ProviderOauth, JWTPayload, NewUser, Provider, NewIdentity};
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
-use http::client::ClientHandle;
+use repos::acl::SystemACL;
 use config::JWT as JWTConfig;
 use config::OAuth;
 use config::Config;
 use super::types::ServiceFuture;
 use super::error::Error;
 use repos::types::DbPool;
-use self::model::{GoogleProfile, FacebookProfile, JWTPayload, Email, IntoUser};
-use repos::acl::{SystemACL};
+use self::profile::{GoogleProfile, FacebookProfile, Email, IntoUser};
+use http::client::ClientHandle;
 
 
 
@@ -71,6 +70,7 @@ impl JWTServiceImpl<UsersRepoImpl, IdentitiesRepoImpl> {
     }
 }
 
+/// Profile service trait, presents standard scheme for receiving profile information from providers
 trait ProfileService<P: Email> {
     fn create_token(&self, provider: Provider, secret: String, info_url: String, headers: Option<Headers>)  -> ServiceFuture<JWT> ;
 

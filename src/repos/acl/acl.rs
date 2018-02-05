@@ -23,6 +23,7 @@ pub trait Acl {
     fn can (&mut self, resource: Resource, action: Action, resources_with_scope: Vec<&WithScope>) -> bool;
 }
 
+/// SystemACL allows all manipulation with recources for all 
 #[derive(Clone)]
 pub struct SystemACL {}
 
@@ -41,6 +42,7 @@ impl SystemACL {
 
 
 
+/// UnAuthanticatedACL denies all manipulation with recources for all 
 #[derive(Clone)]
 pub struct UnAuthanticatedACL {}
 
@@ -58,6 +60,7 @@ impl UnAuthanticatedACL {
 }
 
 
+/// ApplicationAcl contains main logic for manipulation with recources 
 // TODO: remove info about deleted user from cache
 #[derive(Clone)]
 pub struct ApplicationAcl<R: RolesCache> {

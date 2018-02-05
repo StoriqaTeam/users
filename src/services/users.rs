@@ -1,3 +1,5 @@
+//! Users Services, presents CRUD operations with users
+
 use std::sync::Arc;
 
 use futures::future;

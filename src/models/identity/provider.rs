@@ -1,3 +1,4 @@
+//! Module containing info about enum Provider and its impls of service traits for converting to string in db
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)] 
 pub enum Provider {
    Email,
