@@ -1,5 +1,6 @@
-use validator::ValidationErrors;
+use diesel::result::Error as DieselError;
 
+use validator::ValidationErrors;
 use ::repos::error::Error as RepoError;
 
 /// Service layer Error
@@ -23,6 +24,15 @@ impl From<RepoError> for Error {
             RepoError::MismatchedType(msg) => Error::Database(format!("Mismatched type: {}", msg)),
             RepoError::Connection(msg) => Error::Database(format!("Connection error: {}", msg)),
             RepoError::Unknown(msg) => Error::Database(format!("Unknown: {}", msg)),
+        }
+    }
+}
+
+impl From<DieselError> for Error {
+    fn from(err: DieselError) -> Self {
+        match err {
+            DieselError::NotFound => Error::NotFound,
+            _ => Error::Database("Database error".into()),
         }
     }
 }
