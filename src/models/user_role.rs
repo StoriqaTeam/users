@@ -1,3 +1,4 @@
+//! Models for managing Roles
 use validator::Validate;
 
 use models::{Role, Scope, WithScope};

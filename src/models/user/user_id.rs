@@ -1,3 +1,5 @@
+//! Module containing info about UserId and its impls of service traits for converting to integer in db
+
 // UserId type
 use std::str::FromStr;
 

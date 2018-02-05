@@ -1,3 +1,6 @@
+//! Users Services, presents CRUD operations with users
+
+use std::sync::Arc;
 
 use futures::future;
 use futures::Future;
@@ -6,14 +9,16 @@ use sha3::{Digest, Sha3_256};
 use rand;
 use base64::encode;
 
-
 use models::{NewUser, UpdateUser, User, UserId};
 use models::{Provider, NewIdentity};
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
+
 use super::types::ServiceFuture;
 use super::error::Error;
 use repos::types::DbPool;
+use repos::acl::{ApplicationAcl, RolesCacheImpl, Acl, UnAuthanticatedACL};
+
 
 pub trait UsersService {
     /// Returns user by ID
@@ -33,39 +38,54 @@ pub trait UsersService {
 }
 
 /// Users services, responsible for User-related CRUD operations
-pub struct UsersServiceImpl<U: 'static + UsersRepo + Clone, I: 'static + IdentitiesRepo+ Clone> {
+pub struct UsersServiceImpl<
+    U: 'static + UsersRepo + Clone,
+    I: 'static + IdentitiesRepo + Clone,
+> {
     pub users_repo: U,
     pub ident_repo: I,
-    pub user_email: Option<String>
+    pub user_id: Option<i32>,
 }
 
 impl UsersServiceImpl<UsersRepoImpl, IdentitiesRepoImpl> {
-    pub fn new(r2d2_pool: DbPool, cpu_pool:CpuPool, user_email: Option<String>) -> Self {
-        let users_repo = UsersRepoImpl::new(r2d2_pool.clone(), cpu_pool.clone());
-        let ident_repo = IdentitiesRepoImpl::new(r2d2_pool, cpu_pool);
+    pub fn new(
+        db_pool: DbPool,
+        cpu_pool: CpuPool,
+        roles_cache: RolesCacheImpl,
+        user_id: Option<i32>,
+    ) -> Self {
+        let ident_repo = IdentitiesRepoImpl::new(db_pool.clone(), cpu_pool.clone());
+        let acl =  user_id.map_or((Arc::new(UnAuthanticatedACL::new()) as Arc<Acl>), |id| (Arc::new(ApplicationAcl::new(roles_cache.clone(), id)) as Arc<Acl>));
+        let users_repo = UsersRepoImpl::new(db_pool, cpu_pool, acl);
         Self {
             users_repo: users_repo,
             ident_repo: ident_repo,
-            user_email: user_email
+            user_id: user_id,
         }
     }
+
 }
 
-impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> UsersService for UsersServiceImpl<U, I> {
+impl<
+    U: 'static + UsersRepo + Clone,
+    I: 'static + IdentitiesRepo + Clone,
+> UsersService for UsersServiceImpl<U, I> {
     /// Returns user by ID
     fn get(&self, user_id: UserId) -> ServiceFuture<User> {
         Box::new(self.users_repo.find(user_id).map_err(Error::from))
     }
 
     /// Returns current user
-    fn current(&self) -> ServiceFuture<User>{
-        if let Some(ref email) = self.user_email {
-            Box::new(self.users_repo.find_by_email(email.to_string()).map_err(Error::from))
+    fn current(&self) -> ServiceFuture<User> {
+        if let Some(id) = self.user_id {
+            Box::new(self.users_repo.find(UserId(id)).map_err(Error::from))
         } else {
-            Box::new(future::err(Error::Unknown(format!("There is no user email in request header."))))
+            Box::new(future::err(Error::Unknown(
+                format!("There is no user id in request header."),
+            )))
         }
     }
-    
+
     /// Lists users limited by `from` and `count` parameters
     fn list(&self, from: i32, count: i64) -> ServiceFuture<Vec<User>> {
         Box::new(
@@ -132,6 +152,7 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> UsersService for UsersServ
                 .map_err(|e| Error::from(e)),
         )
     }
+    
 
     fn password_create(clear_password: String) -> String {
         let salt = rand::random::<u64>().to_string().split_off(10);
@@ -143,3 +164,6 @@ impl<U: UsersRepo + Clone, I: IdentitiesRepo + Clone> UsersService for UsersServ
         computed_hash + "." + &salt
     }
 }
+
+
+

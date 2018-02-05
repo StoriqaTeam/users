@@ -1,3 +1,4 @@
+//! Models for managing profiles from google and facebook
 use std::time::SystemTime;
 use std::str::FromStr;
 use std::str;
@@ -31,7 +32,33 @@ impl From<GoogleProfile> for NewUser {
     }
 }
 
+/// User profile from facebook
+#[derive(Serialize, Deserialize, Clone)]
+pub struct FacebookProfile {
+    pub id: String,
+    pub email: String,
+    pub gender: String,
+    pub first_name: String,
+    pub last_name: String,
+    pub name: String,
+}
 
+impl From<FacebookProfile> for NewUser {
+    fn from(facebook_id: FacebookProfile) -> Self {
+        NewUser {
+            email: facebook_id.email,
+            phone: None,
+            first_name: Some(facebook_id.first_name),
+            last_name: Some(facebook_id.last_name),
+            middle_name:  None,
+            gender: Gender::from_str(facebook_id.gender.as_ref()).unwrap(),
+            birthdate: None,
+            last_login_at: SystemTime::now(),
+        }
+    }
+}
+
+/// Email trait implemented by Google and Facebook profiles
 pub trait Email {
     fn get_email(&self) -> String;
 }
@@ -48,6 +75,7 @@ impl Email for GoogleProfile {
     }
 }
 
+/// IntoUser trait for merging info from Google and Facebook profiles in users profile in db
 pub trait IntoUser {
     fn merge_into_user(&self, user: User) -> UpdateUser;
 }
@@ -104,42 +132,5 @@ impl IntoUser for GoogleProfile {
 }
 
 
-#[derive(Serialize, Deserialize, Clone)]
-pub struct FacebookProfile {
-    pub id: String,
-    pub email: String,
-    pub gender: String,
-    pub first_name: String,
-    pub last_name: String,
-    pub name: String,
-}
 
-impl From<FacebookProfile> for NewUser {
-    fn from(facebook_id: FacebookProfile) -> Self {
-        NewUser {
-            email: facebook_id.email,
-            phone: None,
-            first_name: Some(facebook_id.first_name),
-            last_name: Some(facebook_id.last_name),
-            middle_name:  None,
-            gender: Gender::from_str(facebook_id.gender.as_ref()).unwrap(),
-            birthdate: None,
-            last_login_at: SystemTime::now(),
-        }
-    }
-}
-
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct JWTPayload {
-    pub user_email: String,
-}
-
-impl JWTPayload {
-    pub fn new<S: Into<String>>(email: S) -> Self {
-        Self {
-            user_email: email.into(),
-        }
-    }
-}
 

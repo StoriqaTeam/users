@@ -1,4 +1,6 @@
+//! Users repo, presents CRUD operations with db for users
 use std::convert::From;
+use std::sync::Arc;
 
 use diesel;
 use diesel::prelude::*;
@@ -14,13 +16,16 @@ use models::{UpdateUser, User, NewUser, UserId};
 use models::user::user::users::dsl::*;
 use super::error::Error;
 use super::types::{DbConnection, DbPool, RepoFuture};
+use repos::acl::Acl;
+
 
 /// Users repository, responsible for handling users
 #[derive(Clone)]
 pub struct UsersRepoImpl {
     // Todo - no need for Arc, since pool is itself an ARC-like structure
-    pub r2d2_pool: DbPool,
-    pub cpu_pool: CpuPool
+    pub db_pool: DbPool,
+    pub cpu_pool: CpuPool,
+    pub acl : Arc<Acl>
 }
 
 pub trait UsersRepo {
@@ -46,15 +51,16 @@ pub trait UsersRepo {
 }
 
 impl UsersRepoImpl {
-    pub fn new(r2d2_pool: DbPool, cpu_pool: CpuPool) -> Self {
+    pub fn new(db_pool: DbPool, cpu_pool: CpuPool, acl : Arc<Acl>) -> Self {
         Self {
-            r2d2_pool,
-            cpu_pool
+            db_pool,
+            cpu_pool,
+            acl
         }
     }
 
     fn get_connection(&self) -> DbConnection {
-        match self.r2d2_pool.get() {
+        match self.db_pool.get() {
             Ok(connection) => connection,
             Err(e) => panic!("Error obtaining connection from pool: {}", e),
         }
@@ -64,7 +70,7 @@ impl UsersRepoImpl {
         &self,
         query: U,
     ) -> RepoFuture<T> {
-        let conn = match self.r2d2_pool.get() {
+        let conn = match self.db_pool.get() {
             Ok(connection) => connection,
             Err(_) => {
                 return Box::new(future::err(

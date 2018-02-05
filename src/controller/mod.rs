@@ -9,6 +9,7 @@ pub mod types;
 pub mod utils;
 
 use std::sync::Arc;
+use std::str::FromStr;
 
 use futures::Future;
 use futures::future;
@@ -23,6 +24,7 @@ use services::system::{SystemServiceImpl, SystemService};
 use services::users::{UsersServiceImpl, UsersService};
 use services::jwt::{JWTService, JWTServiceImpl};
 use repos::types::DbPool;
+use repos::acl::{RolesCacheImpl};
 
 use models;
 use self::utils::parse_body;
@@ -31,14 +33,14 @@ use self::routes::{Route, RouteParser};
 use http::client::ClientHandle;
 use config::Config;
 
-
 /// Controller handles route parsing and calling `Service` layer
 pub struct Controller {
-    pub r2d2_pool: DbPool, 
+    pub db_pool: DbPool, 
     pub cpu_pool: CpuPool,
     pub route_parser: Arc<RouteParser>,
     pub config : Config,
-    pub client_handle: ClientHandle
+    pub client_handle: ClientHandle,
+    pub roles_cache: RolesCacheImpl
 }
 
 macro_rules! serialize_future {
@@ -48,18 +50,20 @@ macro_rules! serialize_future {
 impl Controller {
     /// Create a new controller based on services
     pub fn new(
-        r2d2_pool: DbPool, 
+        db_pool: DbPool, 
         cpu_pool: CpuPool,
         client_handle: ClientHandle,
-        config: Config
+        config: Config,
+        roles_cache: RolesCacheImpl
     ) -> Self {
         let route_parser = Arc::new(routes::create_route_parser());
         Self {
             route_parser,
-            r2d2_pool,
+            db_pool,
             cpu_pool,
             client_handle,
-            config
+            config,
+            roles_cache
         }
     }
 
@@ -68,12 +72,16 @@ impl Controller {
     {
         let headers = req.headers().clone();
         let auth_header = headers.get::<Authorization<String>>();
-        let user_email = auth_header.map (move |auth| {
-                auth.0.clone()
-            });
+        let user_id = auth_header.map (move |auth| {
+            auth.0.clone() 
+        }).and_then(|id| {
+            i32::from_str(&id).ok()
+        });
+
+        let cached_roles = self.roles_cache.clone();
         let system_service = SystemServiceImpl::new();
-        let users_service = UsersServiceImpl::new(self.r2d2_pool.clone(), self.cpu_pool.clone(), user_email);
-        let jwt_service = JWTServiceImpl::new(self.r2d2_pool.clone(), self.cpu_pool.clone(), self.client_handle.clone(), self.config.clone());
+        let users_service = UsersServiceImpl::new(self.db_pool.clone(), self.cpu_pool.clone(), cached_roles, user_id);
+        let jwt_service = JWTServiceImpl::new(self.db_pool.clone(), self.cpu_pool.clone(), self.client_handle.clone(), self.config.clone());
 
         match (req.method(), self.route_parser.test(req.path())) {
             // GET /healthcheck

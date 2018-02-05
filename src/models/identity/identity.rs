@@ -1,7 +1,7 @@
+//! Module containing info about Identity models 
 use validator::Validate;
 
-use models::Provider;
-use models::UserId;
+use models::{Provider, UserId};
 
 table! {
     use diesel::sql_types::*;
