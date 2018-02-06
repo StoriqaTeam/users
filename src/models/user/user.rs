@@ -50,7 +50,7 @@ pub struct User {
 pub struct NewUser {
     #[validate(email(message = "Invalid email format"))] 
     pub email: String,
-    #[validate(phone(message = "Invalid phone format"))] 
+    #[validate(phone(message = "Invalid phone format"))]
     pub phone: Option<String>,
     #[validate(length(min = "1", message = "First name must not be empty"))]
     pub first_name: Option<String>,
@@ -67,12 +67,27 @@ pub struct NewUser {
 #[derive(Serialize, Deserialize, Insertable, Validate, AsChangeset)]
 #[table_name = "users"]
 pub struct UpdateUser {
+    #[validate(phone(message = "Invalid phone format"))]
     pub phone: Option<String>,
+    #[validate(length(min = "1", message = "First name must not be empty"))]
     pub first_name: Option<String>,
+    #[validate(length(min = "1", message = "Last name must not be empty"))]
     pub last_name: Option<String>,
+    #[validate(length(min = "1", message = "Middle name must not be empty"))]
     pub middle_name: Option<String>,
     pub gender: Option<Gender>,
     pub birthdate: Option<SystemTime>,
+}
+
+impl UpdateUser {
+    pub fn is_empty(&self) -> bool {
+        self.phone.is_none() &&
+        self.first_name.is_none() &&
+        self.last_name.is_none() &&
+        self.middle_name.is_none() &&
+        self.gender.is_none() &&
+        self.birthdate.is_none()
+    }
 }
 
 impl WithScope for User {

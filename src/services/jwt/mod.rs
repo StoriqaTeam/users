@@ -158,9 +158,13 @@ impl<P> ProfileService<P> for JWTServiceImpl
             .and_then(move |(profile, user)| {
                 let update_user = profile.merge_into_user(user.clone());
                 
-                users_repo.update(user.id, update_user)
+                if update_user.is_empty() {
+                    Ok(user.id.0)
+                } else {
+                    users_repo.update(user.id, update_user)
                     .map_err(Error::from)
                     .map(|u| u.id.0)
+                }
             })
     }
 
