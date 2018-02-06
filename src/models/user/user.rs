@@ -50,7 +50,7 @@ pub struct User {
 pub struct NewUser {
     #[validate(email(message = "Invalid email format"))] 
     pub email: String,
-    #[validate(phone(message = "Invalid phone format"))] 
+    #[validate(phone(message = "Invalid phone format"))]
     pub phone: Option<String>,
     #[validate(length(min = "1", message = "First name must not be empty"))]
     pub first_name: Option<String>,
@@ -68,9 +68,13 @@ pub struct NewUser {
 #[table_name = "users"]
 #[changeset_options(treat_none_as_null = "true")]
 pub struct UpdateUser {
+    #[validate(phone(message = "Invalid phone format"))]
     pub phone: Option<String>,
+    #[validate(length(min = "1", message = "First name must not be empty"))]
     pub first_name: Option<String>,
+    #[validate(length(min = "1", message = "Last name must not be empty"))]
     pub last_name: Option<String>,
+    #[validate(length(min = "1", message = "Middle name must not be empty"))]
     pub middle_name: Option<String>,
     pub gender: Option<Gender>,
     pub birthdate: Option<SystemTime>,
