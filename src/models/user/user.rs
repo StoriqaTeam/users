@@ -66,6 +66,7 @@ pub struct NewUser {
 /// Payload for updating users
 #[derive(Serialize, Deserialize, Insertable, Validate, AsChangeset)]
 #[table_name = "users"]
+#[changeset_options(treat_none_as_null = "true")]
 pub struct UpdateUser {
     pub phone: Option<String>,
     pub first_name: Option<String>,
