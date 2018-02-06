@@ -82,11 +82,11 @@ pub struct UpdateUser {
 impl UpdateUser {
     pub fn is_empty(&self) -> bool {
         self.phone.is_none() &&
-            self.first_name.is_none() &&
-            self.last_name.is_none() &&
-            self.middle_name.is_none() &&
-            self.gender.is_none() &&
-            self.birthdate.is_none()
+        self.first_name.is_none() &&
+        self.last_name.is_none() &&
+        self.middle_name.is_none() &&
+        self.gender.is_none() &&
+        self.birthdate.is_none()
     }
 }
 
