@@ -5,6 +5,7 @@ use futures::future;
 use futures_cpupool::CpuPool;
 use sha3::{Digest, Sha3_256};
 use rand;
+use rand::Rng;
 use base64::encode;
 use diesel::Connection;
 
@@ -221,7 +222,7 @@ impl UsersService for UsersServiceImpl {
     
 
     fn password_create(clear_password: String) -> String {
-        let salt = rand::random::<u64>().to_string().split_off(10);
+        let salt = rand::thread_rng().gen_ascii_chars().take(10).collect::<String>();
         let pass = clear_password + &salt;
         let mut hasher = Sha3_256::default();
         hasher.input(pass.as_bytes());
