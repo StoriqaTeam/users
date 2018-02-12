@@ -1,38 +1,50 @@
+use r2d2::Error as R2D2Error;
 use diesel::result::Error as DieselError;
 
 use validator::ValidationErrors;
-use ::repos::error::Error as RepoError;
+use ::repos::error::RepoError;
 
-/// Service layer Error
-#[derive(Debug)]
-pub enum Error {
+#[derive(Debug, Fail)]
+pub enum ServiceError {
+    #[fail(display = "Not found")]
     NotFound,
+    #[fail(display = "Rollback")]
     Rollback,
+    #[fail(display = "Validation error: {}", _0)]
     Validate(ValidationErrors),
+    #[fail(display = "Parse error: {}", _0)]
     Parse(String),
-    Database(String),
+    #[fail(display = "R2D2 connection error")]
+    Connection(#[cause] R2D2Error),
+    #[fail(display = "Diesel transaction error")]
+    TransactionError(#[cause] DieselError),
+    #[fail(display = "Repo error")]
+    Database(#[cause] RepoError),
+    #[fail(display = "Http client error: {}", _0)]
     HttpClient(String),
-    Unknown(String)
+    #[fail(display = "Email already exists: [{}]", _0)]
+    EmailAlreadyExistsError(String),
+    #[fail(display = "Incorrect email or password")]
+    IncorrectCredentialsError,
+    #[fail(display = "Unknown error: {}", _0)]
+    Unknown(String),
 }
 
-impl From<RepoError> for Error {
+impl From<RepoError> for ServiceError {
     fn from(err: RepoError) -> Self {
         match err {
-            RepoError::NotFound => Error::NotFound,
-            RepoError::Rollback => Error::Rollback,
-            RepoError::ContstaintViolation(msg) => Error::Database(format!("Constraint violation: {}", msg)),
-            RepoError::MismatchedType(msg) => Error::Database(format!("Mismatched type: {}", msg)),
-            RepoError::Connection(msg) => Error::Database(format!("Connection error: {}", msg)),
-            RepoError::Unknown(msg) => Error::Database(format!("Unknown: {}", msg)),
+            RepoError::NotFound => ServiceError::NotFound,
+            RepoError::Rollback => ServiceError::Rollback,
+            RepoError::ContstaintViolation(msg, e) => ServiceError::Database(RepoError::ContstaintViolation(msg, e)),
+            RepoError::MismatchedType(msg, e) => ServiceError::Database(RepoError::MismatchedType(msg, e)),
+            RepoError::Connection(msg, e) => ServiceError::Database(RepoError::Connection(msg, e)),
+            RepoError::Unknown(msg, e) => ServiceError::Database(RepoError::Unknown(msg, e)),
         }
     }
 }
 
-impl From<DieselError> for Error {
+impl From<DieselError> for ServiceError {
     fn from(err: DieselError) -> Self {
-        match err {
-            DieselError::NotFound => Error::NotFound,
-            _ => Error::Database("Database error".into()),
-        }
+        ServiceError::TransactionError(err)
     }
 }

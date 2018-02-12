@@ -12,7 +12,7 @@ use diesel::pg::PgConnection;
 
 use models::{UpdateUser, User, NewUser, UserId};
 use models::user::user::users::dsl::*;
-use super::error::Error;
+use super::error::RepoError;
 use super::types::DbConnection;
 use repos::acl::Acl;
 
@@ -24,24 +24,24 @@ pub struct UsersRepoImpl<'a> {
 
 pub trait UsersRepo {
     /// Find specific user by ID
-    fn find(&self, user_id: UserId) -> Result<User, Error>;
+    fn find(&self, user_id: UserId) -> Result<User, RepoError>;
 
-    fn email_exists(&self, email_arg: String) -> Result<bool, Error>;
+    fn email_exists(&self, email_arg: String) -> Result<bool, RepoError>;
 
     /// Find specific user by email
-    fn find_by_email(&self, email_arg: String) -> Result<User, Error>;
+    fn find_by_email(&self, email_arg: String) -> Result<User, RepoError>;
 
     /// Returns list of users, limited by `from` and `count` parameters
-    fn list(&self, from: i32, count: i64) -> Result<Vec<User>, Error>;
+    fn list(&self, from: i32, count: i64) -> Result<Vec<User>, RepoError>;
 
     /// Creates new user
-    fn create(&self, payload: NewUser) -> Result<User, Error>;
+    fn create(&self, payload: NewUser) -> Result<User, RepoError>;
 
     /// Updates specific user
-    fn update(&self, user_id: UserId, payload: UpdateUser) -> Result<User, Error>;
+    fn update(&self, user_id: UserId, payload: UpdateUser) -> Result<User, RepoError>;
 
     /// Deactivates specific user
-    fn deactivate(&self, user_id: UserId) -> Result<User, Error>;
+    fn deactivate(&self, user_id: UserId) -> Result<User, RepoError>;
 }
 
 impl<'a> UsersRepoImpl<'a> {
@@ -55,20 +55,20 @@ impl<'a> UsersRepoImpl<'a> {
     fn execute_query<T: Send + 'static, U: LoadQuery<PgConnection, T> + Send + 'static>(
         &self,
         query: U,
-    ) -> Result<T, Error> {
+    ) -> Result<T, RepoError> {
         let conn = self.db_conn;
 
-        query.get_result::<T>(&*conn).map_err(|e| Error::from(e))
+        query.get_result::<T>(&*conn).map_err(|e| RepoError::from(e))
     }
 }
 
 impl<'a> UsersRepo for UsersRepoImpl<'a> {
     /// Find specific user by ID
-    fn find(&self, user_id_arg: UserId) -> Result<User, Error> {
+    fn find(&self, user_id_arg: UserId) -> Result<User, RepoError> {
         self.execute_query(users.find(user_id_arg))
     }
 
-    fn email_exists(&self, email_arg: String) -> Result<bool, Error> {
+    fn email_exists(&self, email_arg: String) -> Result<bool, RepoError> {
         self.execute_query(select(exists(
             users
                 .filter(email.eq(email_arg))
@@ -76,43 +76,43 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
     }
 
     /// Find specific user by email
-    fn find_by_email(&self, email_arg: String) -> Result<User, Error> {
+    fn find_by_email(&self, email_arg: String) -> Result<User, RepoError> {
         let query = users
             .filter(email.eq(email_arg));
 
-        query.first::<User>(&**self.db_conn).map_err(|e| Error::from(e))
+        query.first::<User>(&**self.db_conn).map_err(|e| RepoError::from(e))
     }
 
     /// Returns list of users, limited by `from` and `count` parameters
-    fn list(&self, from: i32, count: i64) -> Result<Vec<User>, Error> {
+    fn list(&self, from: i32, count: i64) -> Result<Vec<User>, RepoError> {
         let query = users
             .filter(is_active.eq(true))
             .filter(id.gt(from))
             .order(id)
             .limit(count);
 
-        query.get_results(&**self.db_conn).map_err(|e| Error::from(e))
+        query.get_results(&**self.db_conn).map_err(|e| RepoError::from(e))
     }
 
     /// Creates new user
     // TODO - set e-mail uniqueness in database
-    fn create(&self, payload: NewUser) -> Result<User, Error> {
+    fn create(&self, payload: NewUser) -> Result<User, RepoError> {
         let query_user = diesel::insert_into(users).values(&payload);
         query_user
             .get_result::<User>(&**self.db_conn)
-            .map_err(Error::from)
+            .map_err(RepoError::from)
     }
 
     /// Updates specific user
-    fn update(&self, user_id_arg: UserId, payload: UpdateUser) -> Result<User, Error> {
+    fn update(&self, user_id_arg: UserId, payload: UpdateUser) -> Result<User, RepoError> {
         let filter = users.filter(id.eq(user_id_arg)).filter(is_active.eq(true));
 
         let query = diesel::update(filter).set(&payload);
-        query.get_result::<User>(&**self.db_conn).map_err(|e| Error::from(e))
+        query.get_result::<User>(&**self.db_conn).map_err(|e| RepoError::from(e))
     }
 
     /// Deactivates specific user
-    fn deactivate(&self, user_id_arg: UserId) -> Result<User, Error> {
+    fn deactivate(&self, user_id_arg: UserId) -> Result<User, RepoError> {
         let filter = users.filter(id.eq(user_id_arg)).filter(is_active.eq(true));
         let query = diesel::update(filter).set(is_active.eq(false));
         self.execute_query(query)

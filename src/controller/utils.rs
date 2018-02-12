@@ -31,14 +31,15 @@ pub fn query_params(query: &str) -> HashMap<&str, &str> {
 /// Fails with `error::Error::UnprocessableEntity` if step 1 fails.
 ///
 /// Fails with `error::Error::BadRequest` with message if step 2 fails.
-pub fn parse_body<T>(body: hyper::Body) -> Box<Future<Item=T, Error=error::Error>>
+pub fn parse_body<T>(body: hyper::Body) -> Box<Future<Item=T, Error=error::ControllerError>>
     where
         T: for<'a> Deserialize<'a> + 'static
 {
     Box::new(
         read_body(body)
-            .map_err(|err| error::Error::BadRequest(format!("{}", err)))
-            .and_then(|body| serde_json::from_str::<T>(&body).map_err(|_| error::Error::UnprocessableEntity("Error parsing request body".to_string())))
+            .map_err(|err| error::ControllerError::BadRequest(format!("{}", err)))
+            .and_then(|body| serde_json::from_str::<T>(&body).map_err(
+                |_| error::ControllerError::UnprocessableEntity("Error parsing request body".to_string())))
     )
 }
 

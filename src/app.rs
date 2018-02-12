@@ -44,7 +44,7 @@ impl Application {
     }
 
     /// Responds with JSON error, logs response body
-    fn response_with_error(error: controller::error::Error) -> Response {
+    fn response_with_error(error: controller::error::ControllerError) -> Response {
         error!("{}", error.message());
         Self::response_with_body(error.message()).with_status(error.code())
     }

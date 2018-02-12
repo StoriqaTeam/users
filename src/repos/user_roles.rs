@@ -10,7 +10,7 @@ use futures_cpupool::CpuPool;
 use models::user_role::user_roles::dsl::*;
 use models::{NewUserRole, UserRole};
 use models::Role;
-use super::error::Error;
+use super::error::RepoError;
 use super::types::{RepoFuture, DbConnection, DbPool};
 
 /// UserRoles repository for handling UserRoles
@@ -55,7 +55,7 @@ impl UserRolesRepo for UserRolesRepoImpl {
         Box::new(
             self.cpu_pool.spawn_fn(move || {
                 let query = user_roles.filter(id.eq(user_id_value));
-                query.get_results(&*conn).map_err(|e| Error::from(e))
+                query.get_results(&*conn).map_err(|e| RepoError::from(e))
             })
         )
     }
@@ -65,7 +65,7 @@ impl UserRolesRepo for UserRolesRepoImpl {
 
         Box::new(self.cpu_pool.spawn_fn(move || {
             let query = diesel::insert_into(user_roles).values(&payload);
-            query.get_result(&*conn).map_err(Error::from)
+            query.get_result(&*conn).map_err(RepoError::from)
         }))
     }
 
@@ -75,7 +75,7 @@ impl UserRolesRepo for UserRolesRepoImpl {
         Box::new(self.cpu_pool.spawn_fn(move || {
             let filtered = user_roles.filter(user_id.eq(user_id_value)).filter(role.eq(role_value));
             let query = diesel::delete(filtered);
-            query.get_result(&*conn).map_err(Error::from)
+            query.get_result(&*conn).map_err(RepoError::from)
         }))
     }
 }

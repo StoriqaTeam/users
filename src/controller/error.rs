@@ -1,40 +1,49 @@
 use hyper;
 use serde_json;
 
-use services::error::Error as ServiceError;
+use services::error::ServiceError;
 
-#[derive(Debug)]
-pub enum Error {
+#[derive(Debug, Fail)]
+pub enum ControllerError {
+    #[fail(display = "Not found")]
     NotFound,
+    #[fail(display = "Bad request: {}", _0)]
     BadRequest(String),
+    #[fail(display = "Unprocessable entity: {}", _0)]
     UnprocessableEntity(String),
-    InternalServerError(String),
+    #[fail(display = "Internal server error")]
+    InternalServerError(#[cause] ServiceError),
 }
 
-impl From<serde_json::error::Error> for Error {
+impl From<serde_json::error::Error> for ControllerError {
     fn from(e: serde_json::error::Error) -> Self {
-        Error::UnprocessableEntity(format!("{}", e).to_string())
+        ControllerError::UnprocessableEntity("Serialization error".to_string())
     }
 }
 
-impl From<ServiceError> for Error {
+impl From<ServiceError> for ControllerError {
     fn from(e: ServiceError) -> Self {
         match e {
-            ServiceError::NotFound => Error::NotFound,
-            ServiceError::Rollback => Error::BadRequest("Transaction rollback".to_string()),
-            ServiceError::Validate(msg) => Error::BadRequest(serde_json::to_string(&msg).unwrap_or("Unable to serialize validation errors".to_string())),
-            ServiceError::Parse(msg) => Error::UnprocessableEntity(format!("Parse error: {}", msg)),
-            ServiceError::Database(msg) => Error::InternalServerError(format!("Database error: {}", msg)),
-            ServiceError::HttpClient(msg) => Error::InternalServerError(format!("Http Client error: {}", msg)),
-            ServiceError::Unknown(msg) => Error::InternalServerError(format!("Unknown: {}", msg))
+            ServiceError::NotFound => ControllerError::NotFound,
+            ServiceError::Rollback => ControllerError::BadRequest("Transaction rollback".to_string()),
+            ServiceError::Validate(msg) => ControllerError::BadRequest(
+                serde_json::to_string(&msg).unwrap_or("Unable to serialize validation errors".to_string())
+            ),
+            ServiceError::Parse(msg) => ControllerError::UnprocessableEntity(format!("Parse error: {}", msg)),
+            ServiceError::Database(msg) => ControllerError::InternalServerError(ServiceError::Database(msg)),
+            ServiceError::HttpClient(msg) => ControllerError::InternalServerError(ServiceError::HttpClient(msg)),
+            ServiceError::EmailAlreadyExistsError(msg) => ControllerError::BadRequest(msg),
+            ServiceError::IncorrectCredentialsError => ControllerError::BadRequest(
+                "Incorrect email or password".to_string()),
+            _ => ControllerError::BadRequest("Unknown".into())
         }
     }
 }
 
-impl Error {
+impl ControllerError {
     /// Converts `Error` to HTTP Status Code
     pub fn code(&self) -> hyper::StatusCode {
-        use super::error::Error::*;
+        use super::error::ControllerError::*;
         use hyper::StatusCode;
 
         match self {
@@ -48,45 +57,13 @@ impl Error {
 
     /// Converts `Error` to string
     pub fn message(&self) -> String {
-        use super::error::Error::*;
+        use super::error::ControllerError::*;
 
         match self {
             &NotFound => "Not found".to_string(),
-            &BadRequest(ref msg) => msg.to_string(),
-            &UnprocessableEntity(ref msg) => msg.to_string(),
-            &InternalServerError(ref msg) => msg.to_string(),
+            &BadRequest(_) => "Bad request".to_string(),
+            &UnprocessableEntity(_) => "Unprocessable entity".to_string(),
+            &InternalServerError(_) => "Internal server error".to_string(),
         }
-    }
-}
-
-
-#[cfg(test)]
-mod tests {
-
-    use super::Error;
-    use hyper::StatusCode;
-
-    #[test]
-    fn error_to_code_test () {
-        let mut error = Error::NotFound.code();
-        assert_eq!(error, StatusCode::NotFound);
-        error = Error::BadRequest("bad".to_string()).code();
-        assert_eq!(error, StatusCode::BadRequest);
-        error = Error::UnprocessableEntity("bad".to_string()).code();
-        assert_eq!(error, StatusCode::UnprocessableEntity);
-        error = Error::InternalServerError("bad".to_string()).code();
-        assert_eq!(error, StatusCode::InternalServerError);
-    }
-
-    #[test]
-    fn error_to_message_test () {
-        let mut error = Error::NotFound.message();
-        assert_eq!(error, "Not found".to_string());
-        error = Error::BadRequest("bad".to_string()).message();
-        assert_eq!(error, "bad".to_string());
-        error = Error::UnprocessableEntity("bad".to_string()).message();
-        assert_eq!(error, "bad".to_string());
-        error = Error::InternalServerError("bad".to_string()).message();
-        assert_eq!(error, "bad".to_string());
     }
 }

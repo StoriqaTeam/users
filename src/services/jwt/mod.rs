@@ -23,7 +23,7 @@ use config::JWT as JWTConfig;
 use config::OAuth;
 use config::Config;
 use super::types::ServiceFuture;
-use super::error::Error;
+use super::error::ServiceError;
 use repos::types::DbPool;
 use self::profile::{GoogleProfile, FacebookProfile, Email, IntoUser};
 use http::client::ClientHandle;
@@ -38,7 +38,7 @@ pub trait JWTService {
     /// Creates new JWT token by facebook
     fn create_token_facebook(&self, oauth: ProviderOauth) -> ServiceFuture<JWT>;
     /// Verifies password
-    fn password_verify(db_hash: String, clear_password: String) -> Result<bool, Error>;
+    fn password_verify(db_hash: String, clear_password: String) -> Result<bool, ServiceError>;
 }
 
 /// JWT services, responsible for JsonWebToken operations
@@ -77,15 +77,15 @@ trait ProfileService<P: Email> {
         let tokenpayload = JWTPayload::new(id);
         Box::new(
             encode(&Header::default(), &tokenpayload, secret.as_ref())
-                .map_err(|_| Error::Parse(format!("Couldn't encode jwt: {:?}.", tokenpayload)))
+                .map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}.", tokenpayload)))
                 .into_future()
                 .and_then(|t| future::ok( JWT { token: t }))
         )
     }
 
-    fn create_profile(&self, users_repo: UsersRepoImpl, ident_repo: IdentitiesRepoImpl, profile: P, provider: Provider) -> Result<i32, Error>;
+    fn create_profile(&self, users_repo: UsersRepoImpl, ident_repo: IdentitiesRepoImpl, profile: P, provider: Provider) -> Result<i32, ServiceError>;
 
-    fn update_profile(&self, users_repo: UsersRepoImpl, profile: P) -> Result<i32, Error>;
+    fn update_profile(&self, users_repo: UsersRepoImpl, profile: P) -> Result<i32, ServiceError>;
 
     fn create_or_update_profile(&self, profile: P, provider: Provider) -> ServiceFuture<i32>;
 
@@ -131,29 +131,29 @@ impl<P> ProfileService<P> for JWTServiceImpl
     
     fn get_profile(&self, url: String, headers: Option<Headers>) -> ServiceFuture<P> {
         Box::new(self.http_client.request::<P>(Method::Get, url, None, headers)
-                    .map_err(|e| Error::HttpClient(format!("Failed to receive user info from provider. {}", e.to_string()))))
+                    .map_err(|e| ServiceError::HttpClient(format!("Failed to receive user info from provider. {}", e.to_string()))))
     }
 
-    fn create_profile(&self, users_repo: UsersRepoImpl, ident_repo: IdentitiesRepoImpl, profile_arg: P, provider: Provider) -> Result<i32, Error> {
+    fn create_profile(&self, users_repo: UsersRepoImpl, ident_repo: IdentitiesRepoImpl, profile_arg: P, provider: Provider) -> Result<i32, ServiceError> {
         let new_user = NewUser::from(profile_arg.clone());
         let profile = profile_arg.clone();
         
         users_repo
             .create(new_user)
-            .map_err(Error::from)
+            .map_err(ServiceError::from)
             .map(|user| (profile, user))
             .and_then(move |(profile, user)| {
                 ident_repo
                     .create(profile.get_email(), None, provider, user.id)
-                    .map_err(Error::from)
+                    .map_err(ServiceError::from)
                     .map(|u| u.user_id.0)
             })
     }
 
-    fn update_profile(&self, users_repo: UsersRepoImpl, profile: P) -> Result<i32, Error> {
+    fn update_profile(&self, users_repo: UsersRepoImpl, profile: P) -> Result<i32, ServiceError> {
         users_repo
             .find_by_email(profile.get_email())
-            .map_err(Error::from)
+            .map_err(ServiceError::from)
             .map(|user| (profile, user))
             .and_then(move |(profile, user)| {
                 let update_user = profile.merge_into_user(user.clone());
@@ -162,7 +162,7 @@ impl<P> ProfileService<P> for JWTServiceImpl
                     Ok(user.id.0)
                 } else {
                     users_repo.update(user.id, update_user)
-                    .map_err(Error::from)
+                    .map_err(ServiceError::from)
                     .map(|u| u.id.0)
                 }
             })
@@ -175,17 +175,17 @@ impl<P> ProfileService<P> for JWTServiceImpl
         Box::new(
             self.cpu_pool.spawn_fn(move || {
                 r2d2_clone.get()
-                    .map_err(|e| Error::Database(format!("Connection error {}", e)))
+                    .map_err(|e| ServiceError::Connection(e))
                     .and_then(move |conn| {
                         let users_repo = UsersRepoImpl::new(&conn, Arc::new(SystemACL::new()));
                         let ident_repo = IdentitiesRepoImpl::new(&conn);
 
-                        conn.transaction::<i32, Error, _>(move || {
+                        conn.transaction::<i32, ServiceError, _>(move || {
                             users_repo
                                 .email_exists(profile.get_email())
-                                .map_err(Error::from)
+                                .map_err(ServiceError::from)
                                 .map(|email_exist| (profile, email_exist))
-                                .and_then(move |(profile, email_exist)| ->  Result<i32, Error> {
+                                .and_then(move |(profile, email_exist)| ->  Result<i32, ServiceError> {
                                     match email_exist {
                                         // user doesn't exist, creating user + identity
                                         false => service.create_profile(users_repo, ident_repo, profile, provider),
@@ -204,13 +204,13 @@ impl<P> ProfileService<P> for JWTServiceImpl
         Box::new(
             self.cpu_pool.spawn_fn(move || {
                 r2d2_clone.get()
-                    .map_err(|e| Error::Database(format!("Connection error {}", e)))
+                    .map_err(|e| ServiceError::Connection(e))
                     .and_then(move |conn| {
                         let ident_repo = IdentitiesRepoImpl::new(&conn);
 
                         ident_repo
                             .email_provider_exists(profile.get_email(), provider)
-                            .map_err(Error::from)
+                            .map_err(ServiceError::from)
                     })
             })
         )
@@ -222,13 +222,13 @@ impl<P> ProfileService<P> for JWTServiceImpl
         Box::new(
             self.cpu_pool.spawn_fn(move || {
                 r2d2_clone.get()
-                    .map_err(|e| Error::Database(format!("Connection error {}", e)))
+                    .map_err(|e| ServiceError::Connection(e))
                     .and_then(move |conn| {
                         let ident_repo = IdentitiesRepoImpl::new(&conn);
                         
                         ident_repo
                             .find_by_email_provider(profile.get_email(), provider)
-                            .map_err(Error::from)
+                            .map_err(ServiceError::from)
                             .map(|ident| ident.user_id.0)
                     })
             })
@@ -248,38 +248,38 @@ impl JWTService for JWTServiceImpl {
         Box::new(
             self.cpu_pool.spawn_fn(move || {
                 r2d2_clone.get()
-                    .map_err(|e| Error::Database(format!("Connection error {}", e)))
+                    .map_err(|e| ServiceError::Connection(e))
                     .and_then(move |conn| {
                         let ident_repo = IdentitiesRepoImpl::new(&conn);
 
-                        conn.transaction::<JWT, Error, _>(move || {
+                        conn.transaction::<JWT, ServiceError, _>(move || {
                             ident_repo
                                 .email_provider_exists(payload.email.to_string(), Provider::Email)
-                                .map_err(Error::from)
+                                .map_err(ServiceError::from)
                                 .map(|exists| (exists, payload))
                                 .and_then(
-                                    move |(exists, new_ident)| -> Result<i32, Error> {
+                                    move |(exists, new_ident)| -> Result<i32, ServiceError> {
                                         match exists {
                                             // email does not exist
-                                            false => Err(Error::NotFound),
+                                            false => Err(ServiceError::NotFound),
                                             // email exists, checking password
                                             true => {
                                                 let new_ident_clone = new_ident.clone();
                                                 ident_repo
                                                     .find_by_email_provider(new_ident.email.clone(), Provider::Email)
-                                                    .map_err(Error::from)
+                                                    .map_err(ServiceError::from)
                                                     .and_then (move |identity| 
                                                         Self::password_verify(identity.password.unwrap().clone(), new_ident.password.clone())
                                                     )
                                                     .map(move |verified| (verified, new_ident_clone))
-                                                    .and_then( move |(verified, new_ident)| -> Result<i32, Error> {
+                                                    .and_then( move |(verified, new_ident)| -> Result<i32, ServiceError> {
                                                             match verified {
                                                                 //password not verified
-                                                                false => Err(Error::Database("Email or password are incorrect".into())),
+                                                                false => Err(ServiceError::IncorrectCredentialsError),
                                                                 //password verified
                                                                 true => ident_repo
                                                                             .find_by_email_provider(new_ident.email, Provider::Email)
-                                                                            .map_err(Error::from)
+                                                                            .map_err(ServiceError::from)
                                                                             .map(|ident| ident.user_id.0)
                                                             }
                                                     })
@@ -290,7 +290,7 @@ impl JWTService for JWTServiceImpl {
                                 .and_then(move |id| {
                                     let tokenpayload = JWTPayload::new(id);
                                     encode(&Header::default(), &tokenpayload, jwt_secret_key.as_ref())
-                                        .map_err(|_| Error::Parse(format!("Couldn't encode jwt: {:?}", tokenpayload)))
+                                        .map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}", tokenpayload)))
                                         .and_then(|t| Ok(JWT { token: t }))
                                 })
                         })
@@ -326,10 +326,10 @@ impl JWTService for JWTServiceImpl {
         <JWTServiceImpl as ProfileService<FacebookProfile>>::create_token(self, Provider::Facebook, jwt_secret_key, url, None)
     }
 
-    fn password_verify(db_hash: String, clear_password: String) -> Result<bool, Error> {
+    fn password_verify(db_hash: String, clear_password: String) -> Result<bool, ServiceError> {
         let v: Vec<&str> = db_hash.split('.').collect();
         if v.len() != 2 {
-            Err(Error::Validate(validation_errors!({"password": ["password" => "Password in db has wrong format"]})))
+            Err(ServiceError::Validate(validation_errors!({"password": ["password" => "Password in db has wrong format"]})))
         } else {
             let salt = v[1];
             let pass = clear_password + salt;
@@ -337,7 +337,7 @@ impl JWTService for JWTServiceImpl {
             hasher.input(pass.as_bytes());
             let out = hasher.result();
             let computed_hash = decode(v[0])
-            .map_err(|_| Error::Validate(validation_errors!({"password": ["password" => "Password in db has wrong format"]})))?;
+            .map_err(|_| ServiceError::Validate(validation_errors!({"password": ["password" => "Password in db has wrong format"]})))?;
             Ok(computed_hash == &out[..])
         }
     }

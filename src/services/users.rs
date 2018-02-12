@@ -15,7 +15,7 @@ use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
 
 use super::types::ServiceFuture;
-use super::error::Error;
+use super::error::ServiceError;
 use repos::types::DbPool;
 use repos::acl::{ApplicationAcl, RolesCacheImpl, Acl, UnAuthanticatedACL};
 
@@ -77,11 +77,11 @@ impl UsersService for UsersServiceImpl {
         
         Box::new(self.cpu_pool.spawn_fn(move || {
             r2d2_clone.get()
-                    .map_err(|e| Error::Database(format!("Connection error {}", e)))
+                    .map_err(|e| ServiceError::Connection(e))
                     .and_then(move |conn| {
                         let acl = get_acl(current_uid, roles_cache);
                         let users_repo = UsersRepoImpl::new(&conn, acl);
-                        users_repo.find(user_id).map_err(Error::from)
+                        users_repo.find(user_id).map_err(ServiceError::from)
                     })
         }))
     }
@@ -95,15 +95,15 @@ impl UsersService for UsersServiceImpl {
 
             Box::new(self.cpu_pool.spawn_fn(move || {
                 r2d2_clone.get()
-                    .map_err(|e| Error::Database(format!("Connection error {}", e)))
+                    .map_err(|e| ServiceError::Connection(e))
                     .and_then(move |conn| {
                         let acl = get_acl(current_uid, roles_cache);
                         let users_repo = UsersRepoImpl::new(&conn, acl);
-                        users_repo.find(UserId(id)).map_err(Error::from)
+                        users_repo.find(UserId(id)).map_err(ServiceError::from)
                     })
             }))
         } else {
-            Box::new(future::err(Error::Unknown(
+            Box::new(future::err(ServiceError::Unknown(
                 format!("There is no user id in request header."),
             )))
         }
@@ -118,13 +118,13 @@ impl UsersService for UsersServiceImpl {
         Box::new(
             self.cpu_pool.spawn_fn(move || {
                 r2d2_clone.get()
-                    .map_err(|e| Error::Database(format!("Connection error {}", e)))
+                    .map_err(|e| ServiceError::Connection(e))
                     .and_then(move |conn| {
                         let acl = get_acl(current_uid, roles_cache);
                         let users_repo = UsersRepoImpl::new(&conn, acl);
                         users_repo
                             .list(from, count)
-                            .map_err(|e| Error::from(e))
+                            .map_err(|e| ServiceError::from(e))
                     })
             })
         )
@@ -139,13 +139,13 @@ impl UsersService for UsersServiceImpl {
         Box::new(
             self.cpu_pool.spawn_fn(move || {
                 r2d2_clone.get()
-                    .map_err(|e| Error::Database(format!("Connection error {}", e)))
+                    .map_err(|e| ServiceError::Connection(e))
                     .and_then(move |conn| {
                         let acl = get_acl(current_uid, roles_cache);
                         let users_repo = UsersRepoImpl::new(&conn, acl);
                         users_repo
                             .deactivate(user_id)
-                            .map_err(|e| Error::from(e))
+                            .map_err(|e| ServiceError::from(e))
                     })
             })
         )
@@ -160,25 +160,25 @@ impl UsersService for UsersServiceImpl {
         Box::new(
             self.cpu_pool.spawn_fn(move || {
                 r2d2_clone.get()
-                    .map_err(|e| Error::Database(format!("Connection error {}", e)))
+                    .map_err(|e| ServiceError::Connection(e))
                     .and_then(move |conn| {
                         let acl = get_acl(current_uid, roles_cache);
                         let users_repo = UsersRepoImpl::new(&conn, acl);
                         let ident_repo = IdentitiesRepoImpl::new(&conn);
-                        conn.transaction::<User, Error, _>(move || {
+                        conn.transaction::<User, ServiceError, _>(move || {
                             ident_repo
                                 .email_provider_exists(payload.email.to_string(), Provider::Email)
                                 .map(move |exists| (payload, exists))
-                                .map_err(Error::from)
+                                .map_err(ServiceError::from)
                                 .and_then(|(payload, exists)| match exists {
                                     false => Ok(payload),
-                                    true => Err(Error::Database("Email already exists".into())),
+                                    true => Err(ServiceError::EmailAlreadyExistsError(payload.email.clone())),
                                 })
                                 .and_then(move |new_ident| {
                                     let new_user = NewUser::from(new_ident.clone());
                                     users_repo
                                         .create(new_user)
-                                        .map_err(|e| Error::from(e))
+                                        .map_err(|e| ServiceError::from(e))
                                         .map(|user| (new_ident, user))
                                 })
                                 .and_then(move |(new_ident, user)| 
@@ -189,7 +189,7 @@ impl UsersService for UsersServiceImpl {
                                             Provider::Email, 
                                             user.id.clone()
                                         )
-                                        .map_err(|e| Error::from(e))
+                                        .map_err(|e| ServiceError::from(e))
                                         .map(|_| user)
                                 )
                         })
@@ -207,14 +207,14 @@ impl UsersService for UsersServiceImpl {
         Box::new(
             self.cpu_pool.spawn_fn(move || {
                 r2d2_clone.get()
-                    .map_err(|e| Error::Database(format!("Connection error {}", e)))
+                    .map_err(|e| ServiceError::Connection(e))
                     .and_then(move |conn| {
                         let acl = get_acl(current_uid, roles_cache);
                         let users_repo = UsersRepoImpl::new(&conn, acl);
                         users_repo
                             .find(user_id.clone())
                             .and_then(move |_user| users_repo.update(user_id, payload))
-                            .map_err(|e| Error::from(e))
+                            .map_err(|e| ServiceError::from(e))
                     })
             })
         )

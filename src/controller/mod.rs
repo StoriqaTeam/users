@@ -19,7 +19,7 @@ use hyper::header::Authorization;
 use serde_json;
 use futures_cpupool::CpuPool;
 
-use self::error::Error;
+use self::error::ControllerError;
 use services::system::{SystemServiceImpl, SystemService};
 use services::users::{UsersServiceImpl, UsersService};
 use services::jwt::{JWTService, JWTServiceImpl};
@@ -44,7 +44,8 @@ pub struct Controller {
 }
 
 macro_rules! serialize_future {
-    ($e:expr) => (Box::new($e.map_err(|e| Error::from(e)).and_then(|resp| serde_json::to_string(&resp).map_err(|e| Error::from(e)))))
+    ($e:expr) => (Box::new($e.map_err(|e| ControllerError::from(e)).and_then(
+        |resp| serde_json::to_string(&resp).map_err(|e| ControllerError::from(e)))))
 }
 
 impl Controller {
@@ -87,7 +88,7 @@ impl Controller {
             // GET /healthcheck
             (&Get, Some(Route::Healthcheck)) =>
                 {
-                    serialize_future!(system_service.healthcheck().map_err(|e| Error::from(e)))
+                    serialize_future!(system_service.healthcheck().map_err(|e| ControllerError::from(e)))
                 },
 
             // GET /users/<user_id>
@@ -105,7 +106,7 @@ impl Controller {
                 if let (Some(from), Some(to)) = parse_query!(req.query().unwrap_or_default(), "from" => i32, "to" => i64) {
                     serialize_future!(users_service.list(from, to))
                 } else {
-                    Box::new(future::err(Error::UnprocessableEntity("Error parsing request from gateway body".to_string())))
+                    Box::new(future::err(ControllerError::UnprocessableEntity("Error parsing request from gateway body".to_string())))
                 }
             },
 
@@ -113,14 +114,14 @@ impl Controller {
             (&Post, Some(Route::Users)) => {
                 serialize_future!(
                     parse_body::<models::identity::NewIdentity>(req.body())
-                        .map_err(|_| Error::UnprocessableEntity("Error parsing request from gateway body".to_string()))
+                        .map_err(|_| ControllerError::UnprocessableEntity("Error parsing request from gateway body".to_string()))
                         .and_then(move |new_ident| {
                             let checked_new_ident = models::identity::NewIdentity {
                                 email: new_ident.email.to_lowercase(),
                                 password: new_ident.password,
                             };
 
-                            users_service.create(checked_new_ident).map_err(|e| Error::from(e))
+                            users_service.create(checked_new_ident).map_err(|e| ControllerError::from(e))
                         })
                 )
             },
@@ -129,8 +130,8 @@ impl Controller {
             (&Put, Some(Route::User(user_id))) => {
                 serialize_future!(
                     parse_body::<models::user::UpdateUser>(req.body())
-                        .map_err(|_| Error::UnprocessableEntity("Error parsing request from gateway body".to_string()))
-                        .and_then(move |update_user| users_service.update(user_id, update_user).map_err(|e| Error::from(e)))
+                        .map_err(|_| ControllerError::UnprocessableEntity("Error parsing request from gateway body".to_string()))
+                        .and_then(move |update_user| users_service.update(user_id, update_user).map_err(|e| ControllerError::from(e)))
                 )
             }
 
@@ -143,14 +144,14 @@ impl Controller {
             (&Post, Some(Route::JWTEmail)) => {
                 serialize_future!(
                     parse_body::<models::identity::NewIdentity>(req.body())
-                        .map_err(|_| Error::UnprocessableEntity("Error parsing request from gateway body".to_string()))
+                        .map_err(|_| ControllerError::UnprocessableEntity("Error parsing request from gateway body".to_string()))
                         .and_then(move |new_ident| {
                             let checked_new_ident = models::identity::NewIdentity {
                                 email: new_ident.email.to_lowercase(),
                                 password: new_ident.password,
                             };
 
-                            jwt_service.create_token_email(checked_new_ident).map_err(|e| Error::from(e))
+                            jwt_service.create_token_email(checked_new_ident).map_err(|e| ControllerError::from(e))
                         })
                 )
             },
@@ -159,22 +160,22 @@ impl Controller {
             (&Post, Some(Route::JWTGoogle)) =>  {
                 serialize_future!(
                     parse_body::<models::jwt::ProviderOauth>(req.body())
-                        .map_err(|_| Error::UnprocessableEntity("Error parsing request from gateway body".to_string()))
-                        .and_then(move |oauth| jwt_service.create_token_google(oauth).map_err(|e| Error::from(e)))
+                        .map_err(|_| ControllerError::UnprocessableEntity("Error parsing request from gateway body".to_string()))
+                        .and_then(move |oauth| jwt_service.create_token_google(oauth).map_err(|e| ControllerError::from(e)))
                 )
             },
             // POST /jwt/facebook
             (&Post, Some(Route::JWTFacebook)) => {
                 serialize_future!(
                     parse_body::<models::jwt::ProviderOauth>(req.body())
-                        .map_err(|_| Error::UnprocessableEntity("Error parsing request from gateway body".to_string()))
-                        .and_then(move |oauth| jwt_service.create_token_facebook(oauth).map_err(|e| Error::from(e)))
+                        .map_err(|_| ControllerError::UnprocessableEntity("Error parsing request from gateway body".to_string()))
+                        .and_then(move |oauth| jwt_service.create_token_facebook(oauth).map_err(|e| ControllerError::from(e)))
                 )
             },
 
 
             // Fallback
-            _ => Box::new(future::err(Error::NotFound))
+            _ => Box::new(future::err(ControllerError::NotFound))
         }
     }
 }
