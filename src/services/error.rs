@@ -17,15 +17,15 @@ pub enum ServiceError {
     #[fail(display = "R2D2 connection error")]
     Connection(#[cause] R2D2Error),
     #[fail(display = "Diesel transaction error")]
-    TransactionError(#[cause] DieselError),
+    Transaction(#[cause] DieselError),
     #[fail(display = "Repo error")]
     Database(#[cause] RepoError),
     #[fail(display = "Http client error: {}", _0)]
     HttpClient(String),
     #[fail(display = "Email already exists: [{}]", _0)]
-    EmailAlreadyExistsError(String),
+    EmailAlreadyExists(String),
     #[fail(display = "Incorrect email or password")]
-    IncorrectCredentialsError,
+    IncorrectCredentials,
     #[fail(display = "Unknown error: {}", _0)]
     Unknown(String),
 }
@@ -45,6 +45,6 @@ impl From<RepoError> for ServiceError {
 
 impl From<DieselError> for ServiceError {
     fn from(err: DieselError) -> Self {
-        ServiceError::TransactionError(err)
+        ServiceError::Transaction(err)
     }
 }

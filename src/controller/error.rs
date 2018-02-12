@@ -7,8 +7,10 @@ use services::error::ServiceError;
 pub enum ControllerError {
     #[fail(display = "Not found")]
     NotFound,
-    #[fail(display = "Bad request: {}", _0)]
-    BadRequest(String),
+    #[fail(display = "Parse error: {}", _0)]
+    Parse(String),
+    #[fail(display = "Bad request")]
+    BadRequest(#[cause] ServiceError),
     #[fail(display = "Unprocessable entity: {}", _0)]
     UnprocessableEntity(String),
     #[fail(display = "Internal server error")]
@@ -25,17 +27,16 @@ impl From<ServiceError> for ControllerError {
     fn from(e: ServiceError) -> Self {
         match e {
             ServiceError::NotFound => ControllerError::NotFound,
-            ServiceError::Rollback => ControllerError::BadRequest("Transaction rollback".to_string()),
-            ServiceError::Validate(msg) => ControllerError::BadRequest(
-                serde_json::to_string(&msg).unwrap_or("Unable to serialize validation errors".to_string())
-            ),
+            ServiceError::Rollback => ControllerError::BadRequest(ServiceError::Rollback),
+            ServiceError::Validate(msg) => ControllerError::BadRequest(ServiceError::Validate(msg)),
             ServiceError::Parse(msg) => ControllerError::UnprocessableEntity(format!("Parse error: {}", msg)),
             ServiceError::Database(msg) => ControllerError::InternalServerError(ServiceError::Database(msg)),
             ServiceError::HttpClient(msg) => ControllerError::InternalServerError(ServiceError::HttpClient(msg)),
-            ServiceError::EmailAlreadyExistsError(msg) => ControllerError::BadRequest(msg),
-            ServiceError::IncorrectCredentialsError => ControllerError::BadRequest(
-                "Incorrect email or password".to_string()),
-            _ => ControllerError::BadRequest("Unknown".into())
+            ServiceError::EmailAlreadyExists(msg) => ControllerError::BadRequest(ServiceError::EmailAlreadyExists(msg)),
+            ServiceError::IncorrectCredentials => ControllerError::BadRequest(ServiceError::IncorrectCredentials),
+            ServiceError::Connection(msg) => ControllerError::InternalServerError(ServiceError::Connection(msg)),
+            ServiceError::Transaction(msg) => ControllerError::InternalServerError(ServiceError::Transaction(msg)),
+            ServiceError::Unknown(msg) => ControllerError::InternalServerError(ServiceError::Unknown(msg)),
         }
     }
 }
@@ -48,6 +49,7 @@ impl ControllerError {
 
         match self {
             &NotFound => StatusCode::NotFound,
+            &Parse(_) => StatusCode::BadRequest,
             &BadRequest(_) => StatusCode::BadRequest,
             &UnprocessableEntity(_) => StatusCode::UnprocessableEntity,
             &InternalServerError(_) => StatusCode::InternalServerError,
@@ -61,6 +63,7 @@ impl ControllerError {
 
         match self {
             &NotFound => "Not found".to_string(),
+            &Parse(_) => "Bad request".to_string(),
             &BadRequest(_) => "Bad request".to_string(),
             &UnprocessableEntity(_) => "Unprocessable entity".to_string(),
             &InternalServerError(_) => "Internal server error".to_string(),

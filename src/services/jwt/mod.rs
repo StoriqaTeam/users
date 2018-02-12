@@ -275,7 +275,7 @@ impl JWTService for JWTServiceImpl {
                                                     .and_then( move |(verified, new_ident)| -> Result<i32, ServiceError> {
                                                             match verified {
                                                                 //password not verified
-                                                                false => Err(ServiceError::IncorrectCredentialsError),
+                                                                false => Err(ServiceError::IncorrectCredentials),
                                                                 //password verified
                                                                 true => ident_repo
                                                                             .find_by_email_provider(new_ident.email, Provider::Email)
