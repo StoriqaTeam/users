@@ -3,6 +3,8 @@
 //! Basically it provides inputs to `Service` layer and converts outputs
 //! of `Service` layer to http responses
 
+extern crate std;
+
 pub mod error;
 pub mod routes;
 pub mod types;
@@ -13,10 +15,12 @@ use std::str::FromStr;
 
 use futures::Future;
 use futures::future;
+use futures::IntoFuture;
 use hyper::{Delete, Get, Post, Put};
 use hyper::server::Request;
 use hyper::header::Authorization;
 use serde_json;
+use serde::ser::Serialize;
 use futures_cpupool::CpuPool;
 
 use self::error::ControllerError;
@@ -43,9 +47,18 @@ pub struct Controller {
     pub roles_cache: RolesCacheImpl,
 }
 
-macro_rules! serialize_future {
-    ($e:expr) => (Box::new($e.map_err(|e| ControllerError::from(e)).and_then(
-        |resp| serde_json::to_string(&resp).map_err(|e| ControllerError::from(e)))))
+fn serialize_future<T, E, F>(f: F) -> ControllerFuture
+where
+    F: IntoFuture<Item = T, Error = E> + 'static,
+    E: 'static,
+    ControllerError: std::convert::From<E>,
+    T: Serialize,
+{
+    Box::new(
+        f.into_future()
+            .map_err(ControllerError::from)
+            .and_then(|resp| serde_json::to_string(&resp).map_err(|e| e.into())),
+    )
 }
 
 impl Controller {
@@ -87,22 +100,22 @@ impl Controller {
 
         match (req.method(), self.route_parser.test(req.path())) {
             // GET /healthcheck
-            (&Get, Some(Route::Healthcheck)) => serialize_future!(
+            (&Get, Some(Route::Healthcheck)) => serialize_future(
                 system_service
                     .healthcheck()
-                    .map_err(|e| ControllerError::from(e))
+                    .map_err(|e| ControllerError::from(e)),
             ),
 
             // GET /users/<user_id>
-            (&Get, Some(Route::User(user_id))) => serialize_future!(users_service.get(user_id)),
+            (&Get, Some(Route::User(user_id))) => serialize_future(users_service.get(user_id)),
 
             // GET /users/current
-            (&Get, Some(Route::Current)) => serialize_future!(users_service.current()),
+            (&Get, Some(Route::Current)) => serialize_future(users_service.current()),
 
             // GET /users
             (&Get, Some(Route::Users)) => {
                 if let (Some(from), Some(to)) = parse_query!(req.query().unwrap_or_default(), "from" => i32, "to" => i64) {
-                    serialize_future!(users_service.list(from, to))
+                    serialize_future(users_service.list(from, to))
                 } else {
                     Box::new(future::err(ControllerError::UnprocessableEntity(
                         "Error parsing request from gateway body".to_string(),
@@ -111,7 +124,7 @@ impl Controller {
             }
 
             // POST /users
-            (&Post, Some(Route::Users)) => serialize_future!(
+            (&Post, Some(Route::Users)) => serialize_future(
                 parse_body::<models::identity::NewIdentity>(req.body())
                     .map_err(|_| ControllerError::UnprocessableEntity("Error parsing request from gateway body".to_string()))
                     .and_then(move |new_ident| {
@@ -123,23 +136,25 @@ impl Controller {
                         users_service
                             .create(checked_new_ident)
                             .map_err(|e| ControllerError::from(e))
-                    })
+                    }),
             ),
 
             // PUT /users/<user_id>
-            (&Put, Some(Route::User(user_id))) => serialize_future!(
+            (&Put, Some(Route::User(user_id))) => serialize_future(
                 parse_body::<models::user::UpdateUser>(req.body())
                     .map_err(|_| ControllerError::UnprocessableEntity("Error parsing request from gateway body".to_string()))
-                    .and_then(move |update_user| users_service
-                        .update(user_id, update_user)
-                        .map_err(|e| ControllerError::from(e)))
+                    .and_then(move |update_user| {
+                        users_service
+                            .update(user_id, update_user)
+                            .map_err(|e| ControllerError::from(e))
+                    }),
             ),
 
             // DELETE /users/<user_id>
-            (&Delete, Some(Route::User(user_id))) => serialize_future!(users_service.deactivate(user_id)),
+            (&Delete, Some(Route::User(user_id))) => serialize_future(users_service.deactivate(user_id)),
 
             // POST /jwt/email
-            (&Post, Some(Route::JWTEmail)) => serialize_future!(
+            (&Post, Some(Route::JWTEmail)) => serialize_future(
                 parse_body::<models::identity::NewIdentity>(req.body())
                     .map_err(|_| ControllerError::UnprocessableEntity("Error parsing request from gateway body".to_string()))
                     .and_then(move |new_ident| {
@@ -151,24 +166,28 @@ impl Controller {
                         jwt_service
                             .create_token_email(checked_new_ident)
                             .map_err(|e| ControllerError::from(e))
-                    })
+                    }),
             ),
 
             // POST /jwt/google
-            (&Post, Some(Route::JWTGoogle)) => serialize_future!(
+            (&Post, Some(Route::JWTGoogle)) => serialize_future(
                 parse_body::<models::jwt::ProviderOauth>(req.body())
                     .map_err(|_| ControllerError::UnprocessableEntity("Error parsing request from gateway body".to_string()))
-                    .and_then(move |oauth| jwt_service
-                        .create_token_google(oauth)
-                        .map_err(|e| ControllerError::from(e)))
+                    .and_then(move |oauth| {
+                        jwt_service
+                            .create_token_google(oauth)
+                            .map_err(|e| ControllerError::from(e))
+                    }),
             ),
             // POST /jwt/facebook
-            (&Post, Some(Route::JWTFacebook)) => serialize_future!(
+            (&Post, Some(Route::JWTFacebook)) => serialize_future(
                 parse_body::<models::jwt::ProviderOauth>(req.body())
                     .map_err(|_| ControllerError::UnprocessableEntity("Error parsing request from gateway body".to_string()))
-                    .and_then(move |oauth| jwt_service
-                        .create_token_facebook(oauth)
-                        .map_err(|e| ControllerError::from(e)))
+                    .and_then(move |oauth| {
+                        jwt_service
+                            .create_token_facebook(oauth)
+                            .map_err(|e| ControllerError::from(e))
+                    }),
             ),
 
             // Fallback
