@@ -16,7 +16,7 @@ use super::types::DbConnection;
 
 /// Identities repository, responsible for handling identities
 pub struct IdentitiesRepoImpl<'a> {
-    pub db_conn: &'a DbConnection
+    pub db_conn: &'a DbConnection,
 }
 
 pub trait IdentitiesRepo {
@@ -24,7 +24,13 @@ pub trait IdentitiesRepo {
     fn email_provider_exists(&self, email_arg: String, provider: Provider) -> Result<bool, RepoError>;
 
     /// Creates new identity
-    fn create(&self, email_arg: String, password_arg: Option<String>, provider_arg: Provider, user_id_arg: UserId) -> Result<Identity, RepoError>;
+    fn create(
+        &self,
+        email_arg: String,
+        password_arg: Option<String>,
+        provider_arg: Provider,
+        user_id_arg: UserId,
+    ) -> Result<Identity, RepoError>;
 
     /// Verifies password
     fn verify_password(&self, email_arg: String, password_arg: String) -> Result<bool, RepoError>;
@@ -35,18 +41,15 @@ pub trait IdentitiesRepo {
 
 impl<'a> IdentitiesRepoImpl<'a> {
     pub fn new(db_conn: &'a DbConnection) -> Self {
-        Self {
-            db_conn
-        }
+        Self { db_conn }
     }
 
-    fn execute_query<T: Send + 'static, U: LoadQuery<PgConnection, T> + Send + 'static>(
-        &self,
-        query: U,
-    ) -> Result<T, RepoError> {
+    fn execute_query<T: Send + 'static, U: LoadQuery<PgConnection, T> + Send + 'static>(&self, query: U) -> Result<T, RepoError> {
         let conn = self.db_conn;
 
-        query.get_result::<T>(&*conn).map_err(|e| RepoError::from(e))
+        query
+            .get_result::<T>(&*conn)
+            .map_err(|e| RepoError::from(e))
     }
 }
 
@@ -76,16 +79,15 @@ impl<'a> IdentitiesRepo for IdentitiesRepoImpl<'a> {
         email_arg: String,
         password_arg: Option<String>,
         provider_arg: Provider,
-        user_id_arg: UserId
+        user_id_arg: UserId,
     ) -> Result<Identity, RepoError> {
-
         let identity_arg = Identity {
             user_id: user_id_arg,
             email: email_arg,
             provider: provider_arg,
             password: password_arg,
         };
-        
+
         let ident_query = diesel::insert_into(identities).values(&identity_arg);
         ident_query
             .get_result::<Identity>(&**self.db_conn)
@@ -98,6 +100,8 @@ impl<'a> IdentitiesRepo for IdentitiesRepoImpl<'a> {
             .filter(email.eq(email_arg))
             .filter(provider.eq(provider_arg));
 
-        query.first::<Identity>(&**self.db_conn).map_err(|e| RepoError::from(e))
+        query
+            .first::<Identity>(&**self.db_conn)
+            .map_err(|e| RepoError::from(e))
     }
 }

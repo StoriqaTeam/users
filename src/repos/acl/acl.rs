@@ -20,70 +20,74 @@ pub trait Acl {
     /// `resource_with_scope` can tell if this resource is in some scope, which is also a part of `acl` for some
     /// permissions. E.g. You can say that a user can do `Create` (`Action`) on `Store` (`Resource`) only if he's the
     /// `Owner` (`Scope`) of the store.
-    fn can (&mut self, resource: Resource, action: Action, resources_with_scope: Vec<&WithScope>) -> bool;
+    fn can(&mut self, resource: Resource, action: Action, resources_with_scope: Vec<&WithScope>) -> bool;
 }
 
-/// SystemACL allows all manipulation with recources for all 
+/// SystemACL allows all manipulation with recources for all
 #[derive(Clone)]
 pub struct SystemACL {}
 
 #[allow(unused)]
 impl Acl for SystemACL {
-    fn can (&mut self, resource: Resource, action: Action, resources_with_scope: Vec<&WithScope>) -> bool{
+    fn can(&mut self, resource: Resource, action: Action, resources_with_scope: Vec<&WithScope>) -> bool {
         true
     }
 }
 
 impl SystemACL {
-    pub fn new () -> Self {
-        Self{}
+    pub fn new() -> Self {
+        Self {}
     }
 }
 
-
-
-/// UnAuthanticatedACL denies all manipulation with recources for all 
+/// UnAuthanticatedACL denies all manipulation with recources for all
 #[derive(Clone)]
 pub struct UnAuthanticatedACL {}
 
 #[allow(unused)]
 impl Acl for UnAuthanticatedACL {
-    fn can (&mut self, resource: Resource, action: Action, resources_with_scope: Vec<&WithScope>) -> bool{
+    fn can(&mut self, resource: Resource, action: Action, resources_with_scope: Vec<&WithScope>) -> bool {
         false
     }
 }
 
 impl UnAuthanticatedACL {
-    pub fn new () -> Self {
-        Self{}
+    pub fn new() -> Self {
+        Self {}
     }
 }
 
-
-/// ApplicationAcl contains main logic for manipulation with recources 
+/// ApplicationAcl contains main logic for manipulation with recources
 // TODO: remove info about deleted user from cache
 #[derive(Clone)]
 pub struct ApplicationAcl<R: RolesCache> {
     acls: Rc<RefCell<HashMap<Role, Vec<Permission>>>>,
     roles_cache: R,
-    user_id: i32
+    user_id: i32,
 }
-
 
 impl<R: RolesCache> ApplicationAcl<R> {
     pub fn new(roles_cache: R, user_id: i32) -> Self {
         let mut hash = ::std::collections::HashMap::new();
-        hash.insert(Role::Superuser, vec![
-                    permission!(Resource::Users), 
-                    permission!(Resource::UserRoles)]);
-        hash.insert(Role::Superuser, vec![
-                    permission!(Resource::Users, Action::Read), 
-                    permission!(Resource::Users, Action::All, Scope::Owned),
-                    permission!(Resource::UserRoles, Action::Read, Scope::Owned)]);
+        hash.insert(
+            Role::Superuser,
+            vec![
+                permission!(Resource::Users),
+                permission!(Resource::UserRoles),
+            ],
+        );
+        hash.insert(
+            Role::Superuser,
+            vec![
+                permission!(Resource::Users, Action::Read),
+                permission!(Resource::Users, Action::All, Scope::Owned),
+                permission!(Resource::UserRoles, Action::Read, Scope::Owned),
+            ],
+        );
 
-        ApplicationAcl { 
-            acls: Rc::new(RefCell::new(hash)), 
-            roles_cache: roles_cache, 
+        ApplicationAcl {
+            acls: Rc::new(RefCell::new(hash)),
+            roles_cache: roles_cache,
             user_id: user_id,
         }
     }
@@ -95,13 +99,15 @@ impl<R: RolesCache> Acl for ApplicationAcl<R> {
         let user_id = &self.user_id;
         let roles = self.roles_cache.get(*user_id);
         let hashed_acls = self.acls.borrow_mut();
-        let acls = roles.into_iter()
+        let acls = roles
+            .into_iter()
             .flat_map(|role| hashed_acls.get(&role).unwrap_or(&empty))
-            .filter(|permission|
-                (permission.resource == resource) &&
-                ((permission.action == action) || (permission.action == Action::All))
-            )
-            .filter(|permission| resources_with_scope.iter().all(|res| res.is_in_scope(&permission.scope, *user_id)));
+            .filter(|permission| (permission.resource == resource) && ((permission.action == action) || (permission.action == Action::All)))
+            .filter(|permission| {
+                resources_with_scope
+                    .iter()
+                    .all(|res| res.is_in_scope(&permission.scope, *user_id))
+            });
 
         acls.count() > 0
     }
@@ -111,13 +117,13 @@ impl<R: RolesCache> Acl for ApplicationAcl<R> {
 mod tests {
 
     use hyper::mime;
-    use hyper::{StatusCode, Response};
+    use hyper::{Response, StatusCode};
     use hyper::header::{ContentLength, ContentType};
     use tokio_core::reactor::Core;
     use serde_json;
 
-    use ::models::identity::{NewIdentity};
-    use ::controller::utils::{parse_body, read_body};
+    use models::identity::NewIdentity;
+    use controller::utils::{parse_body, read_body};
 
     struct Cache_Roles_Mock {}
 
@@ -125,13 +131,12 @@ mod tests {
         fn get(&mut self, id: i32) -> Vec<Role> {
             match id {
                 1 => vec![Role::Superuser],
-                _ => vec![Role::User]
+                _ => vec![Role::User],
             }
         }
     }
 
     const MOCK_USER_ROLE: Cache_Roles_Mock = Cache_Roles_Mock {};
-
 
     #[test]
     fn test_super_user_for_users() {
@@ -172,7 +177,6 @@ mod tests {
 
     #[test]
     fn test_ordinary_user_for_users() {
-        
         let mut acl = ApplicationAcl::new(MOCK_USER_ROLE, 2);
 
         let resource = User {
@@ -209,7 +213,6 @@ mod tests {
 
     #[test]
     fn test_super_user_for_user_roles() {
-
         let mut acl = ApplicationAcl::new(MOCK_USER_ROLE, 1);
 
         let resource = UserRole {
@@ -235,9 +238,8 @@ mod tests {
 
     #[test]
     fn test_user_for_user_roles() {
-
         let mut acl = ApplicationAcl::new(MOCK_USER_ROLE, 2);
-        
+
         let resource = UserRole {
             id: 1,
             user_id: 1,

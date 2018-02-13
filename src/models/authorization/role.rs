@@ -15,7 +15,7 @@ mod diesel_impl {
     use diesel::row::Row;
     use diesel::expression::bound::Bound;
     use diesel::expression::AsExpression;
-    use diesel::types::{FromSqlRow, ToSql, IsNull, NotNull, SingleValue};
+    use diesel::types::{FromSqlRow, IsNull, NotNull, SingleValue, ToSql};
     use diesel::serialize::Output;
     use diesel::deserialize::Queryable;
     use diesel::sql_types::VarChar;
@@ -30,7 +30,10 @@ mod diesel_impl {
             match row.take() {
                 Some(b"superuser") => Ok(Role::Superuser),
                 Some(b"user") => Ok(Role::User),
-                Some(value) => Err(format!("Unrecognized enum variant for Role: {}", str::from_utf8(value).unwrap_or("unreadable value")).into()),
+                Some(value) => Err(format!(
+                    "Unrecognized enum variant for Role: {}",
+                    str::from_utf8(value).unwrap_or("unreadable value")
+                ).into()),
                 None => Err("Unexpected null for non-null column `role`".into()),
             }
         }
@@ -68,4 +71,3 @@ mod diesel_impl {
     }
 
 }
-

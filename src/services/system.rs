@@ -2,7 +2,6 @@ use futures::future;
 
 use super::types::ServiceFuture;
 
-
 /// System service, responsible for common endpoints like healthcheck
 pub trait SystemService {
     /// Healthcheck endpoint, always returns OK status
@@ -20,6 +19,6 @@ impl SystemService for SystemServiceImpl {
 
 impl SystemServiceImpl {
     pub fn new() -> Self {
-        Self{}
+        Self {}
     }
 }

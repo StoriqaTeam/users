@@ -1,4 +1,4 @@
-//! Module containing info about Identity models 
+//! Module containing info about Identity models
 use validator::Validate;
 
 use models::{Provider, UserId};
@@ -16,14 +16,13 @@ table! {
 /// Payload for creating identity for users
 #[derive(Debug, Serialize, Deserialize, Validate, Insertable, Queryable)]
 #[table_name = "identities"]
-pub struct Identity
-{
+pub struct Identity {
     pub user_id: UserId,
     #[validate(email(message = "Invalid email format"))]
     pub email: String,
     #[validate(length(min = "8", max = "30", message = "Password should be between 6 and 30 symbols"))]
     pub password: Option<String>,
-    pub provider: Provider
+    pub provider: Provider,
 }
 
 /// Payload for creating users

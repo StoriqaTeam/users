@@ -12,8 +12,7 @@ pub struct ProviderOauth {
     pub token: String,
 }
 
-
-/// Json web token payload 
+/// Json web token payload
 #[derive(Serialize, Deserialize, Debug)]
 pub struct JWTPayload {
     pub user_id: i32,
@@ -21,8 +20,6 @@ pub struct JWTPayload {
 
 impl JWTPayload {
     pub fn new(id: i32) -> Self {
-        Self {
-            user_id: id,
-        }
+        Self { user_id: id }
     }
 }

@@ -1,8 +1,8 @@
+extern crate futures;
 extern crate hyper;
 extern crate serde_json;
 extern crate tokio_core;
 extern crate users_lib;
-extern crate futures;
 
 use std::sync::Arc;
 use std::thread;
@@ -18,7 +18,6 @@ use futures::sync::oneshot;
 
 use users_lib::http::client::{Client, Error};
 use users_lib::config::Config;
-
 
 #[test]
 fn test_request() {
@@ -65,8 +64,7 @@ fn test_request() {
     let client_handle = client.handle();
     let client_stream = client.stream();
     handle.spawn(client_stream.for_each(|_| Ok(())));
-    let res =
-        client_handle.request::<String>(Method::Get, format!("http://{}", addr), None, None);
+    let res = client_handle.request::<String>(Method::Get, format!("http://{}", addr), None, None);
     let rx = rx.map_err(|e| Error::Unknown(e.to_string()));
     let work = res.join(rx).map(|r| r.0);
     let result = core.run(work).unwrap();

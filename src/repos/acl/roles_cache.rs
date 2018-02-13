@@ -5,15 +5,15 @@ use std::sync::{Arc, Mutex};
 use futures::Future;
 use futures_cpupool::CpuPool;
 
-use repos::user_roles::{UserRolesRepoImpl, UserRolesRepo};
+use repos::user_roles::{UserRolesRepo, UserRolesRepoImpl};
 use repos::types::DbPool;
 use models::authorization::*;
 
 #[derive(Clone)]
 pub struct RolesCacheImpl {
     roles_cache: Arc<Mutex<HashMap<i32, Vec<Role>>>>,
-    db_pool: DbPool, 
-    cpu_pool: CpuPool
+    db_pool: DbPool,
+    cpu_pool: CpuPool,
 }
 
 impl RolesCacheImpl {
@@ -21,7 +21,7 @@ impl RolesCacheImpl {
         RolesCacheImpl {
             roles_cache: Arc::new(Mutex::new(HashMap::new())),
             db_pool: db_pool,
-            cpu_pool: cpu_pool
+            cpu_pool: cpu_pool,
         }
     }
 }
@@ -47,4 +47,3 @@ impl RolesCache for RolesCacheImpl {
         vec.clone()
     }
 }
-

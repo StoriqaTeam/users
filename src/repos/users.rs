@@ -10,7 +10,7 @@ use diesel::query_dsl::RunQueryDsl;
 use diesel::query_dsl::LoadQuery;
 use diesel::pg::PgConnection;
 
-use models::{UpdateUser, User, NewUser, UserId};
+use models::{NewUser, UpdateUser, User, UserId};
 use models::user::user::users::dsl::*;
 use super::error::RepoError;
 use super::types::DbConnection;
@@ -19,7 +19,7 @@ use repos::acl::Acl;
 /// Users repository, responsible for handling users
 pub struct UsersRepoImpl<'a> {
     pub db_conn: &'a DbConnection,
-    pub acl : Arc<Acl>
+    pub acl: Arc<Acl>,
 }
 
 pub trait UsersRepo {
@@ -45,11 +45,8 @@ pub trait UsersRepo {
 }
 
 impl<'a> UsersRepoImpl<'a> {
-    pub fn new(db_conn: &'a DbConnection, acl : Arc<Acl>) -> Self {
-        Self {
-            db_conn,
-            acl
-        }
+    pub fn new(db_conn: &'a DbConnection, acl: Arc<Acl>) -> Self {
+        Self { db_conn, acl }
     }
 }
 
@@ -69,10 +66,11 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
 
     /// Find specific user by email
     fn find_by_email(&self, email_arg: String) -> Result<User, RepoError> {
-        let query = users
-            .filter(email.eq(email_arg));
+        let query = users.filter(email.eq(email_arg));
 
-        query.first::<User>(&**self.db_conn).map_err(|e| RepoError::from(e))
+        query
+            .first::<User>(&**self.db_conn)
+            .map_err(|e| RepoError::from(e))
     }
 
     /// Returns list of users, limited by `from` and `count` parameters
@@ -83,7 +81,9 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
             .order(id)
             .limit(count);
 
-        query.get_results(&**self.db_conn).map_err(|e| RepoError::from(e))
+        query
+            .get_results(&**self.db_conn)
+            .map_err(|e| RepoError::from(e))
     }
 
     /// Creates new user
@@ -100,7 +100,9 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
         let filter = users.filter(id.eq(user_id_arg)).filter(is_active.eq(true));
 
         let query = diesel::update(filter).set(&payload);
-        query.get_result::<User>(&**self.db_conn).map_err(|e| RepoError::from(e))
+        query
+            .get_result::<User>(&**self.db_conn)
+            .map_err(|e| RepoError::from(e))
     }
 
     /// Deactivates specific user

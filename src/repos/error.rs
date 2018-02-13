@@ -21,16 +21,27 @@ impl From<DieselError> for RepoError {
         match err {
             DieselError::InvalidCString(e) => RepoError::Unknown("".to_string(), DieselError::InvalidCString(e)),
             DieselError::DatabaseError(kind, info) => RepoError::ContstaintViolation(
-                format!("{:?}: {:?}", kind, info), DieselError::DatabaseError(kind, info)),
+                format!("{:?}: {:?}", kind, info),
+                DieselError::DatabaseError(kind, info),
+            ),
             DieselError::NotFound => RepoError::NotFound,
             DieselError::QueryBuilderError(e) => RepoError::Unknown(
-                "Query builder error".to_string(), DieselError::QueryBuilderError(e)),
+                "Query builder error".to_string(),
+                DieselError::QueryBuilderError(e),
+            ),
             DieselError::SerializationError(e) => RepoError::MismatchedType(
-                "Serialization error".to_string(), DieselError::SerializationError(e)),
+                "Serialization error".to_string(),
+                DieselError::SerializationError(e),
+            ),
             DieselError::DeserializationError(e) => RepoError::MismatchedType(
-                "Deserialization error".to_string(), DieselError::DeserializationError(e)),
+                "Deserialization error".to_string(),
+                DieselError::DeserializationError(e),
+            ),
             DieselError::RollbackTransaction => RepoError::Rollback,
-            _ => RepoError::Unknown("Unknown diesel error".to_string(), DieselError::__Nonexhaustive)
+            _ => RepoError::Unknown(
+                "Unknown diesel error".to_string(),
+                DieselError::__Nonexhaustive,
+            ),
         }
     }
 }

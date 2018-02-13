@@ -1,10 +1,10 @@
 //! Module containing info about enum Provider and its impls of service traits for converting to string in db
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)] 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum Provider {
-   Email,
-   UnverifiedEmail,
-   Facebook,
-   Google
+    Email,
+    UnverifiedEmail,
+    Facebook,
+    Google,
 }
 
 mod diesel_impl {
@@ -20,7 +20,7 @@ mod diesel_impl {
     use std::error::Error;
     use std::io::Write;
 
-    use super::{Provider};
+    use super::Provider;
 
     impl<'a> AsExpression<Nullable<Varchar>> for &'a Provider {
         type Expression = Bound<Nullable<Varchar>, &'a Provider>;
@@ -39,10 +39,7 @@ mod diesel_impl {
     }
 
     impl ToSql<Nullable<Varchar>, Pg> for Provider {
-        fn to_sql<W: Write>(
-            &self,
-            out: &mut Output<W, Pg>,
-        ) -> Result<IsNull, Box<Error + Send + Sync>> {
+        fn to_sql<W: Write>(&self, out: &mut Output<W, Pg>) -> Result<IsNull, Box<Error + Send + Sync>> {
             match *self {
                 Provider::Email => out.write_all(b"Email")?,
                 Provider::UnverifiedEmail => out.write_all(b"UnverifiedEmail")?,

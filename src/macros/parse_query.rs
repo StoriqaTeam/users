@@ -4,7 +4,6 @@ macro_rules! get_and_parse {
     ($hash:expr, $t: ty, $key: tt) => ($hash.get($key).and_then(|value| value.parse::<$t>().ok()))
 }
 
-
 /// Parses query and returns a typed param if there's 1 param, or tuples of typed params if there are more than 1 params.
 /// Currently supports up to 5 params. If params cannot be parsed or missing returns `None`, o/w returns `Some(value)`
 ///
@@ -43,23 +42,47 @@ mod tests {
 
     #[test]
     fn params_2() {
-        assert_eq!(parse_query!("from=12&to=22", "from" => i32, "to" => i64), (Some(12), Some(22)));
-        assert_eq!(parse_query!("from=12&to=abc", "from" => i32, "to" => String), (Some(12), Some("abc".to_string())));
-        assert_eq!(parse_query!("from=12&to=true", "from" => bool, "to" => bool), (None, Some(true)));
+        assert_eq!(
+            parse_query!("from=12&to=22", "from" => i32, "to" => i64),
+            (Some(12), Some(22))
+        );
+        assert_eq!(
+            parse_query!("from=12&to=abc", "from" => i32, "to" => String),
+            (Some(12), Some("abc".to_string()))
+        );
+        assert_eq!(
+            parse_query!("from=12&to=true", "from" => bool, "to" => bool),
+            (None, Some(true))
+        );
     }
 
     #[test]
     fn params_3() {
-        assert_eq!(parse_query!("from=12&to=22&published=true", "from" => i32, "to" => i64, "published" => bool), (Some(12), Some(22), Some(true)));
+        assert_eq!(
+            parse_query!("from=12&to=22&published=true", "from" => i32, "to" => i64, "published" => bool),
+            (Some(12), Some(22), Some(true))
+        );
     }
 
     #[test]
     fn params_4() {
-        assert_eq!(parse_query!("from=12&to=22&published=true&name=Alex", "from" => i32, "to" => i64, "published" => bool, "name" => String), (Some(12), Some(22), Some(true), Some("Alex".to_string())));
+        assert_eq!(
+            parse_query!("from=12&to=22&published=true&name=Alex", "from" => i32, "to" => i64, "published" => bool, "name" => String),
+            (Some(12), Some(22), Some(true), Some("Alex".to_string()))
+        );
     }
 
     #[test]
     fn params_5() {
-        assert_eq!(parse_query!("from=12&to=22&published=true&name=Alex&price=3.25", "from" => i32, "to" => i64, "published" => bool, "name" => String, "price" => f32), (Some(12), Some(22), Some(true), Some("Alex".to_string()), Some(3.25)));
+        assert_eq!(
+            parse_query!("from=12&to=22&published=true&name=Alex&price=3.25", "from" => i32, "to" => i64, "published" => bool, "name" => String, "price" => f32),
+            (
+                Some(12),
+                Some(22),
+                Some(true),
+                Some("Alex".to_string()),
+                Some(3.25)
+            )
+        );
     }
 }

@@ -3,10 +3,10 @@
 use future;
 use futures::future::Future;
 use hyper;
-use hyper::server::{Request, Service, Response};
+use hyper::server::{Request, Response, Service};
 use types::ServerFuture;
 
-use hyper::{StatusCode};
+use hyper::StatusCode;
 use hyper::mime;
 use hyper::header::{ContentLength, ContentType};
 
@@ -26,12 +26,10 @@ impl Service for Application {
     fn call(&self, req: Request) -> ServerFuture {
         info!("{:?}", req);
 
-        Box::new(
-            self.controller.call(req).then(|res| match res {
-                Ok(data) => future::ok(Self::response_with_json(data)),
-                Err(err) => future::ok(Self::response_with_error(err))
-            })
-        )
+        Box::new(self.controller.call(req).then(|res| match res {
+            Ok(data) => future::ok(Self::response_with_json(data)),
+            Err(err) => future::ok(Self::response_with_error(err)),
+        }))
     }
 }
 

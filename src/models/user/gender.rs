@@ -3,9 +3,9 @@ use std::str::FromStr;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum Gender {
-   Male,
-   Female,
-   Undefined
+    Male,
+    Female,
+    Undefined,
 }
 
 impl FromStr for Gender {
@@ -32,7 +32,7 @@ mod diesel_impl {
     use std::error::Error;
     use std::io::Write;
 
-    use super::{Gender};
+    use super::Gender;
 
     impl<'a> AsExpression<Nullable<VarChar>> for &'a Gender {
         type Expression = Bound<Nullable<VarChar>, &'a Gender>;
@@ -51,10 +51,7 @@ mod diesel_impl {
     }
 
     impl ToSql<Nullable<VarChar>, Pg> for Gender {
-        fn to_sql<W: Write>(
-            &self,
-            out: &mut Output<W, Pg>,
-        ) -> Result<IsNull, Box<Error + Send + Sync>> {
+        fn to_sql<W: Write>(&self, out: &mut Output<W, Pg>) -> Result<IsNull, Box<Error + Send + Sync>> {
             match *self {
                 Gender::Male => out.write_all(b"Male")?,
                 Gender::Female => out.write_all(b"Female")?,
