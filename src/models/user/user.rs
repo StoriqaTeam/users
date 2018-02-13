@@ -1,6 +1,9 @@
 //! Module containing info about User models
 use std::time::SystemTime;
 
+use chrono::DateTime;
+use chrono::offset::Utc;
+
 use validator::Validate;
 
 use models::{Gender, NewIdentity, Scope, UserId, WithScope};
@@ -18,7 +21,7 @@ table! {
         last_name -> Nullable<VarChar>,
         middle_name -> Nullable<VarChar>,
         gender -> Nullable<VarChar>,
-        birthdate -> Nullable<Timestamp>,
+        birthdate -> Nullable<Timestamptz>,
         last_login_at -> Timestamp,
         created_at -> Timestamp,
         updated_at -> Timestamp,
@@ -37,7 +40,7 @@ pub struct User {
     pub last_name: Option<String>,
     pub middle_name: Option<String>,
     pub gender: Gender,
-    pub birthdate: Option<SystemTime>,
+    pub birthdate: Option<DateTime<Utc>>,
     pub last_login_at: SystemTime,
     pub created_at: SystemTime,
     pub updated_at: SystemTime,
@@ -58,7 +61,7 @@ pub struct NewUser {
     #[validate(length(min = "1", message = "Middle name must not be empty"))]
     pub middle_name: Option<String>,
     pub gender: Gender,
-    pub birthdate: Option<SystemTime>,
+    pub birthdate: Option<DateTime<Utc>>,
     pub last_login_at: SystemTime,
 }
 
@@ -75,7 +78,7 @@ pub struct UpdateUser {
     #[validate(length(min = "1", message = "Middle name must not be empty"))]
     pub middle_name: Option<String>,
     pub gender: Option<Gender>,
-    pub birthdate: Option<SystemTime>,
+    pub birthdate: Option<DateTime<Utc>>,
 }
 
 impl UpdateUser {
