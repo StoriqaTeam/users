@@ -10,7 +10,7 @@ CREATE TABLE users (
     last_name VARCHAR,
     middle_name VARCHAR,
     gender VARCHAR,
-    birthdate VARCHAR,
+    birthdate TIMESTAMPTZ,
     last_login_at TIMESTAMP NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
     updated_at TIMESTAMP NOT NULL DEFAULT current_timestamp
