@@ -1,4 +1,5 @@
 use diesel::result::Error as DieselError;
+use models::authorization::*;
 
 #[derive(Debug, Fail)]
 pub enum RepoError {
@@ -6,6 +7,8 @@ pub enum RepoError {
     NotFound,
     #[fail(display = "Rollback")]
     Rollback,
+    #[fail(display = "Unauthorized")]
+    Unauthorized(Resource, Action),
     #[fail(display = "Constraint violation: {}", _0)]
     ContstaintViolation(String, #[cause] DieselError),
     #[fail(display = "Mismatched type: {}", _0)]

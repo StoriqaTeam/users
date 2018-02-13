@@ -27,6 +27,7 @@ use self::error::ControllerError;
 use services::system::{SystemService, SystemServiceImpl};
 use services::users::{UsersService, UsersServiceImpl};
 use services::jwt::{JWTService, JWTServiceImpl};
+use services::user_roles::{UserRolesService, UserRolesServiceImpl};
 use repos::types::DbPool;
 use repos::acl::RolesCacheImpl;
 
@@ -97,6 +98,7 @@ impl Controller {
             self.client_handle.clone(),
             self.config.clone(),
         );
+        let user_roles_service = UserRolesServiceImpl::new(self.db_pool.clone(), self.cpu_pool.clone());
 
         match (req.method(), self.route_parser.test(req.path())) {
             // GET /healthcheck
@@ -186,6 +188,31 @@ impl Controller {
                     .and_then(move |oauth| {
                         jwt_service
                             .create_token_facebook(oauth)
+                            .map_err(|e| ControllerError::from(e))
+                    }),
+            ),
+
+            // GET /user_role/<user_role_id>
+            (&Get, Some(Route::UserRole(user_role_id))) => serialize_future(user_roles_service.get(user_role_id)),
+
+            // POST /user_roles
+            (&Post, Some(Route::UserRoles)) => serialize_future(
+                parse_body::<models::NewUserRole>(req.body())
+                    .map_err(|_| ControllerError::UnprocessableEntity("Error parsing request from gateway body".to_string()))
+                    .and_then(move |new_store| {
+                        user_roles_service
+                            .create(new_store)
+                            .map_err(|e| ControllerError::from(e))
+                    }),
+            ),
+
+            // DELETE /user_roles/<user_role_id>
+            (&Delete, Some(Route::UserRoles)) => serialize_future(
+                parse_body::<models::OldUserRole>(req.body())
+                    .map_err(|_| ControllerError::UnprocessableEntity("Error parsing request from gateway body".to_string()))
+                    .and_then(move |old_role| {
+                        user_roles_service
+                            .delete(old_role)
                             .map_err(|e| ControllerError::from(e))
                     }),
             ),

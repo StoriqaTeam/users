@@ -6,3 +6,4 @@ pub mod error;
 pub mod system;
 pub mod types;
 pub mod users;
+pub mod user_roles;

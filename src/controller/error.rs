@@ -18,7 +18,7 @@ pub enum ControllerError {
 }
 
 impl From<serde_json::error::Error> for ControllerError {
-    fn from(e: serde_json::error::Error) -> Self {
+    fn from(_: serde_json::error::Error) -> Self {
         ControllerError::UnprocessableEntity("Serialization error".to_string())
     }
 }
@@ -29,6 +29,7 @@ impl From<ServiceError> for ControllerError {
             ServiceError::NotFound => ControllerError::NotFound,
             ServiceError::Rollback => ControllerError::BadRequest(ServiceError::Rollback),
             ServiceError::Validate(msg) => ControllerError::BadRequest(ServiceError::Validate(msg)),
+            ServiceError::Unauthorized(msg) => ControllerError::BadRequest(ServiceError::Unauthorized(msg)),
             ServiceError::Parse(msg) => ControllerError::UnprocessableEntity(format!("Parse error: {}", msg)),
             ServiceError::Database(msg) => ControllerError::InternalServerError(ServiceError::Database(msg)),
             ServiceError::HttpClient(msg) => ControllerError::InternalServerError(ServiceError::HttpClient(msg)),

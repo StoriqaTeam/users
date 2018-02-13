@@ -7,6 +7,7 @@ use chrono::offset::Utc;
 use validator::Validate;
 
 use models::{Gender, NewIdentity, Scope, UserId, WithScope};
+use repos::types::DbConnection;
 
 table! {
     use diesel::sql_types::*;
@@ -89,7 +90,7 @@ impl UpdateUser {
 }
 
 impl WithScope for User {
-    fn is_in_scope(&self, scope: &Scope, user_id: i32) -> bool {
+    fn is_in_scope(&self, scope: &Scope, user_id: i32, _conn: Option<&DbConnection>) -> bool {
         match *scope {
             Scope::All => true,
             Scope::Owned => self.id.0 == user_id,

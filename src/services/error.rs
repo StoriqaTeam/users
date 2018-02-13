@@ -26,6 +26,8 @@ pub enum ServiceError {
     EmailAlreadyExists(String),
     #[fail(display = "Incorrect email or password")]
     IncorrectCredentials,
+    #[fail(display = "Unauthorized")]
+    Unauthorized(String),
     #[fail(display = "Unknown error: {}", _0)]
     Unknown(String),
 }
@@ -39,6 +41,10 @@ impl From<RepoError> for ServiceError {
             RepoError::MismatchedType(msg, e) => ServiceError::Database(RepoError::MismatchedType(msg, e)),
             RepoError::Connection(msg, e) => ServiceError::Database(RepoError::Connection(msg, e)),
             RepoError::Unknown(msg, e) => ServiceError::Database(RepoError::Unknown(msg, e)),
+            RepoError::Unauthorized(res, act) => ServiceError::Unauthorized(format!(
+                "Unauthorized access: Resource: {}, Action: {}",
+                res, act
+            )),
         }
     }
 }
