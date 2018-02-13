@@ -51,28 +51,20 @@ impl<'a> UsersRepoImpl<'a> {
             acl
         }
     }
-
-    fn execute_query<T: Send + 'static, U: LoadQuery<PgConnection, T> + Send + 'static>(
-        &self,
-        query: U,
-    ) -> Result<T, RepoError> {
-        let conn = self.db_conn;
-
-        query.get_result::<T>(&*conn).map_err(|e| RepoError::from(e))
-    }
 }
 
 impl<'a> UsersRepo for UsersRepoImpl<'a> {
     /// Find specific user by ID
     fn find(&self, user_id_arg: UserId) -> Result<User, RepoError> {
-        self.execute_query(users.find(user_id_arg))
+        let query = users.find(user_id_arg);
+
+        query.get_result(&**self.db_conn).map_err(RepoError::from)
     }
 
     fn email_exists(&self, email_arg: String) -> Result<bool, RepoError> {
-        self.execute_query(select(exists(
-            users
-                .filter(email.eq(email_arg))
-        )))
+        let query = select(exists(users.filter(email.eq(email_arg))));
+
+        query.get_result(&**self.db_conn).map_err(RepoError::from)
     }
 
     /// Find specific user by email
@@ -115,6 +107,7 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
     fn deactivate(&self, user_id_arg: UserId) -> Result<User, RepoError> {
         let filter = users.filter(id.eq(user_id_arg)).filter(is_active.eq(true));
         let query = diesel::update(filter).set(is_active.eq(false));
-        self.execute_query(query)
+
+        query.get_result(&**self.db_conn).map_err(RepoError::from)
     }
 }
