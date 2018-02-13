@@ -10,6 +10,8 @@ use hyper::StatusCode;
 use hyper::mime;
 use hyper::header::{ContentLength, ContentType};
 
+use failure::Fail;
+
 use controller;
 use controller::Controller;
 
@@ -43,7 +45,10 @@ impl Application {
 
     /// Responds with JSON error, logs response body
     fn response_with_error(error: controller::error::ControllerError) -> Response {
-        error!("{}", error.message());
+        if let Some(trace) = error.backtrace() {
+            error!("Trace: {}", trace);
+        }
+        error!("{:?}", error);
         Self::response_with_body(error.message()).with_status(error.code())
     }
 
