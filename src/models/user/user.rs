@@ -80,6 +80,7 @@ pub struct UpdateUser {
     pub middle_name: Option<String>,
     pub gender: Option<Gender>,
     pub birthdate: Option<DateTime<Utc>>,
+    pub is_active: Option<bool>,
 }
 
 impl UpdateUser {
