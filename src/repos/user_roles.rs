@@ -11,7 +11,7 @@ use models::user_role::user_roles::dsl::*;
 use models::{NewUserRole, UserRole};
 use models::Role;
 use super::error::RepoError;
-use super::types::{RepoFuture, DbConnection, DbPool};
+use super::types::{DbConnection, DbPool, RepoFuture};
 
 /// UserRoles repository for handling UserRoles
 pub trait UserRolesRepo {
@@ -29,7 +29,7 @@ pub trait UserRolesRepo {
 #[derive(Clone)]
 pub struct UserRolesRepoImpl {
     pub r2d2_pool: DbPool,
-    pub cpu_pool: CpuPool
+    pub cpu_pool: CpuPool,
 }
 
 impl UserRolesRepoImpl {
@@ -43,7 +43,7 @@ impl UserRolesRepoImpl {
     pub fn new(r2d2_pool: DbPool, cpu_pool: CpuPool) -> Self {
         Self {
             r2d2_pool,
-            cpu_pool
+            cpu_pool,
         }
     }
 }
@@ -52,12 +52,10 @@ impl UserRolesRepo for UserRolesRepoImpl {
     fn list_for_user(&self, user_id_value: i32) -> RepoFuture<Vec<UserRole>> {
         let conn = self.get_connection();
 
-        Box::new(
-            self.cpu_pool.spawn_fn(move || {
-                let query = user_roles.filter(id.eq(user_id_value));
-                query.get_results(&*conn).map_err(|e| RepoError::from(e))
-            })
-        )
+        Box::new(self.cpu_pool.spawn_fn(move || {
+            let query = user_roles.filter(id.eq(user_id_value));
+            query.get_results(&*conn).map_err(|e| RepoError::from(e))
+        }))
     }
 
     fn create(&self, payload: NewUserRole) -> RepoFuture<UserRole> {
@@ -73,7 +71,9 @@ impl UserRolesRepo for UserRolesRepoImpl {
         let conn = self.get_connection();
 
         Box::new(self.cpu_pool.spawn_fn(move || {
-            let filtered = user_roles.filter(user_id.eq(user_id_value)).filter(role.eq(role_value));
+            let filtered = user_roles
+                .filter(user_id.eq(user_id_value))
+                .filter(role.eq(role_value));
             let query = diesel::delete(filtered);
             query.get_result(&*conn).map_err(RepoError::from)
         }))

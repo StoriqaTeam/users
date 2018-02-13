@@ -56,7 +56,6 @@ impl ControllerError {
         }
     }
 
-
     /// Converts `Error` to string
     pub fn message(&self) -> String {
         use super::error::ControllerError::*;

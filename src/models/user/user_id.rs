@@ -3,11 +3,7 @@
 // UserId type
 use std::str::FromStr;
 
-#[derive(Debug)]
-#[derive(Clone)]
-#[derive(PartialEq)]
-#[derive(Serialize)]
-#[derive(Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UserId(pub i32);
 
 impl FromStr for UserId {
@@ -35,7 +31,7 @@ mod diesel_impl {
     use std::error::Error;
     use std::io::Write;
 
-    use super::{UserId};
+    use super::UserId;
 
     impl<'a> AsExpression<Integer> for &'a UserId {
         type Expression = Bound<Integer, &'a UserId>;
@@ -54,12 +50,9 @@ mod diesel_impl {
     }
 
     impl ToSql<Integer, Pg> for UserId {
-        fn to_sql<W: Write>(
-            &self,
-            out: &mut Output<W, Pg>,
-        ) -> Result<IsNull, Box<Error + Send + Sync>> {
+        fn to_sql<W: Write>(&self, out: &mut Output<W, Pg>) -> Result<IsNull, Box<Error + Send + Sync>> {
             let f = self.0;
-            <i32 as ToSql<Integer,Pg>>::to_sql(&f, out)
+            <i32 as ToSql<Integer, Pg>>::to_sql(&f, out)
         }
     }
 

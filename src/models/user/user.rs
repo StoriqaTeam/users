@@ -1,10 +1,9 @@
-//! Module containing info about User models 
+//! Module containing info about User models
 use std::time::SystemTime;
 
 use validator::Validate;
 
-use models::{UserId, NewIdentity, Gender, Scope, WithScope};
-
+use models::{Gender, NewIdentity, Scope, UserId, WithScope};
 
 table! {
     use diesel::sql_types::*;
@@ -48,7 +47,7 @@ pub struct User {
 #[derive(Serialize, Deserialize, Insertable, Validate, Clone)]
 #[table_name = "users"]
 pub struct NewUser {
-    #[validate(email(message = "Invalid email format"))] 
+    #[validate(email(message = "Invalid email format"))]
     pub email: String,
     #[validate(phone(message = "Invalid phone format"))]
     pub phone: Option<String>,
@@ -81,12 +80,8 @@ pub struct UpdateUser {
 
 impl UpdateUser {
     pub fn is_empty(&self) -> bool {
-        self.phone.is_none() &&
-        self.first_name.is_none() &&
-        self.last_name.is_none() &&
-        self.middle_name.is_none() &&
-        self.gender.is_none() &&
-        self.birthdate.is_none()
+        self.phone.is_none() && self.first_name.is_none() && self.last_name.is_none() && self.middle_name.is_none() && self.gender.is_none()
+            && self.birthdate.is_none()
     }
 }
 

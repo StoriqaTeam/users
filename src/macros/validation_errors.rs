@@ -55,7 +55,6 @@ macro_rules! validation_errors {
     }}
 }
 
-
 #[cfg(test)]
 mod tests {
     use serde_json;

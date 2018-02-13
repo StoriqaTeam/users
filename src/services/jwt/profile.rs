@@ -3,18 +3,17 @@ use std::time::SystemTime;
 use std::str::FromStr;
 use std::str;
 
-use models::{NewUser, UpdateUser, Gender, User};
-
+use models::{Gender, NewUser, UpdateUser, User};
 
 /// User profile from google
 #[derive(Serialize, Deserialize, Clone)]
 pub struct GoogleProfile {
-  pub family_name: String,
-  pub name: String,
-  pub picture: String,
-  pub email: String,
-  pub given_name: String,
-  pub verified_email: bool
+    pub family_name: String,
+    pub name: String,
+    pub picture: String,
+    pub email: String,
+    pub given_name: String,
+    pub verified_email: bool,
 }
 
 impl From<GoogleProfile> for NewUser {
@@ -24,7 +23,7 @@ impl From<GoogleProfile> for NewUser {
             phone: None,
             first_name: Some(google_id.name),
             last_name: Some(google_id.family_name),
-            middle_name:  None,
+            middle_name: None,
             gender: Gender::Undefined,
             birthdate: None,
             last_login_at: SystemTime::now(),
@@ -50,7 +49,7 @@ impl From<FacebookProfile> for NewUser {
             phone: None,
             first_name: Some(facebook_id.first_name),
             last_name: Some(facebook_id.last_name),
-            middle_name:  None,
+            middle_name: None,
             gender: Gender::from_str(facebook_id.gender.as_ref()).unwrap(),
             birthdate: None,
             last_login_at: SystemTime::now(),
@@ -101,7 +100,7 @@ impl IntoUser for FacebookProfile {
             phone: None,
             first_name: first_name,
             last_name: last_name,
-            middle_name:  None,
+            middle_name: None,
             gender: gender,
             birthdate: None,
         }
@@ -124,13 +123,9 @@ impl IntoUser for GoogleProfile {
             phone: None,
             first_name: first_name,
             last_name: last_name,
-            middle_name:  None,
+            middle_name: None,
             gender: None,
             birthdate: None,
         }
     }
 }
-
-
-
-

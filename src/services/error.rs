@@ -2,7 +2,7 @@ use r2d2::Error as R2D2Error;
 use diesel::result::Error as DieselError;
 
 use validator::ValidationErrors;
-use ::repos::error::RepoError;
+use repos::error::RepoError;
 
 #[derive(Debug, Fail)]
 pub enum ServiceError {
