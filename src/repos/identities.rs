@@ -49,7 +49,7 @@ impl<'a> IdentitiesRepoImpl<'a> {
 
         query
             .get_result::<T>(&*conn)
-            .map_err(|e| RepoError::from(e))
+            .map_err(RepoError::from)
     }
 }
 
@@ -102,6 +102,6 @@ impl<'a> IdentitiesRepo for IdentitiesRepoImpl<'a> {
 
         query
             .first::<Identity>(&**self.db_conn)
-            .map_err(|e| RepoError::from(e))
+            .map_err(RepoError::from)
     }
 }

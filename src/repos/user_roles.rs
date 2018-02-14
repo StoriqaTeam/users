@@ -54,7 +54,7 @@ impl UserRolesRepo for UserRolesRepoImpl {
 
         Box::new(self.cpu_pool.spawn_fn(move || {
             let query = user_roles.filter(id.eq(user_id_value));
-            query.get_results(&*conn).map_err(|e| RepoError::from(e))
+            query.get_results(&*conn).map_err(RepoError::from)
         }))
     }
 

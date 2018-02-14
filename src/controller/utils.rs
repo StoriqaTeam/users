@@ -36,7 +36,7 @@ where
             .map_err(|err| error::ControllerError::Parse(format!("{}", err)))
             .and_then(|body| {
                 serde_json::from_str::<T>(&body)
-                    .map_err(|_| error::ControllerError::UnprocessableEntity("Error parsing request body".to_string()))
+                    .map_err(|e| error::ControllerError::UnprocessableEntity(e.into()))
             }),
     )
 }

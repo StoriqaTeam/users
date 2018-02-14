@@ -7,8 +7,6 @@ use diesel::prelude::*;
 use diesel::select;
 use diesel::dsl::exists;
 use diesel::query_dsl::RunQueryDsl;
-use diesel::query_dsl::LoadQuery;
-use diesel::pg::PgConnection;
 
 use models::{NewUser, UpdateUser, User, UserId};
 use models::user::user::users::dsl::*;
@@ -70,7 +68,7 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
 
         query
             .first::<User>(&**self.db_conn)
-            .map_err(|e| RepoError::from(e))
+            .map_err(RepoError::from)
     }
 
     /// Returns list of users, limited by `from` and `count` parameters
@@ -83,7 +81,7 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
 
         query
             .get_results(&**self.db_conn)
-            .map_err(|e| RepoError::from(e))
+            .map_err(RepoError::from)
     }
 
     /// Creates new user
@@ -102,7 +100,7 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
         let query = diesel::update(filter).set(&payload);
         query
             .get_result::<User>(&**self.db_conn)
-            .map_err(|e| RepoError::from(e))
+            .map_err(RepoError::from)
     }
 
     /// Deactivates specific user
