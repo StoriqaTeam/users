@@ -1,7 +1,6 @@
 use hyper;
 use serde_json;
 
-use failure::Fail;
 use failure::Error;
 
 use services::error::ServiceError;

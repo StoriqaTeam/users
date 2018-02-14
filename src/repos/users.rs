@@ -7,8 +7,6 @@ use diesel::prelude::*;
 use diesel::select;
 use diesel::dsl::exists;
 use diesel::query_dsl::RunQueryDsl;
-use diesel::query_dsl::LoadQuery;
-use diesel::pg::PgConnection;
 
 use models::{NewUser, UpdateUser, User, UserId};
 use models::user::user::users::dsl::*;
