@@ -168,7 +168,9 @@ impl UsersService for UsersServiceImpl {
                             .map_err(ServiceError::from)
                             .and_then(|(payload, exists)| match exists {
                                 false => Ok(payload),
-                                true => Err(ServiceError::EmailAlreadyExists(payload.email.clone())),
+                                true => Err(ServiceError::Validate(
+                                    validation_errors!({"email": ["email" => "Email already exists"]}),
+                                )),
                             })
                             .and_then(move |new_ident| {
                                 let new_user = NewUser::from(new_ident.clone());
