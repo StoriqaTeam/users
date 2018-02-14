@@ -11,6 +11,8 @@ pub enum Route {
     JWTEmail,
     JWTGoogle,
     JWTFacebook,
+    UserRoles,
+    UserRole(i32),
 }
 
 /// RouteParser class maps regex to type-safe list of routes, defined by `enum Route`

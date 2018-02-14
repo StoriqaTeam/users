@@ -103,6 +103,7 @@ impl IntoUser for FacebookProfile {
             middle_name: None,
             gender: gender,
             birthdate: None,
+            is_active: Some(true),
         }
     }
 }
@@ -126,6 +127,7 @@ impl IntoUser for GoogleProfile {
             middle_name: None,
             gender: None,
             birthdate: None,
+            is_active: Some(true),
         }
     }
 }

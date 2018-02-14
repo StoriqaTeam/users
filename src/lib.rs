@@ -101,7 +101,7 @@ pub fn start_server(config: Config) {
             // Prepare CPU pool
             let cpu_pool = CpuPool::new(thread_count);
 
-            let roles_cache = RolesCacheImpl::new(r2d2_pool.clone(), cpu_pool.clone());
+            let roles_cache = RolesCacheImpl::new();
 
             let controller = controller::Controller::new(
                 r2d2_pool,

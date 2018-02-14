@@ -1,7 +1,6 @@
 //! Json Web Token Services, presents creating jwt from google, facebook and email + password
 pub mod profile;
 
-use std::sync::Arc;
 use std::str;
 
 use futures::future;
@@ -146,7 +145,7 @@ where
 
     fn create_profile(
         &self,
-        users_repo: UsersRepoImpl,
+        mut users_repo: UsersRepoImpl,
         ident_repo: IdentitiesRepoImpl,
         profile_arg: P,
         provider: Provider,
@@ -166,7 +165,7 @@ where
             })
     }
 
-    fn update_profile(&self, users_repo: UsersRepoImpl, profile: P) -> Result<i32, ServiceError> {
+    fn update_profile(&self, mut users_repo: UsersRepoImpl, profile: P) -> Result<i32, ServiceError> {
         users_repo
             .find_by_email(profile.get_email())
             .map_err(ServiceError::from)
@@ -194,7 +193,7 @@ where
                 .get()
                 .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
-                    let users_repo = UsersRepoImpl::new(&conn, Arc::new(SystemACL::new()));
+                    let mut users_repo = UsersRepoImpl::new(&conn, Box::new(SystemACL::new()));
                     let ident_repo = IdentitiesRepoImpl::new(&conn);
 
                     conn.transaction::<i32, ServiceError, _>(move || {
