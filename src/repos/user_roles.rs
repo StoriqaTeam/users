@@ -38,7 +38,7 @@ impl<'a> UserRolesRepoImpl<'a> {
 
 impl<'a> UserRolesRepo for UserRolesRepoImpl<'a> {
     fn list_for_user(&self, user_id_value: i32) -> RepoResult<Vec<UserRole>> {
-        let query = user_roles.filter(id.eq(user_id_value));
+        let query = user_roles.filter(user_id.eq(user_id_value));
         query
             .get_results(&**self.db_conn)
             .map_err(|e| Error::from(e))

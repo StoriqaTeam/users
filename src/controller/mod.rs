@@ -198,9 +198,9 @@ impl Controller {
             (&Post, Some(Route::UserRoles)) => serialize_future(
                 parse_body::<models::NewUserRole>(req.body())
                     .map_err(|_| ControllerError::UnprocessableEntity(format_err!("Error parsing request from gateway body")))
-                    .and_then(move |new_store| {
+                    .and_then(move |new_role| {
                         user_roles_service
-                            .create(new_store)
+                            .create(new_role)
                             .map_err(ControllerError::from)
                     }),
             ),

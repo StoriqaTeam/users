@@ -4,6 +4,7 @@ use serde_json;
 use failure::Error;
 
 use services::error::ServiceError;
+use validator::ValidationErrors;
 
 #[derive(Debug, Fail)]
 pub enum ControllerError {
@@ -13,6 +14,8 @@ pub enum ControllerError {
     Parse(String),
     #[fail(display = "Bad request")]
     BadRequest(Error),
+    #[fail(display = "Validation error: {}", _0)]
+    Validate(ValidationErrors),
     #[fail(display = "Unprocessable entity")]
     UnprocessableEntity(Error),
     #[fail(display = "Internal server error")]
@@ -31,7 +34,7 @@ impl From<ServiceError> for ControllerError {
         match e {
             ServiceError::NotFound => ControllerError::NotFound,
             ServiceError::Rollback => ControllerError::BadRequest(ServiceError::Rollback.into()),
-            ServiceError::Validate(msg) => ControllerError::BadRequest(ServiceError::Validate(msg).into()),            
+            ServiceError::Validate(valid_err) => ControllerError::Validate(valid_err),            
             ServiceError::Unauthorized(msg) => ControllerError::BadRequest(ServiceError::Unauthorized(msg).into()),
             ServiceError::Parse(msg) => ControllerError::UnprocessableEntity(ServiceError::Parse(msg).into()),
             ServiceError::Database(msg) => ControllerError::InternalServerError(ServiceError::Database(msg).into()),
@@ -55,6 +58,7 @@ impl ControllerError {
             &NotFound => StatusCode::NotFound,
             &Parse(_) => StatusCode::BadRequest,
             &BadRequest(_) => StatusCode::BadRequest,
+            &Validate(_) => StatusCode::BadRequest,
             &UnprocessableEntity(_) => StatusCode::UnprocessableEntity,
             &InternalServerError(_) => StatusCode::InternalServerError,
         }
@@ -68,6 +72,10 @@ impl ControllerError {
             &NotFound => "Not found".to_string(),
             &Parse(_) => "Bad request".to_string(),
             &BadRequest(_) => "Bad request".to_string(),
+            &Validate(ref valid_err) => match serde_json::to_string(valid_err) {
+                Ok(res) => res,
+                Err(_) => "Bad request".to_string(),
+            },
             &UnprocessableEntity(_) => "Unprocessable entity".to_string(),
             &InternalServerError(_) => "Internal server error".to_string(),
         }

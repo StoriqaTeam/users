@@ -271,7 +271,9 @@ impl JWTService for JWTServiceImpl {
                             .and_then(move |(exists, new_ident)| -> Result<i32, ServiceError> {
                                 match exists {
                                     // email does not exist
-                                    false => Err(ServiceError::NotFound),
+                                    false => Err(ServiceError::Validate(
+                                        validation_errors!({"email": ["email" => "Email not found"]}),
+                                    )),
                                     // email exists, checking password
                                     true => {
                                         let new_ident_clone = new_ident.clone();
@@ -288,7 +290,9 @@ impl JWTService for JWTServiceImpl {
                                             .and_then(move |(verified, new_ident)| -> Result<i32, ServiceError> {
                                                 match verified {
                                                     //password not verified
-                                                    false => Err(ServiceError::IncorrectCredentials),
+                                                    false => Err(ServiceError::Validate(
+                                                        validation_errors!({"password": ["password" => "Wrong password"]}),
+                                                    )),
                                                     //password verified
                                                     true => ident_repo
                                                         .find_by_email_provider(new_ident.email, Provider::Email)
