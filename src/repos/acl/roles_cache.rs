@@ -8,7 +8,6 @@ use repos::types::{DbConnection, RepoResult};
 use models::authorization::*;
 use repos::acl::SystemACL;
 use repos::error::RepoError as Error;
-use diesel::result::Error as DieselError;
 
 #[derive(Clone)]
 pub struct RolesCacheImpl {
@@ -34,8 +33,7 @@ impl RolesCache for RolesCacheImpl {
             Entry::Occupied(o) => Ok(o.get().clone()),
             Entry::Vacant(v) => db_conn
                 .ok_or(Error::Connection(
-                    "No connection to db".to_string(),
-                    DieselError::NotFound,
+                    format_err!("No connection to db")
                 ))
                 .and_then(|con| {
                     let repo = UserRolesRepoImpl::new(con, Box::new(SystemACL::new()));

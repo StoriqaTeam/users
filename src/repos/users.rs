@@ -56,7 +56,7 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
         query
             .get_result(&**self.db_conn)
             .map_err(RepoError::from)
-            .and_then(|user: User| acl!([user], self.acl, Resource::Users, Action::Read, None).and_then(|_| Ok(user)))
+            .and_then(|user: User| acl!([user], self.acl, Resource::Users, Action::Read, Some(self.db_conn)).and_then(|_| Ok(user)))
     }
 
     fn email_exists(&mut self, email_arg: String) -> Result<bool, RepoError> {
@@ -65,7 +65,7 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
         query
             .get_result(&**self.db_conn)
             .map_err(RepoError::from)
-            .and_then(|exists| acl!([], self.acl, Resource::Users, Action::Read, None).and_then(|_| Ok(exists)))
+            .and_then(|exists| acl!([], self.acl, Resource::Users, Action::Read, Some(self.db_conn)).and_then(|_| Ok(exists)))
     }
 
     /// Find specific user by email
@@ -74,8 +74,8 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
 
         query
             .first::<User>(&**self.db_conn)
-            .map_err(|e| RepoError::from(e))
-            .and_then(|user: User| acl!([user], self.acl, Resource::Users, Action::Read, None).and_then(|_| Ok(user)))
+            .map_err(RepoError::from)
+            .and_then(|user: User| acl!([user], self.acl, Resource::Users, Action::Read, Some(self.db_conn)).and_then(|_| Ok(user)))
     }
 
     /// Returns list of users, limited by `from` and `count` parameters
@@ -88,10 +88,10 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
 
         query
             .get_results(&**self.db_conn)
-            .map_err(|e| RepoError::from(e))
+            .map_err(RepoError::from)
             .and_then(|users_res: Vec<User>| {
                 let resources = users_res.iter().map(|user| (user as &WithScope)).collect();
-                acl!(resources, self.acl, Resource::Users, Action::Read, None).and_then(|_| Ok(users_res.clone()))
+                acl!(resources, self.acl, Resource::Users, Action::Read, Some(self.db_conn)).and_then(|_| Ok(users_res.clone()))
             })
     }
 
@@ -111,14 +111,14 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
         query
             .get_result(&**self.db_conn)
             .map_err(RepoError::from)
-            .and_then(|user: User| acl!([user], self.acl, Resource::Users, Action::Write, None))
+            .and_then(|user: User| acl!([user], self.acl, Resource::Users, Action::Write, Some(self.db_conn)))
             .and_then(|_| {
                 let filter = users.filter(id.eq(user_id_arg)).filter(is_active.eq(true));
 
                 let query = diesel::update(filter).set(&payload);
                 query
                     .get_result::<User>(&**self.db_conn)
-                    .map_err(|e| RepoError::from(e))
+                    .map_err(RepoError::from)
             })
     }
 
@@ -129,7 +129,7 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
         query
             .get_result(&**self.db_conn)
             .map_err(RepoError::from)
-            .and_then(|user: User| acl!([user], self.acl, Resource::Users, Action::Write, None))
+            .and_then(|user: User| acl!([user], self.acl, Resource::Users, Action::Write, Some(self.db_conn)))
             .and_then(|_| {
                 let filter = users.filter(id.eq(user_id_arg)).filter(is_active.eq(true));
                 let query = diesel::update(filter).set(is_active.eq(false));

@@ -1,43 +1,46 @@
 use hyper;
 use serde_json;
 
+use failure::Error;
+
 use services::error::ServiceError;
 
 #[derive(Debug, Fail)]
 pub enum ControllerError {
     #[fail(display = "Not found")]
     NotFound,
-    #[fail(display = "Parse error: {}", _0)]
+    #[fail(display = "Parse error")]
     Parse(String),
     #[fail(display = "Bad request")]
-    BadRequest(#[cause] ServiceError),
-    #[fail(display = "Unprocessable entity: {}", _0)]
-    UnprocessableEntity(String),
+    BadRequest(Error),
+    #[fail(display = "Unprocessable entity")]
+    UnprocessableEntity(Error),
     #[fail(display = "Internal server error")]
-    InternalServerError(#[cause] ServiceError),
+    InternalServerError(Error),
 }
 
 impl From<serde_json::error::Error> for ControllerError {
-    fn from(_: serde_json::error::Error) -> Self {
-        ControllerError::UnprocessableEntity("Serialization error".to_string())
+    fn from(e: serde_json::error::Error) -> Self {
+        ControllerError::UnprocessableEntity(e.into())
     }
 }
 
 impl From<ServiceError> for ControllerError {
     fn from(e: ServiceError) -> Self {
+        
         match e {
             ServiceError::NotFound => ControllerError::NotFound,
-            ServiceError::Rollback => ControllerError::BadRequest(ServiceError::Rollback),
-            ServiceError::Validate(msg) => ControllerError::BadRequest(ServiceError::Validate(msg)),
-            ServiceError::Unauthorized(msg) => ControllerError::BadRequest(ServiceError::Unauthorized(msg)),
-            ServiceError::Parse(msg) => ControllerError::UnprocessableEntity(format!("Parse error: {}", msg)),
-            ServiceError::Database(msg) => ControllerError::InternalServerError(ServiceError::Database(msg)),
-            ServiceError::HttpClient(msg) => ControllerError::InternalServerError(ServiceError::HttpClient(msg)),
-            ServiceError::EmailAlreadyExists(msg) => ControllerError::BadRequest(ServiceError::EmailAlreadyExists(msg)),
-            ServiceError::IncorrectCredentials => ControllerError::BadRequest(ServiceError::IncorrectCredentials),
-            ServiceError::Connection(msg) => ControllerError::InternalServerError(ServiceError::Connection(msg)),
-            ServiceError::Transaction(msg) => ControllerError::InternalServerError(ServiceError::Transaction(msg)),
-            ServiceError::Unknown(msg) => ControllerError::InternalServerError(ServiceError::Unknown(msg)),
+            ServiceError::Rollback => ControllerError::BadRequest(ServiceError::Rollback.into()),
+            ServiceError::Validate(msg) => ControllerError::BadRequest(ServiceError::Validate(msg).into()),            
+            ServiceError::Unauthorized(msg) => ControllerError::BadRequest(ServiceError::Unauthorized(msg).into()),
+            ServiceError::Parse(msg) => ControllerError::UnprocessableEntity(ServiceError::Parse(msg).into()),
+            ServiceError::Database(msg) => ControllerError::InternalServerError(ServiceError::Database(msg).into()),
+            ServiceError::HttpClient(msg) => ControllerError::InternalServerError(ServiceError::HttpClient(msg).into()),
+            ServiceError::EmailAlreadyExists(msg) => ControllerError::BadRequest(ServiceError::EmailAlreadyExists(msg).into()),
+            ServiceError::IncorrectCredentials => ControllerError::BadRequest(ServiceError::IncorrectCredentials.into()),
+            ServiceError::Connection(msg) => ControllerError::InternalServerError(ServiceError::Connection(msg).into()),
+            ServiceError::Transaction(msg) => ControllerError::InternalServerError(ServiceError::Transaction(msg).into()),
+            ServiceError::Unknown(msg) => ControllerError::InternalServerError(ServiceError::Unknown(msg).into()),
         }
     }
 }

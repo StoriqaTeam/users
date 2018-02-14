@@ -1,6 +1,8 @@
 use diesel::result::Error as DieselError;
 use models::authorization::*;
 
+use failure::Error;
+
 #[derive(Debug, Fail)]
 pub enum RepoError {
     #[fail(display = "Not found")]
@@ -9,42 +11,27 @@ pub enum RepoError {
     Rollback,
     #[fail(display = "Unauthorized")]
     Unauthorized(Resource, Action),
-    #[fail(display = "Constraint violation: {}", _0)]
-    ContstaintViolation(String, #[cause] DieselError),
-    #[fail(display = "Mismatched type: {}", _0)]
-    MismatchedType(String, #[cause] DieselError),
-    #[fail(display = "Connection: {}", _0)]
-    Connection(String, #[cause] DieselError),
-    #[fail(display = "Unknown: {}", _0)]
-    Unknown(String, #[cause] DieselError),
+    #[fail(display = "Constraint violation")]
+    ContstaintViolation(Error),
+    #[fail(display = "Mismatched type")]
+    MismatchedType(Error),
+    #[fail(display = "Connection")]
+    Connection(Error),
+    #[fail(display = "Unknown")]
+    Unknown(Error),
 }
 
 impl From<DieselError> for RepoError {
     fn from(err: DieselError) -> Self {
         match err {
-            DieselError::InvalidCString(e) => RepoError::Unknown("".to_string(), DieselError::InvalidCString(e)),
-            DieselError::DatabaseError(kind, info) => RepoError::ContstaintViolation(
-                format!("{:?}: {:?}", kind, info),
-                DieselError::DatabaseError(kind, info),
-            ),
+            DieselError::InvalidCString(e) => RepoError::Unknown(DieselError::InvalidCString(e).into()),
+            DieselError::DatabaseError(kind, info) => RepoError::ContstaintViolation(DieselError::DatabaseError(kind, info).into()),
             DieselError::NotFound => RepoError::NotFound,
-            DieselError::QueryBuilderError(e) => RepoError::Unknown(
-                "Query builder error".to_string(),
-                DieselError::QueryBuilderError(e),
-            ),
-            DieselError::SerializationError(e) => RepoError::MismatchedType(
-                "Serialization error".to_string(),
-                DieselError::SerializationError(e),
-            ),
-            DieselError::DeserializationError(e) => RepoError::MismatchedType(
-                "Deserialization error".to_string(),
-                DieselError::DeserializationError(e),
-            ),
+            DieselError::QueryBuilderError(e) => RepoError::Unknown(DieselError::QueryBuilderError(e).into()),
+            DieselError::SerializationError(e) => RepoError::MismatchedType(DieselError::SerializationError(e).into()),
+            DieselError::DeserializationError(e) => RepoError::MismatchedType(DieselError::DeserializationError(e).into()),
             DieselError::RollbackTransaction => RepoError::Rollback,
-            _ => RepoError::Unknown(
-                "Unknown diesel error".to_string(),
-                DieselError::__Nonexhaustive,
-            ),
+            _ => RepoError::Unknown(DieselError::__Nonexhaustive.into()),
         }
     }
 }

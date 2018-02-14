@@ -1,5 +1,6 @@
-use r2d2::Error as R2D2Error;
 use diesel::result::Error as DieselError;
+
+use failure::Error;
 
 use validator::ValidationErrors;
 use repos::error::RepoError;
@@ -15,11 +16,11 @@ pub enum ServiceError {
     #[fail(display = "Parse error: {}", _0)]
     Parse(String),
     #[fail(display = "R2D2 connection error")]
-    Connection(#[cause] R2D2Error),
+    Connection(Error),
     #[fail(display = "Diesel transaction error")]
-    Transaction(#[cause] DieselError),
+    Transaction(Error),
     #[fail(display = "Repo error")]
-    Database(#[cause] RepoError),
+    Database(Error),
     #[fail(display = "Http client error: {}", _0)]
     HttpClient(String),
     #[fail(display = "Email already exists: [{}]", _0)]
@@ -37,10 +38,10 @@ impl From<RepoError> for ServiceError {
         match err {
             RepoError::NotFound => ServiceError::NotFound,
             RepoError::Rollback => ServiceError::Rollback,
-            RepoError::ContstaintViolation(msg, e) => ServiceError::Database(RepoError::ContstaintViolation(msg, e)),
-            RepoError::MismatchedType(msg, e) => ServiceError::Database(RepoError::MismatchedType(msg, e)),
-            RepoError::Connection(msg, e) => ServiceError::Database(RepoError::Connection(msg, e)),
-            RepoError::Unknown(msg, e) => ServiceError::Database(RepoError::Unknown(msg, e)),
+            RepoError::ContstaintViolation(e) => ServiceError::Database(RepoError::ContstaintViolation(e).into()),
+            RepoError::MismatchedType(e) => ServiceError::Database(RepoError::MismatchedType(e).into()),
+            RepoError::Connection(e) => ServiceError::Database(RepoError::Connection(e).into()),
+            RepoError::Unknown(e) => ServiceError::Database(RepoError::Unknown(e).into()),
             RepoError::Unauthorized(res, act) => ServiceError::Unauthorized(format!(
                 "Unauthorized access: Resource: {}, Action: {}",
                 res, act
@@ -51,6 +52,6 @@ impl From<RepoError> for ServiceError {
 
 impl From<DieselError> for ServiceError {
     fn from(err: DieselError) -> Self {
-        ServiceError::Transaction(err)
+        ServiceError::Transaction(err.into())
     }
 }

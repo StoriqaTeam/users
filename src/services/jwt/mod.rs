@@ -191,7 +191,7 @@ where
         Box::new(self.cpu_pool.spawn_fn(move || {
             r2d2_clone
                 .get()
-                .map_err(|e| ServiceError::Connection(e))
+                .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
                     let mut users_repo = UsersRepoImpl::new(&conn, Box::new(SystemACL::new()));
                     let ident_repo = IdentitiesRepoImpl::new(&conn);
@@ -220,7 +220,7 @@ where
         Box::new(self.cpu_pool.spawn_fn(move || {
             r2d2_clone
                 .get()
-                .map_err(|e| ServiceError::Connection(e))
+                .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
                     let ident_repo = IdentitiesRepoImpl::new(&conn);
 
@@ -237,7 +237,7 @@ where
         Box::new(self.cpu_pool.spawn_fn(move || {
             r2d2_clone
                 .get()
-                .map_err(|e| ServiceError::Connection(e))
+                .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
                     let ident_repo = IdentitiesRepoImpl::new(&conn);
 
@@ -259,7 +259,7 @@ impl JWTService for JWTServiceImpl {
         Box::new(self.cpu_pool.spawn_fn(move || {
             r2d2_clone
                 .get()
-                .map_err(|e| ServiceError::Connection(e))
+                .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
                     let ident_repo = IdentitiesRepoImpl::new(&conn);
 
