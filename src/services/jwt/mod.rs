@@ -14,7 +14,7 @@ use base64::decode;
 use serde;
 use diesel::Connection;
 
-use models::{JWTPayload, NewIdentity, NewUser, Provider, ProviderOauth, JWT};
+use models::{JWTPayload, NewIdentity, NewUser, Provider, ProviderOauth, JWT, JWTExt, UserStatus};
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
 use repos::acl::SystemACL;
@@ -32,9 +32,9 @@ pub trait JWTService {
     /// Creates new JWT token by email
     fn create_token_email(&self, payload: NewIdentity) -> ServiceFuture<JWT>;
     /// Creates new JWT token by google
-    fn create_token_google(&self, oauth: ProviderOauth) -> ServiceFuture<JWT>;
+    fn create_token_google(&self, oauth: ProviderOauth) -> ServiceFuture<JWTExt>;
     /// Creates new JWT token by facebook
-    fn create_token_facebook(&self, oauth: ProviderOauth) -> ServiceFuture<JWT>;
+    fn create_token_facebook(&self, oauth: ProviderOauth) -> ServiceFuture<JWTExt>;
     /// Verifies password
     fn password_verify(db_hash: String, clear_password: String) -> Result<bool, ServiceError>;
 }
@@ -65,19 +65,19 @@ impl JWTServiceImpl {
 
 /// Profile service trait, presents standard scheme for receiving profile information from providers
 trait ProfileService<P: Email> {
-    fn create_token(&self, provider: Provider, secret: String, info_url: String, headers: Option<Headers>) -> ServiceFuture<JWT>;
+    fn create_token(&self, provider: Provider, secret: String, info_url: String, headers: Option<Headers>) -> ServiceFuture<JWTExt>;
 
     fn get_profile(&self, url: String, headers: Option<Headers>) -> ServiceFuture<P>;
 
     fn email_exists(&self, profile: P, provider: Provider) -> ServiceFuture<bool>;
 
-    fn create_jwt(&self, id: i32, secret: String) -> ServiceFuture<JWT> {
+    fn create_jwt(&self, id: i32, status: UserStatus, secret: String) -> ServiceFuture<JWTExt> {
         let tokenpayload = JWTPayload::new(id);
         Box::new(
             encode(&Header::default(), &tokenpayload, secret.as_ref())
                 .map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}.", tokenpayload)))
                 .into_future()
-                .and_then(|t| future::ok(JWT { token: t })),
+                .and_then(|t| future::ok(JWTExt { token: t, status: status })),
         )
     }
 
@@ -103,29 +103,32 @@ where
     P: for<'a> serde::Deserialize<'a>,
     P: IntoUser,
 {
-    fn create_token(&self, provider: Provider, secret: String, info_url: String, headers: Option<Headers>) -> ServiceFuture<JWT> {
-        let service = self.clone();
-        let service_clone = self.clone();
-        let service_clone2 = self.clone();
-        let provider_clone = provider.clone();
-
-        let future = service
+    fn create_token(&self, provider: Provider, secret: String, info_url: String, headers: Option<Headers>) -> ServiceFuture<JWTExt> {
+        let future = self
             .get_profile(info_url, headers)
-            .and_then(move |profile| {
+            .and_then({
+                let service = self.clone();
+                let provider = provider.clone();
+                move |profile| {
                 let profile_clone = profile.clone();
                 service
-                    .email_exists(profile, provider_clone)
+                    .email_exists(profile, provider)
                     .map(|exists| (exists, profile_clone))
-            })
-            .and_then(move |(exists, profile)| -> ServiceFuture<i32> {
+            }})
+            .and_then({
+                let service = self.clone();
+                move |(exists, profile)| -> ServiceFuture<(i32, UserStatus)> {
                 match exists {
                     // identity email + provider  doesn't exist
-                    false => service_clone.create_or_update_profile(profile, provider),
-                    // User identity email + provider  exists, returning Email
-                    true => service_clone.get_id(profile, provider),
+                    false => Box::new(service.create_or_update_profile(profile, provider).map(|id| (id, UserStatus::New(id)))),
+                    // User identity email + provider  exists, returning id
+                    true => Box::new(service.get_id(profile, provider).map(|id| (id, UserStatus::Exists))),
                 }
-            })
-            .and_then(move |email| service_clone2.create_jwt(email, secret));
+            }})
+            .and_then({
+                let service = self.clone();
+                move |(id, status)| service.create_jwt(id, status, secret)
+            });
 
         Box::new(future)
     }
@@ -316,7 +319,7 @@ impl JWTService for JWTServiceImpl {
 
     /// https://developers.google.com/identity/protocols/OpenIDConnect#validatinganidtoken
     /// Creates new JWT token by google
-    fn create_token_google(&self, oauth: ProviderOauth) -> ServiceFuture<JWT> {
+    fn create_token_google(&self, oauth: ProviderOauth) -> ServiceFuture<JWTExt> {
         let url = self.google_config.info_url.clone();
         let mut headers = Headers::new();
         headers.set(Authorization(Bearer { token: oauth.token }));
@@ -326,7 +329,7 @@ impl JWTService for JWTServiceImpl {
 
     /// https://developers.facebook.com/docs/facebook-login/manually-build-a-login-flow
     /// Creates new JWT token by facebook
-    fn create_token_facebook(&self, oauth: ProviderOauth) -> ServiceFuture<JWT> {
+    fn create_token_facebook(&self, oauth: ProviderOauth) -> ServiceFuture<JWTExt> {
         let info_url = self.facebook_config.info_url.clone();
         let url = format!(
             "{}?fields=first_name,last_name,gender,email,name&access_token={}",
