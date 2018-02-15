@@ -14,7 +14,7 @@ use base64::decode;
 use serde;
 use diesel::Connection;
 
-use models::{JWTPayload, NewIdentity, NewUser, Provider, ProviderOauth, JWT};
+use models::{JWTPayload, NewIdentity, NewUser, Provider, ProviderOauth, UserStatus, JWT};
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
 use repos::acl::SystemACL;
@@ -42,7 +42,7 @@ pub trait JWTService {
 /// JWT services, responsible for JsonWebToken operations
 #[derive(Clone)]
 pub struct JWTServiceImpl {
-    pub r2d2_pool: DbPool,
+    pub db_pool: DbPool,
     pub cpu_pool: CpuPool,
     pub http_client: ClientHandle,
     pub google_config: OAuth,
@@ -53,7 +53,7 @@ pub struct JWTServiceImpl {
 impl JWTServiceImpl {
     pub fn new(r2d2_pool: DbPool, cpu_pool: CpuPool, http_client: ClientHandle, config: Config) -> Self {
         Self {
-            r2d2_pool: r2d2_pool,
+            db_pool: r2d2_pool,
             cpu_pool: cpu_pool,
             http_client: http_client,
             google_config: config.google,
@@ -71,13 +71,18 @@ trait ProfileService<P: Email> {
 
     fn email_exists(&self, profile: P, provider: Provider) -> ServiceFuture<bool>;
 
-    fn create_jwt(&self, id: i32, secret: String) -> ServiceFuture<JWT> {
+    fn create_jwt(&self, id: i32, status: UserStatus, secret: String) -> ServiceFuture<JWT> {
         let tokenpayload = JWTPayload::new(id);
         Box::new(
             encode(&Header::default(), &tokenpayload, secret.as_ref())
                 .map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}.", tokenpayload)))
                 .into_future()
-                .and_then(|t| future::ok(JWT { token: t })),
+                .and_then(|t| {
+                    future::ok(JWT {
+                        token: t,
+                        status: status,
+                    })
+                }),
         )
     }
 
@@ -104,28 +109,40 @@ where
     P: IntoUser,
 {
     fn create_token(&self, provider: Provider, secret: String, info_url: String, headers: Option<Headers>) -> ServiceFuture<JWT> {
-        let service = self.clone();
-        let service_clone = self.clone();
-        let service_clone2 = self.clone();
-        let provider_clone = provider.clone();
-
-        let future = service
-            .get_profile(info_url, headers)
-            .and_then(move |profile| {
-                let profile_clone = profile.clone();
-                service
-                    .email_exists(profile, provider_clone)
-                    .map(|exists| (exists, profile_clone))
-            })
-            .and_then(move |(exists, profile)| -> ServiceFuture<i32> {
-                match exists {
-                    // identity email + provider  doesn't exist
-                    false => service_clone.create_or_update_profile(profile, provider),
-                    // User identity email + provider  exists, returning Email
-                    true => service_clone.get_id(profile, provider),
+        let future = self.get_profile(info_url, headers)
+            .and_then({
+                let service = self.clone();
+                let provider = provider.clone();
+                move |profile| {
+                    let profile_clone = profile.clone();
+                    service
+                        .email_exists(profile, provider)
+                        .map(|exists| (exists, profile_clone))
                 }
             })
-            .and_then(move |email| service_clone2.create_jwt(email, secret));
+            .and_then({
+                let service = self.clone();
+                move |(exists, profile)| -> ServiceFuture<(i32, UserStatus)> {
+                    match exists {
+                        // identity email + provider  doesn't exist
+                        false => Box::new(
+                            service
+                                .create_or_update_profile(profile, provider)
+                                .map(|id| (id, UserStatus::New(id))),
+                        ),
+                        // User identity email + provider  exists, returning id
+                        true => Box::new(
+                            service
+                                .get_id(profile, provider)
+                                .map(|id| (id, UserStatus::Exists)),
+                        ),
+                    }
+                }
+            })
+            .and_then({
+                let service = self.clone();
+                move |(id, status)| service.create_jwt(id, status, secret)
+            });
 
         Box::new(future)
     }
@@ -185,75 +202,77 @@ where
     }
 
     fn create_or_update_profile(&self, profile: P, provider: Provider) -> ServiceFuture<i32> {
-        let r2d2_clone = self.r2d2_pool.clone();
-        let service = self.clone();
-
-        Box::new(self.cpu_pool.spawn_fn(move || {
-            r2d2_clone
-                .get()
-                .map_err(|e| ServiceError::Connection(e.into()))
-                .and_then(move |conn| {
-                    let mut users_repo = UsersRepoImpl::new(&conn, Box::new(SystemACL::new()));
-                    let ident_repo = IdentitiesRepoImpl::new(&conn);
-
-                    conn.transaction::<i32, ServiceError, _>(move || {
-                        users_repo
-                            .email_exists(profile.get_email())
-                            .map_err(ServiceError::from)
-                            .map(|email_exist| (profile, email_exist))
-                            .and_then(move |(profile, email_exist)| -> Result<i32, ServiceError> {
-                                match email_exist {
-                                    // user doesn't exist, creating user + identity
-                                    false => service.create_profile(users_repo, ident_repo, profile, provider),
-                                    // user exists, creating identity and filling user info
-                                    true => service.update_profile(users_repo, profile),
-                                }
-                            })
+        Box::new({
+            let db_pool = self.db_pool.clone();
+            let service = self.clone();
+            self.cpu_pool.spawn_fn(move || {
+                db_pool
+                    .get()
+                    .map_err(|e| ServiceError::Connection(e.into()))
+                    .and_then(move |conn| {
+                        let mut users_repo = UsersRepoImpl::new(&conn, Box::new(SystemACL::new()));
+                        let ident_repo = IdentitiesRepoImpl::new(&conn);
+                        conn.transaction::<i32, ServiceError, _>(move || {
+                            users_repo
+                                .email_exists(profile.get_email())
+                                .map_err(ServiceError::from)
+                                .map(|email_exist| (profile, email_exist))
+                                .and_then(move |(profile, email_exist)| -> Result<i32, ServiceError> {
+                                    match email_exist {
+                                        // user doesn't exist, creating user + identity
+                                        false => service.create_profile(users_repo, ident_repo, profile, provider),
+                                        // user exists, creating identity and filling user info
+                                        true => service.update_profile(users_repo, profile),
+                                    }
+                                })
+                        })
                     })
-                })
-        }))
+            })
+        })
     }
 
     fn email_exists(&self, profile: P, provider: Provider) -> ServiceFuture<bool> {
-        let r2d2_clone = self.r2d2_pool.clone();
+        Box::new({
+            let db_pool = self.db_pool.clone();
+            self.cpu_pool.spawn_fn(move || {
+                db_pool
+                    .get()
+                    .map_err(|e| ServiceError::Connection(e.into()))
+                    .and_then(move |conn| {
+                        let ident_repo = IdentitiesRepoImpl::new(&conn);
 
-        Box::new(self.cpu_pool.spawn_fn(move || {
-            r2d2_clone
-                .get()
-                .map_err(|e| ServiceError::Connection(e.into()))
-                .and_then(move |conn| {
-                    let ident_repo = IdentitiesRepoImpl::new(&conn);
-
-                    ident_repo
-                        .email_provider_exists(profile.get_email(), provider)
-                        .map_err(ServiceError::from)
-                })
-        }))
+                        ident_repo
+                            .email_provider_exists(profile.get_email(), provider)
+                            .map_err(ServiceError::from)
+                    })
+            })
+        })
     }
 
     fn get_id(&self, profile: P, provider: Provider) -> ServiceFuture<i32> {
-        let r2d2_clone = self.r2d2_pool.clone();
+        Box::new({
+            let db_pool = self.db_pool.clone();
+            self.cpu_pool.spawn_fn(move || {
+                db_pool
+                    .get()
+                    .map_err(|e| ServiceError::Connection(e.into()))
+                    .and_then(move |conn| {
+                        let ident_repo = IdentitiesRepoImpl::new(&conn);
 
-        Box::new(self.cpu_pool.spawn_fn(move || {
-            r2d2_clone
-                .get()
-                .map_err(|e| ServiceError::Connection(e.into()))
-                .and_then(move |conn| {
-                    let ident_repo = IdentitiesRepoImpl::new(&conn);
-
-                    ident_repo
-                        .find_by_email_provider(profile.get_email(), provider)
-                        .map_err(ServiceError::from)
-                        .map(|ident| ident.user_id.0)
-                })
-        }))
+                        ident_repo
+                            .find_by_email_provider(profile.get_email(), provider)
+                            .map_err(ServiceError::from)
+                            .map(|ident| ident.user_id.0)
+                    })
+            })
+        })
     }
 }
 
 impl JWTService for JWTServiceImpl {
     /// Creates new JWT token by email
     fn create_token_email(&self, payload: NewIdentity) -> ServiceFuture<JWT> {
-        let r2d2_clone = self.r2d2_pool.clone();
+        let r2d2_clone = self.db_pool.clone();
         let jwt_secret_key = self.jwt_config.secret_key.clone();
 
         Box::new(self.cpu_pool.spawn_fn(move || {
@@ -307,7 +326,12 @@ impl JWTService for JWTServiceImpl {
                                 let tokenpayload = JWTPayload::new(id);
                                 encode(&Header::default(), &tokenpayload, jwt_secret_key.as_ref())
                                     .map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}", tokenpayload)))
-                                    .and_then(|t| Ok(JWT { token: t }))
+                                    .and_then(|t| {
+                                        Ok(JWT {
+                                            token: t,
+                                            status: UserStatus::Exists,
+                                        })
+                                    })
                             })
                     })
                 })
