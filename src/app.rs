@@ -6,6 +6,9 @@ use hyper;
 use hyper::server::{Request, Response, Service};
 use types::ServerFuture;
 
+use serde_json;
+use http::client::ErrorMessage;
+
 use hyper::StatusCode;
 use hyper::mime;
 use hyper::header::{ContentLength, ContentType};
@@ -49,7 +52,12 @@ impl Application {
             error!("Trace: {}", trace);
         }
         error!("{:?}", error);
-        Self::response_with_body(error.message()).with_status(error.code())
+        let mes = ErrorMessage {
+            code: error.code().as_u16(),
+            message: error.message(),
+        };
+        let mes = serde_json::to_string(&mes).unwrap();
+        Self::response_with_body(mes).with_status(error.code())
     }
 
     fn response_with_body(body: String) -> Response {

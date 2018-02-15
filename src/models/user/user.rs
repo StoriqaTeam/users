@@ -4,10 +4,29 @@ use std::time::SystemTime;
 use chrono::DateTime;
 use chrono::offset::Utc;
 
-use validator::Validate;
+use validator::{Validate, ValidationError};
+use regex::Regex;
+use std::borrow::Cow;
+use std::collections::HashMap;
 
 use models::{Gender, NewIdentity, Scope, UserId, WithScope};
 use repos::types::DbConnection;
+
+pub fn validate_phone(phone: &String)  -> Result<(), ValidationError> {
+    lazy_static! {
+        static ref PHONE_VALIDATION_RE: Regex = Regex::new(r"^+?\d{7}\d*$").unwrap();
+    }
+
+    if PHONE_VALIDATION_RE.is_match(phone) {
+        Ok(())
+    } else {
+        Err(ValidationError {
+            code: Cow::from("phone"),
+            message: Some(Cow::from("Incorrect phone format")),
+            params: HashMap::new(),
+        })
+    }
+}
 
 table! {
     use diesel::sql_types::*;
@@ -53,7 +72,7 @@ pub struct User {
 pub struct NewUser {
     #[validate(email(message = "Invalid email format"))]
     pub email: String,
-    #[validate(phone(message = "Invalid phone format"))]
+    #[validate(custom = "validate_phone")]
     pub phone: Option<String>,
     #[validate(length(min = "1", message = "First name must not be empty"))]
     pub first_name: Option<String>,
@@ -70,7 +89,7 @@ pub struct NewUser {
 #[derive(Serialize, Deserialize, Insertable, Validate, AsChangeset)]
 #[table_name = "users"]
 pub struct UpdateUser {
-    #[validate(phone(message = "Invalid phone format"))]
+    #[validate(custom = "validate_phone")]
     pub phone: Option<String>,
     #[validate(length(min = "1", message = "First name must not be empty"))]
     pub first_name: Option<String>,
