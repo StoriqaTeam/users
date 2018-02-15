@@ -1,23 +1,17 @@
 //! Models for managing Json Web Token
 
-/// Json Web Token Model sent back to gateway created by email and password
-#[derive(Debug, Serialize, Queryable, Deserialize)]
-pub struct JWT {
-    pub token: String,
-}
-
 /// Json Web Token created by provider user status
 #[derive(Serialize, Deserialize, Debug)]
 pub enum UserStatus {
-    New (i32),
-    Exists
+    New(i32),
+    Exists,
 }
 
-/// Json Web Token Model sent back to gateway created by providers token
-#[derive(Serialize, Deserialize, Debug)]
-pub struct JWTExt {
+/// Json Web Token Model sent back to gateway created by email and password
+#[derive(Serialize, Deserialize, Queryable, Debug)]
+pub struct JWT {
     pub token: String,
-    pub status: UserStatus
+    pub status: UserStatus,
 }
 
 /// Payload received from gateway for creating JWT token by provider

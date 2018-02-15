@@ -116,9 +116,7 @@ impl UsersService for UsersServiceImpl {
                         (Box::new(ApplicationAcl::new(roles_cache.clone(), id)) as Box<Acl>)
                     });
                     let mut users_repo = UsersRepoImpl::new(&conn, acl);
-                    users_repo
-                        .list(from, count)
-                        .map_err(ServiceError::from)
+                    users_repo.list(from, count).map_err(ServiceError::from)
                 })
         }))
     }
@@ -138,9 +136,7 @@ impl UsersService for UsersServiceImpl {
                         (Box::new(ApplicationAcl::new(roles_cache.clone(), id)) as Box<Acl>)
                     });
                     let mut users_repo = UsersRepoImpl::new(&conn, acl);
-                    users_repo
-                        .deactivate(user_id)
-                        .map_err(ServiceError::from)
+                    users_repo.deactivate(user_id).map_err(ServiceError::from)
                 })
         }))
     }
