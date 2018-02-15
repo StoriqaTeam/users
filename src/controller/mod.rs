@@ -155,8 +155,8 @@ impl Controller {
                             .into_future()
                             .and_then(move |_| {
                                 users_service
-                                     .update(user_id, update_user)
-                                     .map_err(ControllerError::from)
+                                    .update(user_id, update_user)
+                                    .map_err(ControllerError::from)
                             })
                     }),
             ),
