@@ -30,11 +30,10 @@ impl From<serde_json::error::Error> for ControllerError {
 
 impl From<ServiceError> for ControllerError {
     fn from(e: ServiceError) -> Self {
-        
         match e {
             ServiceError::NotFound => ControllerError::NotFound,
             ServiceError::Rollback => ControllerError::BadRequest(ServiceError::Rollback.into()),
-            ServiceError::Validate(valid_err) => ControllerError::Validate(valid_err),            
+            ServiceError::Validate(valid_err) => ControllerError::Validate(valid_err),
             ServiceError::Unauthorized(msg) => ControllerError::BadRequest(ServiceError::Unauthorized(msg).into()),
             ServiceError::Parse(msg) => ControllerError::UnprocessableEntity(ServiceError::Parse(msg).into()),
             ServiceError::Database(msg) => ControllerError::InternalServerError(ServiceError::Database(msg).into()),
