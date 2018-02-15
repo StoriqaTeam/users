@@ -103,10 +103,7 @@ impl Controller {
 
         match (req.method(), self.route_parser.test(req.path())) {
             // GET /healthcheck
-            (&Get, Some(Route::Healthcheck)) => serialize_future(
-                system_service
-                    .healthcheck()
-            ),
+            (&Get, Some(Route::Healthcheck)) => serialize_future(system_service.healthcheck()),
 
             // GET /users/<user_id>
             (&Get, Some(Route::User(user_id))) => serialize_future(users_service.get(user_id)),
@@ -120,7 +117,7 @@ impl Controller {
                     serialize_future(users_service.list(from, to))
                 } else {
                     Box::new(future::err(ControllerError::UnprocessableEntity(
-                        format_err!("Error parsing request from gateway body")
+                        format_err!("Error parsing request from gateway body"),
                     )))
                 }
             }
@@ -158,8 +155,8 @@ impl Controller {
                             .into_future()
                             .and_then(move |_| {
                                 users_service
-                                     .update(user_id, update_user)
-                                     .map_err(ControllerError::from)
+                                    .update(user_id, update_user)
+                                    .map_err(ControllerError::from)
                             })
                     }),
             ),

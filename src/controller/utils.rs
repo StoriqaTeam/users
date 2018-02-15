@@ -34,10 +34,7 @@ where
     Box::new(
         read_body(body)
             .map_err(|err| error::ControllerError::Parse(format!("{}", err)))
-            .and_then(|body| {
-                serde_json::from_str::<T>(&body)
-                    .map_err(|e| error::ControllerError::UnprocessableEntity(e.into()))
-            }),
+            .and_then(|body| serde_json::from_str::<T>(&body).map_err(|e| error::ControllerError::UnprocessableEntity(e.into()))),
     )
 }
 

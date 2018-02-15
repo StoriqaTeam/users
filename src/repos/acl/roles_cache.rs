@@ -32,9 +32,7 @@ impl RolesCache for RolesCacheImpl {
         match hash_map.entry(id) {
             Entry::Occupied(o) => Ok(o.get().clone()),
             Entry::Vacant(v) => db_conn
-                .ok_or(Error::Connection(
-                    format_err!("No connection to db")
-                ))
+                .ok_or(Error::Connection(format_err!("No connection to db")))
                 .and_then(|con| {
                     let repo = UserRolesRepoImpl::new(con, Box::new(SystemACL::new()));
                     repo.list_for_user(id)

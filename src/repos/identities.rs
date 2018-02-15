@@ -47,9 +47,7 @@ impl<'a> IdentitiesRepoImpl<'a> {
     fn execute_query<T: Send + 'static, U: LoadQuery<PgConnection, T> + Send + 'static>(&self, query: U) -> Result<T, RepoError> {
         let conn = self.db_conn;
 
-        query
-            .get_result::<T>(&*conn)
-            .map_err(RepoError::from)
+        query.get_result::<T>(&*conn).map_err(RepoError::from)
     }
 }
 
