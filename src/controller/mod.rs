@@ -3,25 +3,23 @@
 //! Basically it provides inputs to `Service` layer and converts outputs
 //! of `Service` layer to http responses
 
-extern crate std;
-
 pub mod error;
 pub mod routes;
 pub mod types;
 pub mod utils;
 
-use std::sync::Arc;
-use std::str::FromStr;
-
 use futures::Future;
 use futures::future;
 use futures::IntoFuture;
+use futures_cpupool::CpuPool;
 use hyper::{Delete, Get, Post, Put};
 use hyper::server::Request;
 use hyper::header::Authorization;
 use serde_json;
 use serde::ser::Serialize;
-use futures_cpupool::CpuPool;
+use std;
+use std::sync::Arc;
+use std::str::FromStr;
 use validator::Validate;
 
 use self::error::ControllerError;

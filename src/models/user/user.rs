@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use models::{Gender, NewIdentity, Scope, UserId, WithScope};
 use repos::types::DbConnection;
 
-pub fn validate_phone(phone: &String)  -> Result<(), ValidationError> {
+pub fn validate_phone(phone: &String) -> Result<(), ValidationError> {
     lazy_static! {
         static ref PHONE_VALIDATION_RE: Regex = Regex::new(r"^\+?\d{7}\d*$").unwrap();
     }
