@@ -20,7 +20,7 @@ pub struct Identity {
     pub user_id: UserId,
     #[validate(email(message = "Invalid email format"))]
     pub email: String,
-    #[validate(length(min = "8", max = "30", message = "Password should be between 6 and 30 symbols"))]
+    #[validate(length(min = "8", max = "30", message = "Password should be between 8 and 30 symbols"))]
     pub password: Option<String>,
     pub provider: Provider,
 }
@@ -30,6 +30,6 @@ pub struct Identity {
 pub struct NewIdentity {
     #[validate(email(message = "Invalid email format"))]
     pub email: String,
-    #[validate(length(min = "8", max = "30", message = "Password should be between 6 and 30 symbols"))]
+    #[validate(length(min = "8", max = "30", message = "Password should be between 8 and 30 symbols"))]
     pub password: String,
 }
