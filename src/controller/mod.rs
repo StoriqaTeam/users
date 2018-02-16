@@ -113,8 +113,8 @@ impl Controller {
 
             // GET /users
             (&Get, Some(Route::Users)) => {
-                if let (Some(from), Some(to)) = parse_query!(req.query().unwrap_or_default(), "from" => i32, "to" => i64) {
-                    serialize_future(users_service.list(from, to))
+                if let (Some(from), Some(count)) = parse_query!(req.query().unwrap_or_default(), "from" => i32, "count" => i64) {
+                    serialize_future(users_service.list(from, count))
                 } else {
                     Box::new(future::err(ControllerError::UnprocessableEntity(
                         format_err!("Error parsing request from gateway body"),

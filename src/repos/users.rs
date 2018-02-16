@@ -106,7 +106,7 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
     fn list(&mut self, from: i32, count: i64) -> Result<Vec<User>, RepoError> {
         let query = users
             .filter(is_active.eq(true))
-            .filter(id.gt(from))
+            .filter(id.ge(from))
             .order(id)
             .limit(count);
 
