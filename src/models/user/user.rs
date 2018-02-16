@@ -14,7 +14,7 @@ use repos::types::DbConnection;
 
 pub fn validate_phone(phone: &String)  -> Result<(), ValidationError> {
     lazy_static! {
-        static ref PHONE_VALIDATION_RE: Regex = Regex::new(r"^+?\d{7}\d*$").unwrap();
+        static ref PHONE_VALIDATION_RE: Regex = Regex::new(r"^\+?\d{7}\d*$").unwrap();
     }
 
     if PHONE_VALIDATION_RE.is_match(phone) {
