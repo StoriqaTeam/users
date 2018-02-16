@@ -1,8 +1,6 @@
 //! Module containing info about User models
 use std::time::SystemTime;
-
-use chrono::DateTime;
-use chrono::offset::Utc;
+use chrono::NaiveDate;
 
 use validator::{Validate, ValidationError};
 use regex::Regex;
@@ -41,7 +39,7 @@ table! {
         last_name -> Nullable<VarChar>,
         middle_name -> Nullable<VarChar>,
         gender -> Nullable<VarChar>,
-        birthdate -> Nullable<Timestamptz>,
+        birthdate -> Nullable<Date>,
         last_login_at -> Timestamp,
         created_at -> Timestamp,
         updated_at -> Timestamp,
@@ -60,7 +58,7 @@ pub struct User {
     pub last_name: Option<String>,
     pub middle_name: Option<String>,
     pub gender: Gender,
-    pub birthdate: Option<DateTime<Utc>>,
+    pub birthdate: Option<NaiveDate>,
     pub last_login_at: SystemTime,
     pub created_at: SystemTime,
     pub updated_at: SystemTime,
@@ -81,7 +79,7 @@ pub struct NewUser {
     #[validate(length(min = "1", message = "Middle name must not be empty"))]
     pub middle_name: Option<String>,
     pub gender: Gender,
-    pub birthdate: Option<DateTime<Utc>>,
+    pub birthdate: Option<NaiveDate>,
     pub last_login_at: SystemTime,
 }
 
@@ -98,7 +96,7 @@ pub struct UpdateUser {
     #[validate(length(min = "1", message = "Middle name must not be empty"))]
     pub middle_name: Option<String>,
     pub gender: Option<Gender>,
-    pub birthdate: Option<DateTime<Utc>>,
+    pub birthdate: Option<NaiveDate>,
     pub is_active: Option<bool>,
 }
 
