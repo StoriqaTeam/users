@@ -2,6 +2,8 @@ use diesel::result::Error as DieselError;
 
 use failure::Error;
 
+use stq_http::errors::ControllerError;
+
 use validator::ValidationErrors;
 use repos::error::RepoError;
 
@@ -53,5 +55,24 @@ impl From<RepoError> for ServiceError {
 impl From<DieselError> for ServiceError {
     fn from(err: DieselError) -> Self {
         ServiceError::Transaction(err.into())
+    }
+}
+
+impl From<ServiceError> for ControllerError {
+    fn from(e: ServiceError) -> Self {
+        match e {
+            ServiceError::NotFound => ControllerError::NotFound,
+            ServiceError::Rollback => ControllerError::BadRequest(ServiceError::Rollback.into()),
+            ServiceError::Validate(valid_err) => ControllerError::Validate(valid_err),
+            ServiceError::Unauthorized(msg) => ControllerError::BadRequest(ServiceError::Unauthorized(msg).into()),
+            ServiceError::Parse(msg) => ControllerError::UnprocessableEntity(ServiceError::Parse(msg).into()),
+            ServiceError::Database(msg) => ControllerError::InternalServerError(ServiceError::Database(msg).into()),
+            ServiceError::HttpClient(msg) => ControllerError::InternalServerError(ServiceError::HttpClient(msg).into()),
+            ServiceError::EmailAlreadyExists(msg) => ControllerError::BadRequest(ServiceError::EmailAlreadyExists(msg).into()),
+            ServiceError::IncorrectCredentials => ControllerError::BadRequest(ServiceError::IncorrectCredentials.into()),
+            ServiceError::Connection(msg) => ControllerError::InternalServerError(ServiceError::Connection(msg).into()),
+            ServiceError::Transaction(msg) => ControllerError::InternalServerError(ServiceError::Transaction(msg).into()),
+            ServiceError::Unknown(msg) => ControllerError::InternalServerError(ServiceError::Unknown(msg).into()),
+        }
     }
 }
