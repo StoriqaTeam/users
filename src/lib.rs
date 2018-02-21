@@ -22,6 +22,8 @@ extern crate hyper;
 extern crate hyper_tls;
 extern crate jsonwebtoken;
 #[macro_use]
+extern crate lazy_static;
+#[macro_use]
 extern crate log;
 extern crate r2d2;
 extern crate r2d2_diesel;
@@ -36,8 +38,6 @@ extern crate tokio_core;
 extern crate validator;
 #[macro_use]
 extern crate validator_derive;
-#[macro_use]
-extern crate lazy_static;
 
 #[macro_use]
 pub mod macros;
