@@ -3,9 +3,7 @@
 //! Basically it provides inputs to `Service` layer and converts outputs
 //! of `Service` layer to http responses
 
-pub mod error;
 pub mod routes;
-pub mod types;
 pub mod utils;
 
 use futures::Future;
@@ -22,7 +20,12 @@ use std::sync::Arc;
 use std::str::FromStr;
 use validator::Validate;
 
-use self::error::ControllerError;
+use stq_http::controller::Controller;
+use stq_http::request_util::serialize_future;
+use stq_http::errors::ControllerError;
+use stq_http::request_util::ControllerFuture;
+use stq_router::RouteParser;
+
 use services::system::{SystemService, SystemServiceImpl};
 use services::users::{UsersService, UsersServiceImpl};
 use services::jwt::{JWTService, JWTServiceImpl};
@@ -31,37 +34,22 @@ use repos::types::DbPool;
 use repos::acl::RolesCacheImpl;
 
 use models;
-use self::utils::parse_body;
-use self::types::ControllerFuture;
-use self::routes::{Route, RouteParser};
+use stq_http::request_util::parse_body;
+use self::routes::Route;
 use http::client::ClientHandle;
 use config::Config;
 
 /// Controller handles route parsing and calling `Service` layer
-pub struct Controller {
+pub struct ControllerImpl {
     pub db_pool: DbPool,
     pub cpu_pool: CpuPool,
-    pub route_parser: Arc<RouteParser>,
+    pub route_parser: Arc<RouteParser<Route>>,
     pub config: Config,
     pub client_handle: ClientHandle,
     pub roles_cache: RolesCacheImpl,
 }
 
-fn serialize_future<T, E, F>(f: F) -> ControllerFuture
-where
-    F: IntoFuture<Item = T, Error = E> + 'static,
-    E: 'static,
-    ControllerError: std::convert::From<E>,
-    T: Serialize,
-{
-    Box::new(
-        f.into_future()
-            .map_err(ControllerError::from)
-            .and_then(|resp| serde_json::to_string(&resp).map_err(|e| e.into())),
-    )
-}
-
-impl Controller {
+impl ControllerImpl {
     /// Create a new controller based on services
     pub fn new(db_pool: DbPool, cpu_pool: CpuPool, client_handle: ClientHandle, config: Config, roles_cache: RolesCacheImpl) -> Self {
         let route_parser = Arc::new(routes::create_route_parser());
@@ -74,9 +62,11 @@ impl Controller {
             roles_cache,
         }
     }
+}
 
+impl Controller for ControllerImpl {
     /// Handle a request and get future response
-    pub fn call(&self, req: Request) -> ControllerFuture {
+    fn call(&self, req: Request) -> ControllerFuture {
         let headers = req.headers().clone();
         let auth_header = headers.get::<Authorization<String>>();
         let user_id = auth_header
@@ -123,7 +113,7 @@ impl Controller {
             // POST /users
             (&Post, Some(Route::Users)) => serialize_future(
                 parse_body::<models::identity::NewIdentity>(req.body())
-                    .map_err(|e| error::ControllerError::UnprocessableEntity(e.into()))
+                    .map_err(|e| ControllerError::UnprocessableEntity(e.into()))
                     .and_then(move |new_ident| {
                         new_ident
                             .validate()
@@ -145,7 +135,7 @@ impl Controller {
             // PUT /users/<user_id>
             (&Put, Some(Route::User(user_id))) => serialize_future(
                 parse_body::<models::user::UpdateUser>(req.body())
-                    .map_err(|e| error::ControllerError::UnprocessableEntity(e.into()))
+                    .map_err(|e| ControllerError::UnprocessableEntity(e.into()))
                     .and_then(move |update_user| {
                         update_user
                             .validate()
@@ -165,7 +155,7 @@ impl Controller {
             // POST /jwt/email
             (&Post, Some(Route::JWTEmail)) => serialize_future(
                 parse_body::<models::identity::NewIdentity>(req.body())
-                    .map_err(|e| error::ControllerError::UnprocessableEntity(e.into()))
+                    .map_err(|e| ControllerError::UnprocessableEntity(e.into()))
                     .and_then(move |new_ident| {
                         new_ident
                             .validate()
@@ -187,7 +177,7 @@ impl Controller {
             // POST /jwt/google
             (&Post, Some(Route::JWTGoogle)) => serialize_future(
                 parse_body::<models::jwt::ProviderOauth>(req.body())
-                    .map_err(|e| error::ControllerError::UnprocessableEntity(e.into()))
+                    .map_err(|e| ControllerError::UnprocessableEntity(e.into()))
                     .and_then(move |oauth| {
                         jwt_service
                             .create_token_google(oauth)
@@ -197,7 +187,7 @@ impl Controller {
             // POST /jwt/facebook
             (&Post, Some(Route::JWTFacebook)) => serialize_future(
                 parse_body::<models::jwt::ProviderOauth>(req.body())
-                    .map_err(|e| error::ControllerError::UnprocessableEntity(e.into()))
+                    .map_err(|e| ControllerError::UnprocessableEntity(e.into()))
                     .and_then(move |oauth| {
                         jwt_service
                             .create_token_facebook(oauth)

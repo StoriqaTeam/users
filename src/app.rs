@@ -16,7 +16,7 @@ use hyper::header::{ContentLength, ContentType};
 use failure::Fail;
 
 use controller;
-use controller::Controller;
+use controller::ControllerImpl;
 
 pub struct Application {
     pub controller: Controller,
