@@ -123,6 +123,7 @@ impl Controller for ControllerImpl {
                                 let checked_new_ident = models::identity::NewIdentity {
                                     email: new_ident.email.to_lowercase(),
                                     password: new_ident.password,
+                                    provider: new_ident.provider,
                                 };
 
                                 users_service
@@ -154,7 +155,7 @@ impl Controller for ControllerImpl {
 
             // POST /jwt/email
             (&Post, Some(Route::JWTEmail)) => serialize_future(
-                parse_body::<models::identity::NewIdentity>(req.body())
+                parse_body::<models::identity::NewEmailIdentity>(req.body())
                     .map_err(|e| ControllerError::UnprocessableEntity(e.into()))
                     .and_then(move |new_ident| {
                         new_ident
@@ -162,7 +163,7 @@ impl Controller for ControllerImpl {
                             .map_err(|e| ControllerError::Validate(e))
                             .into_future()
                             .and_then(move |_| {
-                                let checked_new_ident = models::identity::NewIdentity {
+                                let checked_new_ident = models::identity::NewEmailIdentity {
                                     email: new_ident.email.to_lowercase(),
                                     password: new_ident.password,
                                 };

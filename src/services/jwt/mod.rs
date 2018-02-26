@@ -14,7 +14,7 @@ use base64::decode;
 use serde;
 use diesel::Connection;
 
-use models::{JWTPayload, NewIdentity, NewUser, Provider, ProviderOauth, UserStatus, JWT};
+use models::{JWTPayload, NewEmailIdentity, NewIdentity, NewUser, Provider, ProviderOauth, UserStatus, JWT};
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
 use repos::acl::SystemACL;
@@ -30,7 +30,7 @@ use http::client::ClientHandle;
 /// JWT services, responsible for JsonWebToken operations
 pub trait JWTService {
     /// Creates new JWT token by email
-    fn create_token_email(&self, payload: NewIdentity) -> ServiceFuture<JWT>;
+    fn create_token_email(&self, payload: NewEmailIdentity) -> ServiceFuture<JWT>;
     /// Creates new JWT token by google
     fn create_token_google(&self, oauth: ProviderOauth) -> ServiceFuture<JWT>;
     /// Creates new JWT token by facebook
@@ -271,7 +271,7 @@ where
 
 impl JWTService for JWTServiceImpl {
     /// Creates new JWT token by email
-    fn create_token_email(&self, payload: NewIdentity) -> ServiceFuture<JWT> {
+    fn create_token_email(&self, payload: NewEmailIdentity) -> ServiceFuture<JWT> {
         let r2d2_clone = self.db_pool.clone();
         let jwt_secret_key = self.jwt_config.secret_key.clone();
 
