@@ -9,7 +9,7 @@ table! {
         user_id -> Integer,
         email -> Varchar,
         password -> Nullable<Varchar>,
-        provider -> Nullable<Varchar>,
+        provider -> Varchar,
     }
 }
 
@@ -31,5 +31,24 @@ pub struct NewIdentity {
     #[validate(email(message = "Invalid email format"))]
     pub email: String,
     #[validate(length(min = "8", max = "30", message = "Password should be between 8 and 30 symbols"))]
+    pub password: Option<String>,
+    pub provider: Provider,
+}
+
+#[derive(Serialize, Deserialize, Validate, Clone)]
+pub struct NewEmailIdentity {
+    #[validate(email(message = "Invalid email format"))]
+    pub email: String,
+    #[validate(length(min = "8", max = "30", message = "Password should be between 8 and 30 symbols"))]
     pub password: String,
+}
+
+impl From<NewEmailIdentity> for NewIdentity {
+    fn from(v: NewEmailIdentity) -> Self {
+        Self {
+            email: v.email,
+            password: Some(v.password),
+            provider: Provider::UnverifiedEmail,
+        }
+    }
 }

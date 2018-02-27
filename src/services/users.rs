@@ -179,7 +179,10 @@ impl UsersService for UsersServiceImpl {
                                 ident_repo
                                     .create(
                                         new_ident.email,
-                                        Some(Self::password_create(new_ident.password.clone())),
+                                        new_ident
+                                            .password
+                                            .clone()
+                                            .map(|pass| Self::password_create(pass)),
                                         Provider::Email,
                                         user.id.clone(),
                                     )

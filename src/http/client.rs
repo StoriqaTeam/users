@@ -297,7 +297,7 @@ mod tests {
     use tokio_core::reactor::Core;
     use serde_json;
 
-    use models::identity::NewIdentity;
+    use models::identity::{NewEmailIdentity, NewIdentity};
     use controller::utils::{parse_body, read_body};
 
     #[test]
@@ -314,14 +314,14 @@ mod tests {
 
     #[test]
     fn test_parse_body() {
-        let message = NewIdentity {
+        let message = NewEmailIdentity {
             email: "aaa@mail.com".to_string(),
             password: "password".to_string(),
         };
         let message_str = serde_json::to_string(&message).unwrap();
         let res = response_with_body(message_str.clone());
         let mut core = Core::new().unwrap();
-        let work = parse_body::<NewIdentity>(res.body());
+        let work = parse_body::<NewEmailIdentity>(res.body());
         let result = core.run(work).unwrap();
         assert_eq!(result.email, message.email);
     }
