@@ -5,5 +5,5 @@ pub mod macros;
 pub mod acl;
 pub mod roles_cache;
 
-pub use self::acl::{Acl, ApplicationAcl, SystemACL, UnauthorizedACL};
-pub use self::roles_cache::{RolesCache, RolesCacheImpl};
+pub use self::acl::{check, ApplicationAcl, BoxedAcl};
+pub use self::roles_cache::RolesCacheImpl;

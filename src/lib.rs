@@ -34,6 +34,8 @@ extern crate serde;
 extern crate serde_derive;
 extern crate serde_json;
 extern crate sha3;
+#[macro_use]
+extern crate stq_acl;
 extern crate stq_http;
 extern crate stq_router;
 extern crate tokio_core;
@@ -105,7 +107,7 @@ pub fn start_server(config: Config) {
             // Prepare CPU pool
             let cpu_pool = CpuPool::new(thread_count);
 
-            let roles_cache = RolesCacheImpl::new();
+            let roles_cache = RolesCacheImpl::default();
 
             let controller = Box::new(controller::ControllerImpl::new(
                 r2d2_pool,

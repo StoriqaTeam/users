@@ -7,24 +7,26 @@ use diesel::select;
 use diesel::dsl::exists;
 use diesel::query_dsl::RunQueryDsl;
 
+use stq_acl::*;
 use models::{NewUser, UpdateUser, User, UserId};
 use models::user::user::users::dsl::*;
 use super::error::RepoError;
 use super::types::DbConnection;
-use repos::acl::Acl;
 use models::authorization::*;
+use super::acl;
+use super::acl::BoxedAcl;
 
 /// Users repository, responsible for handling users
 pub struct UsersRepoImpl<'a> {
     pub db_conn: &'a DbConnection,
-    pub acl: Box<Acl>,
+    pub acl: BoxedAcl,
 }
 
 pub trait UsersRepo {
     /// Find specific user by ID
     fn find(&mut self, user_id: UserId) -> Result<User, RepoError>;
 
-    fn email_exists(&mut self, email_arg: String) -> Result<bool, RepoError>;
+    fn email_exists(&self, email_arg: String) -> Result<bool, RepoError>;
 
     /// Find specific user by email
     fn find_by_email(&mut self, email_arg: String) -> Result<User, RepoError>;
@@ -43,7 +45,7 @@ pub trait UsersRepo {
 }
 
 impl<'a> UsersRepoImpl<'a> {
-    pub fn new(db_conn: &'a DbConnection, acl: Box<Acl>) -> Self {
+    pub fn new(db_conn: &'a DbConnection, acl: BoxedAcl) -> Self {
         Self { db_conn, acl }
     }
 }
@@ -57,29 +59,29 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
             .get_result(&**self.db_conn)
             .map_err(RepoError::from)
             .and_then(|user: User| {
-                acl!(
-                    [user],
-                    self.acl,
-                    Resource::Users,
-                    Action::Read,
-                    Some(self.db_conn)
+                acl::check(
+                    &*self.acl,
+                    &Resource::Users,
+                    &Action::Read,
+                    &[&user],
+                    Some(self.db_conn),
                 ).and_then(|_| Ok(user))
             })
     }
 
-    fn email_exists(&mut self, email_arg: String) -> Result<bool, RepoError> {
+    fn email_exists(&self, email_arg: String) -> Result<bool, RepoError> {
         let query = select(exists(users.filter(email.eq(email_arg))));
 
         query
             .get_result(&**self.db_conn)
             .map_err(RepoError::from)
             .and_then(|exists| {
-                acl!(
-                    [],
-                    self.acl,
-                    Resource::Users,
-                    Action::Read,
-                    Some(self.db_conn)
+                acl::check(
+                    &*self.acl,
+                    &Resource::Users,
+                    &Action::Read,
+                    &[],
+                    Some(self.db_conn),
                 ).and_then(|_| Ok(exists))
             })
     }
@@ -92,12 +94,12 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
             .first::<User>(&**self.db_conn)
             .map_err(RepoError::from)
             .and_then(|user: User| {
-                acl!(
-                    [user],
-                    self.acl,
-                    Resource::Users,
-                    Action::Read,
-                    Some(self.db_conn)
+                acl::check(
+                    &*self.acl,
+                    &Resource::Users,
+                    &Action::Read,
+                    &[&user],
+                    Some(self.db_conn),
                 ).and_then(|_| Ok(user))
             })
     }
@@ -114,13 +116,16 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
             .get_results(&**self.db_conn)
             .map_err(RepoError::from)
             .and_then(|users_res: Vec<User>| {
-                let resources = users_res.iter().map(|user| (user as &WithScope)).collect();
-                acl!(
-                    resources,
-                    self.acl,
-                    Resource::Users,
-                    Action::Read,
-                    Some(self.db_conn)
+                let resources = users_res
+                    .iter()
+                    .map(|user| (user as &WithScope<Scope>))
+                    .collect::<Vec<&WithScope<Scope>>>();
+                acl::check(
+                    &*self.acl,
+                    &Resource::Users,
+                    &Action::Read,
+                    &resources,
+                    Some(self.db_conn),
                 ).and_then(|_| Ok(users_res.clone()))
             })
     }
@@ -142,12 +147,12 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
             .get_result(&**self.db_conn)
             .map_err(RepoError::from)
             .and_then(|user: User| {
-                acl!(
-                    [user],
-                    self.acl,
-                    Resource::Users,
-                    Action::Write,
-                    Some(self.db_conn)
+                acl::check(
+                    &*self.acl,
+                    &Resource::Users,
+                    &Action::Write,
+                    &[&user],
+                    Some(self.db_conn),
                 )
             })
             .and_then(|_| {
@@ -168,12 +173,12 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
             .get_result(&**self.db_conn)
             .map_err(RepoError::from)
             .and_then(|user: User| {
-                acl!(
-                    [user],
-                    self.acl,
-                    Resource::Users,
-                    Action::Write,
-                    Some(self.db_conn)
+                acl::check(
+                    &*self.acl,
+                    &Resource::Users,
+                    &Action::Write,
+                    &[&user],
+                    Some(self.db_conn),
                 )
             })
             .and_then(|_| {

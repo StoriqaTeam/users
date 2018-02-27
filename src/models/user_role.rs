@@ -1,6 +1,6 @@
 //! Models for managing Roles
-
-use models::{Role, Scope, WithScope};
+use stq_acl::WithScope;
+use models::{Role, Scope};
 use repos::types::DbConnection;
 
 table! {
@@ -33,7 +33,7 @@ pub struct OldUserRole {
     pub role: Role,
 }
 
-impl WithScope for UserRole {
+impl WithScope<Scope> for UserRole {
     fn is_in_scope(&self, scope: &Scope, user_id: i32, _conn: Option<&DbConnection>) -> bool {
         match *scope {
             Scope::All => true,

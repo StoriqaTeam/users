@@ -8,15 +8,19 @@ use rand::Rng;
 use base64::encode;
 use diesel::Connection;
 
+use stq_acl::{Acl, UnauthorizedACL};
+
 use models::{NewUser, UpdateUser, User, UserId};
 use models::{NewIdentity, Provider};
+use models::authorization::*;
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
 
 use super::types::ServiceFuture;
 use super::error::ServiceError;
+use repos::error::RepoError;
 use repos::types::DbPool;
-use repos::acl::{Acl, ApplicationAcl, RolesCacheImpl, UnauthorizedACL};
+use repos::acl::{ApplicationAcl, BoxedAcl, RolesCacheImpl};
 
 pub trait UsersService {
     /// Returns user by ID
@@ -54,6 +58,12 @@ impl UsersServiceImpl {
     }
 }
 
+fn acl_for_id(roles_cache: RolesCacheImpl, user_id: Option<i32>) -> BoxedAcl {
+    user_id.map_or((Box::new(UnauthorizedACL::default()) as BoxedAcl), |id| {
+        (Box::new(ApplicationAcl::new(roles_cache, id)) as BoxedAcl)
+    })
+}
+
 impl UsersService for UsersServiceImpl {
     /// Returns user by ID
     fn get(&self, user_id: UserId) -> ServiceFuture<User> {
@@ -66,9 +76,7 @@ impl UsersService for UsersServiceImpl {
                 .get()
                 .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
-                    let acl = current_uid.map_or((Box::new(UnauthorizedACL::new()) as Box<Acl>), |id| {
-                        (Box::new(ApplicationAcl::new(roles_cache.clone(), id)) as Box<Acl>)
-                    });
+                    let acl = acl_for_id(roles_cache.clone(), current_uid);
                     let mut users_repo = UsersRepoImpl::new(&conn, acl);
                     users_repo.find(user_id).map_err(ServiceError::from)
                 })
@@ -87,9 +95,7 @@ impl UsersService for UsersServiceImpl {
                     .get()
                     .map_err(|e| ServiceError::Connection(e.into()))
                     .and_then(move |conn| {
-                        let acl = current_uid.map_or((Box::new(UnauthorizedACL::new()) as Box<Acl>), |id| {
-                            (Box::new(ApplicationAcl::new(roles_cache.clone(), id)) as Box<Acl>)
-                        });
+                        let acl = acl_for_id(roles_cache.clone(), current_uid);
                         let mut users_repo = UsersRepoImpl::new(&conn, acl);
                         users_repo.find(UserId(id)).map_err(ServiceError::from)
                     })
@@ -112,9 +118,7 @@ impl UsersService for UsersServiceImpl {
                 .get()
                 .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
-                    let acl = current_uid.map_or((Box::new(UnauthorizedACL::new()) as Box<Acl>), |id| {
-                        (Box::new(ApplicationAcl::new(roles_cache.clone(), id)) as Box<Acl>)
-                    });
+                    let acl = acl_for_id(roles_cache.clone(), current_uid);
                     let mut users_repo = UsersRepoImpl::new(&conn, acl);
                     users_repo.list(from, count).map_err(ServiceError::from)
                 })
@@ -132,9 +136,7 @@ impl UsersService for UsersServiceImpl {
                 .get()
                 .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
-                    let acl = current_uid.map_or((Box::new(UnauthorizedACL::new()) as Box<Acl>), |id| {
-                        (Box::new(ApplicationAcl::new(roles_cache.clone(), id)) as Box<Acl>)
-                    });
+                    let acl = acl_for_id(roles_cache.clone(), current_uid);
                     let mut users_repo = UsersRepoImpl::new(&conn, acl);
                     users_repo.deactivate(user_id).map_err(ServiceError::from)
                 })
@@ -152,9 +154,7 @@ impl UsersService for UsersServiceImpl {
                 .get()
                 .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
-                    let acl = current_uid.map_or((Box::new(UnauthorizedACL::new()) as Box<Acl>), |id| {
-                        (Box::new(ApplicationAcl::new(roles_cache.clone(), id)) as Box<Acl>)
-                    });
+                    let acl = acl_for_id(roles_cache.clone(), current_uid);
                     let mut users_repo = UsersRepoImpl::new(&conn, acl);
                     let ident_repo = IdentitiesRepoImpl::new(&conn);
                     conn.transaction::<User, ServiceError, _>(move || {
@@ -205,9 +205,7 @@ impl UsersService for UsersServiceImpl {
                 .get()
                 .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
-                    let acl = current_uid.map_or((Box::new(UnauthorizedACL::new()) as Box<Acl>), |id| {
-                        (Box::new(ApplicationAcl::new(roles_cache.clone(), id)) as Box<Acl>)
-                    });
+                    let acl = acl_for_id(roles_cache.clone(), current_uid);
                     let mut users_repo = UsersRepoImpl::new(&conn, acl);
                     users_repo
                         .find(user_id.clone())
