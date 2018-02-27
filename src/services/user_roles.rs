@@ -2,11 +2,12 @@
 
 use futures_cpupool::CpuPool;
 
+use stq_acl::SystemACL;
+
 use models::{NewUserRole, OldUserRole, UserRole};
 use super::types::ServiceFuture;
 use super::error::ServiceError;
 use repos::types::DbPool;
-use repos::acl::SystemACL;
 use repos::user_roles::{UserRolesRepo, UserRolesRepoImpl};
 
 pub trait UserRolesService {
@@ -40,7 +41,7 @@ impl UserRolesService for UserRolesServiceImpl {
                 .get()
                 .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
-                    let user_roles_repo = UserRolesRepoImpl::new(&conn, Box::new(SystemACL::new()));
+                    let user_roles_repo = UserRolesRepoImpl::new(&conn, Box::new(SystemACL::default()));
                     user_roles_repo
                         .list_for_user(user_role_id)
                         .map_err(ServiceError::from)
@@ -57,7 +58,7 @@ impl UserRolesService for UserRolesServiceImpl {
                 .get()
                 .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
-                    let user_roles_repo = UserRolesRepoImpl::new(&conn, Box::new(SystemACL::new()));
+                    let user_roles_repo = UserRolesRepoImpl::new(&conn, Box::new(SystemACL::default()));
                     user_roles_repo.delete(payload).map_err(ServiceError::from)
                 })
         }))
@@ -72,7 +73,7 @@ impl UserRolesService for UserRolesServiceImpl {
                 .get()
                 .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
-                    let user_roles_repo = UserRolesRepoImpl::new(&conn, Box::new(SystemACL::new()));
+                    let user_roles_repo = UserRolesRepoImpl::new(&conn, Box::new(SystemACL::default()));
                     user_roles_repo
                         .create(new_user_role)
                         .map_err(ServiceError::from)

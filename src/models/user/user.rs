@@ -7,7 +7,9 @@ use regex::Regex;
 use std::borrow::Cow;
 use std::collections::HashMap;
 
-use models::{Gender, NewIdentity, Scope, UserId, WithScope};
+use stq_acl::WithScope;
+
+use models::{Gender, NewIdentity, Scope, UserId};
 use repos::types::DbConnection;
 
 pub fn validate_phone(phone: &String) -> Result<(), ValidationError> {
@@ -107,7 +109,7 @@ impl UpdateUser {
     }
 }
 
-impl WithScope for User {
+impl WithScope<Scope> for User {
     fn is_in_scope(&self, scope: &Scope, user_id: i32, _conn: Option<&DbConnection>) -> bool {
         match *scope {
             Scope::All => true,

@@ -8,7 +8,9 @@ use diesel::query_dsl::RunQueryDsl;
 
 use models::user_role::user_roles::dsl::*;
 use models::{NewUserRole, OldUserRole, UserRole};
-use repos::acl::Acl;
+use stq_acl::Acl;
+use models::authorization::*;
+use super::acl::BoxedAcl;
 use super::error::RepoError as Error;
 use super::types::{DbConnection, RepoResult};
 
@@ -27,11 +29,11 @@ pub trait UserRolesRepo {
 /// Implementation of UserRoles trait
 pub struct UserRolesRepoImpl<'a> {
     pub db_conn: &'a DbConnection,
-    pub acl: Box<Acl>,
+    pub acl: BoxedAcl,
 }
 
 impl<'a> UserRolesRepoImpl<'a> {
-    pub fn new(db_conn: &'a DbConnection, acl: Box<Acl>) -> Self {
+    pub fn new(db_conn: &'a DbConnection, acl: BoxedAcl) -> Self {
         Self { db_conn, acl }
     }
 }

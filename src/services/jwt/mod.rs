@@ -17,7 +17,7 @@ use diesel::Connection;
 use models::{JWTPayload, NewEmailIdentity, NewIdentity, NewUser, Provider, ProviderOauth, UserStatus, JWT};
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
-use repos::acl::SystemACL;
+use stq_acl::SystemACL;
 use config::JWT as JWTConfig;
 use config::OAuth;
 use config::Config;
