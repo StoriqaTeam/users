@@ -12,9 +12,10 @@ use jsonwebtoken::{encode, Header};
 use sha3::{Digest, Sha3_256};
 use base64::decode;
 use serde;
+use serde_json;
 use diesel::Connection;
 
-use models::{JWTPayload, NewEmailIdentity, NewIdentity, NewUser, Provider, ProviderOauth, UserStatus, JWT};
+use models::{Identity, JWTPayload, NewEmailIdentity, NewIdentity, NewUser, Provider, ProviderOauth, User, UserStatus, JWT};
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
 use stq_acl::SystemACL;
@@ -45,6 +46,7 @@ pub struct JWTServiceImpl {
     pub db_pool: DbPool,
     pub cpu_pool: CpuPool,
     pub http_client: ClientHandle,
+    pub saga_addr: String,
     pub google_config: OAuth,
     pub facebook_config: OAuth,
     pub jwt_config: JWTConfig,
@@ -56,11 +58,28 @@ impl JWTServiceImpl {
             db_pool: r2d2_pool,
             cpu_pool: cpu_pool,
             http_client: http_client,
+            saga_addr: config.saga_addr,
             google_config: config.google,
             facebook_config: config.facebook,
             jwt_config: config.jwt,
         }
     }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct SagaCreateProfile {
+    pub user: NewUser,
+    pub provider: Provider,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ProfileStatus {
+    // New user, new identity
+    NewUser,
+    // User exists with other identities
+    NewIdentity,
+    // User and identity for this email exist
+    ExistingProfile,
 }
 
 /// Profile service trait, presents standard scheme for receiving profile information from providers
@@ -69,7 +88,7 @@ trait ProfileService<P: Email> {
 
     fn get_profile(&self, url: String, headers: Option<Headers>) -> ServiceFuture<P>;
 
-    fn email_exists(&self, profile: P, provider: Provider) -> ServiceFuture<bool>;
+    fn profile_status(&self, profile: P, provider: Provider) -> ServiceFuture<ProfileStatus>;
 
     fn create_jwt(&self, id: i32, status: UserStatus, secret: String) -> ServiceFuture<JWT> {
         let tokenpayload = JWTPayload::new(id);
@@ -96,8 +115,6 @@ trait ProfileService<P: Email> {
 
     fn update_profile(&self, users_repo: UsersRepoImpl, profile: P) -> Result<i32, ServiceError>;
 
-    fn create_or_update_profile(&self, profile: P, provider: Provider) -> ServiceFuture<i32>;
-
     fn get_id(&self, profile: P, provider: Provider) -> ServiceFuture<i32>;
 }
 
@@ -116,27 +133,37 @@ where
                 move |profile| {
                     let profile_clone = profile.clone();
                     service
-                        .email_exists(profile, provider)
-                        .map(|exists| (exists, profile_clone))
+                        .profile_status(profile, provider)
+                        .map(|status| (status, profile_clone))
                 }
             })
             .and_then({
                 let service = self.clone();
-                move |(exists, profile)| -> ServiceFuture<(i32, UserStatus)> {
-                    match exists {
-                        // identity email + provider  doesn't exist
-                        false => Box::new(
-                            service
-                                .create_or_update_profile(profile, provider)
-                                .map(|id| (id, UserStatus::New(id))),
-                        ),
-                        // User identity email + provider  exists, returning id
-                        true => Box::new(
-                            service
-                                .get_id(profile, provider)
-                                .map(|id| (id, UserStatus::Exists)),
-                        ),
-                    }
+                let db_pool = self.db_pool.clone();
+                let thread_pool = self.cpu_pool.clone();
+
+                move |(status, profile)| -> ServiceFuture<(i32, UserStatus)> {
+                    Box::new(thread_pool.spawn_fn(move || {
+                        db_pool
+                            .get()
+                            .map_err(|e| ServiceError::Connection(e.into()))
+                            .and_then(move |conn| {
+                                let users_repo = UsersRepoImpl::new(&conn, Box::new(SystemACL::default()));
+                                let ident_repo = IdentitiesRepoImpl::new(&conn);
+                                match status {
+                                    ProfileStatus::ExistingProfile => service
+                                        .get_id(profile, provider)
+                                        .wait()
+                                        .map(|id| (id, UserStatus::Exists)),
+                                    ProfileStatus::NewUser => service
+                                        .create_profile(users_repo, ident_repo, profile, provider)
+                                        .map(|id| (id, UserStatus::New(id))),
+                                    ProfileStatus::NewIdentity => service
+                                        .update_profile(users_repo, profile)
+                                        .map(|id| (id, UserStatus::New(id))),
+                                }
+                            })
+                    }))
                 }
             })
             .and_then({
@@ -162,7 +189,7 @@ where
 
     fn create_profile(
         &self,
-        mut users_repo: UsersRepoImpl,
+        users_repo: UsersRepoImpl,
         ident_repo: IdentitiesRepoImpl,
         profile_arg: P,
         provider: Provider,
@@ -170,16 +197,23 @@ where
         let new_user = NewUser::from(profile_arg.clone());
         let profile = profile_arg.clone();
 
-        users_repo
-            .create(new_user)
-            .map_err(ServiceError::from)
-            .map(|user| (profile, user))
-            .and_then(move |(profile, user)| {
-                ident_repo
-                    .create(profile.get_email(), None, provider, user.id)
-                    .map_err(ServiceError::from)
-                    .map(|u| u.user_id.0)
-            })
+        let url = format!("{}/{}", &self.saga_addr, "create_profile");
+
+        let created_user = self.http_client
+            .request::<User>(
+                Method::Post,
+                url,
+                Some(
+                    serde_json::to_string(&SagaCreateProfile {
+                        user: new_user,
+                        provider,
+                    }).unwrap(),
+                ),
+                None,
+            )
+            .wait()?;
+
+        Ok(created_user.id.0)
     }
 
     fn update_profile(&self, mut users_repo: UsersRepoImpl, profile: P) -> Result<i32, ServiceError> {
@@ -201,49 +235,31 @@ where
             })
     }
 
-    fn create_or_update_profile(&self, profile: P, provider: Provider) -> ServiceFuture<i32> {
+    fn profile_status(&self, profile: P, provider: Provider) -> ServiceFuture<ProfileStatus> {
         Box::new({
             let db_pool = self.db_pool.clone();
-            let service = self.clone();
             self.cpu_pool.spawn_fn(move || {
                 db_pool
                     .get()
                     .map_err(|e| ServiceError::Connection(e.into()))
                     .and_then(move |conn| {
-                        let mut users_repo = UsersRepoImpl::new(&conn, Box::new(SystemACL::default()));
+                        let users_repo = UsersRepoImpl::new(&conn, Box::new(SystemACL::default()));
                         let ident_repo = IdentitiesRepoImpl::new(&conn);
-                        conn.transaction::<i32, ServiceError, _>(move || {
+
+                        conn.transaction(move || {
                             users_repo
                                 .email_exists(profile.get_email())
-                                .map_err(ServiceError::from)
-                                .map(|email_exist| (profile, email_exist))
-                                .and_then(move |(profile, email_exist)| -> Result<i32, ServiceError> {
-                                    match email_exist {
-                                        // user doesn't exist, creating user + identity
-                                        false => service.create_profile(users_repo, ident_repo, profile, provider),
-                                        // user exists, creating identity and filling user info
-                                        true => service.update_profile(users_repo, profile),
-                                    }
+                                .and_then(|user_exists| match user_exists {
+                                    false => Ok(ProfileStatus::NewUser),
+                                    true => ident_repo
+                                        .email_provider_exists(profile.get_email(), provider)
+                                        .map(|identity_exists| match identity_exists {
+                                            false => ProfileStatus::NewIdentity,
+                                            true => ProfileStatus::ExistingProfile,
+                                        }),
                                 })
+                                .map_err(ServiceError::from)
                         })
-                    })
-            })
-        })
-    }
-
-    fn email_exists(&self, profile: P, provider: Provider) -> ServiceFuture<bool> {
-        Box::new({
-            let db_pool = self.db_pool.clone();
-            self.cpu_pool.spawn_fn(move || {
-                db_pool
-                    .get()
-                    .map_err(|e| ServiceError::Connection(e.into()))
-                    .and_then(move |conn| {
-                        let ident_repo = IdentitiesRepoImpl::new(&conn);
-
-                        ident_repo
-                            .email_provider_exists(profile.get_email(), provider)
-                            .map_err(ServiceError::from)
                     })
             })
         })

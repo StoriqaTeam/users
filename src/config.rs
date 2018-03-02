@@ -8,6 +8,7 @@ use config_crate::{Config as RawConfig, ConfigError, Environment, File};
 pub struct Config {
     pub server: Server,
     pub client: Client,
+    pub saga_addr: String,
     pub jwt: JWT,
     pub google: OAuth,
     pub facebook: OAuth,

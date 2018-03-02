@@ -5,6 +5,7 @@ use failure::Error;
 use stq_http::errors::ControllerError;
 
 use validator::ValidationErrors;
+use http::client::Error as HttpError;
 use repos::error::RepoError;
 
 #[derive(Debug, Fail)]
@@ -55,6 +56,12 @@ impl From<RepoError> for ServiceError {
 impl From<DieselError> for ServiceError {
     fn from(err: DieselError) -> Self {
         ServiceError::Transaction(err.into())
+    }
+}
+
+impl From<HttpError> for ServiceError {
+    fn from(err: HttpError) -> Self {
+        ServiceError::HttpClient(format!("{:?}", err))
     }
 }
 
