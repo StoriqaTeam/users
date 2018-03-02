@@ -1,11 +1,7 @@
+use hyper;
+use serde::de::Deserialize;
 use std::collections::HashMap;
 use std::iter::FromIterator;
-
-use hyper;
-use futures::future::Future;
-use futures::{future, Stream};
-use serde_json;
-use serde::de::Deserialize;
 
 use stq_http::errors::ControllerError;
 
