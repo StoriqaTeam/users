@@ -66,12 +66,6 @@ impl JWTServiceImpl {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
-pub struct SagaCreateProfile {
-    pub user: NewUser,
-    pub provider: Provider,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ProfileStatus {
     // New user, new identity
@@ -204,7 +198,7 @@ where
                 Method::Post,
                 url,
                 Some(
-                    serde_json::to_string(&SagaCreateProfile {
+                    serde_json::to_string(&models::SagaCreateProfile {
                         user: new_user,
                         provider,
                     }).unwrap(),

@@ -112,7 +112,7 @@ impl Controller for ControllerImpl {
 
             // POST /users
             (&Post, Some(Route::Users)) => serialize_future(
-                parse_body::<models::identity::NewIdentity>(req.body())
+                parse_body::<models::SagaCreateProfile>(req.body())
                     .map_err(|e| ControllerError::UnprocessableEntity(e.into()))
                     .and_then(move |new_ident| {
                         new_ident

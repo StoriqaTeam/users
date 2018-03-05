@@ -12,3 +12,9 @@ pub use self::user::*;
 pub use self::user_role::*;
 pub use self::identity::*;
 pub use self::jwt::*;
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct SagaCreateProfile {
+    pub user: NewUser,
+    pub provider: Provider,
+}
