@@ -210,7 +210,7 @@ where
                     .get()
                     .map_err(|e| ServiceError::Connection(e.into()))
                     .and_then(move |conn| {
-                        let mut users_repo = UsersRepoImpl::new(&conn, Box::new(SystemACL::new()));
+                        let mut users_repo = UsersRepoImpl::new(&conn, Box::new(SystemACL::default()));
                         let ident_repo = IdentitiesRepoImpl::new(&conn);
                         conn.transaction::<i32, ServiceError, _>(move || {
                             users_repo
