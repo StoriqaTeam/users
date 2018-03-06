@@ -114,20 +114,20 @@ impl Controller for ControllerImpl {
             (&Post, Some(Route::Users)) => serialize_future(
                 parse_body::<models::SagaCreateProfile>(req.body())
                     .map_err(|e| ControllerError::UnprocessableEntity(e.into()))
-                    .and_then(move |new_ident| {
-                        new_ident
+                    .and_then(move |payload| {
+                        payload.identity
                             .validate()
                             .map_err(|e| ControllerError::Validate(e))
                             .into_future()
                             .and_then(move |_| {
                                 let checked_new_ident = models::identity::NewIdentity {
-                                    email: new_ident.email.to_lowercase(),
-                                    password: new_ident.password,
-                                    provider: new_ident.provider,
+                                    email: payload.identity.email.to_lowercase(),
+                                    password: payload.identity.password,
+                                    provider: payload.identity.provider,
                                 };
 
                                 users_service
-                                    .create(checked_new_ident)
+                                    .create(checked_new_ident  )
                                     .map_err(ControllerError::from)
                             })
                     }),

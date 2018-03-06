@@ -32,7 +32,7 @@ pub trait UsersService {
     /// Deactivates specific user
     fn deactivate(&self, user_id: UserId) -> ServiceFuture<User>;
     /// Creates new user
-    fn create(&self, payload: NewIdentity) -> ServiceFuture<User>;
+    fn create(&self, payload: NewIdentity, user_payload: Option<NewUser>) -> ServiceFuture<User>;
     /// Updates specific user
     fn update(&self, user_id: UserId, payload: UpdateUser) -> ServiceFuture<User>;
     /// creates hashed password
@@ -144,7 +144,7 @@ impl UsersService for UsersServiceImpl {
     }
 
     /// Creates new user
-    fn create(&self, payload: NewIdentity) -> ServiceFuture<User> {
+    fn create(&self, payload: NewIdentity, user_payload: Option<NewUser>) -> ServiceFuture<User> {
         let r2d2_clone = self.r2d2_pool.clone();
         let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
@@ -169,7 +169,11 @@ impl UsersService for UsersServiceImpl {
                                 )),
                             })
                             .and_then(move |new_ident| {
-                                let new_user = NewUser::from(new_ident.clone());
+                                let new_user;
+                                match user_payload {
+                                    Some(usr) => new_user = usr.clone(),
+                                    None => new_user = NewUser::from(new_ident.clone()),
+                                }
                                 users_repo
                                     .create(new_user)
                                     .map_err(ServiceError::from)
