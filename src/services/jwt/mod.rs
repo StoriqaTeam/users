@@ -200,7 +200,11 @@ where
                 Some(
                     serde_json::to_string(&models::SagaCreateProfile {
                         user: new_user,
-                        provider,
+                        identity: NewIdentity {
+                            email: new_user.email,
+                            password: None,
+                            provider,
+                        },
                     }).unwrap(),
                 ),
                 None,
