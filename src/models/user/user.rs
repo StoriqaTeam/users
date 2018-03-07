@@ -45,6 +45,7 @@ table! {
         last_login_at -> Timestamp,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+        saga_id -> Nullable<VarChar>,
     }
 }
 
@@ -64,6 +65,7 @@ pub struct User {
     pub last_login_at: SystemTime,
     pub created_at: SystemTime,
     pub updated_at: SystemTime,
+    pub saga_id: Option<String>,
 }
 
 /// Payload for creating users
@@ -83,6 +85,7 @@ pub struct NewUser {
     pub gender: Gender,
     pub birthdate: Option<NaiveDate>,
     pub last_login_at: SystemTime,
+    pub saga_id: Option<String>,
 }
 
 /// Payload for updating users
@@ -129,6 +132,7 @@ impl From<NewIdentity> for NewUser {
             gender: Gender::Undefined,
             birthdate: None,
             last_login_at: SystemTime::now(),
+            saga_id: identity.saga_id,
         }
     }
 }

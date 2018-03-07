@@ -15,6 +15,7 @@ use serde;
 use serde_json;
 use diesel::Connection;
 
+use models;
 use models::{Identity, JWTPayload, NewEmailIdentity, NewIdentity, NewUser, Provider, ProviderOauth, User, UserStatus, JWT};
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
@@ -199,11 +200,12 @@ where
                 url,
                 Some(
                     serde_json::to_string(&models::SagaCreateProfile {
-                        user: new_user,
+                        user: Some(new_user.clone()),
                         identity: NewIdentity {
                             email: new_user.email,
                             password: None,
                             provider,
+                            saga_id: None
                         },
                     }).unwrap(),
                 ),

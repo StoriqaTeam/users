@@ -124,10 +124,11 @@ impl Controller for ControllerImpl {
                                     email: payload.identity.email.to_lowercase(),
                                     password: payload.identity.password,
                                     provider: payload.identity.provider,
+                                    saga_id: payload.identity.saga_id,
                                 };
 
                                 users_service
-                                    .create(checked_new_ident  )
+                                    .create(checked_new_ident, payload.user)
                                     .map_err(ControllerError::from)
                             })
                     }),
@@ -219,6 +220,20 @@ impl Controller for ControllerImpl {
                             .delete(old_role)
                             .map_err(ControllerError::from)
                     }),
+            ),
+
+            // POST /roles/default/<user_id>
+            (&Post, Some(Route::DefaultRole(user_id))) => serialize_future(
+                user_roles_service
+                    .create_default(user_id)
+                    .map_err(ControllerError::from),
+            ),
+
+            // DELETE /roles/default/<user_id>
+            (&Delete, Some(Route::DefaultRole(user_id))) => serialize_future(
+                user_roles_service
+                    .delete_default(user_id)
+                    .map_err(ControllerError::from),
             ),
 
             // Fallback

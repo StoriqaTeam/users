@@ -27,6 +27,7 @@ impl From<GoogleProfile> for NewUser {
             gender: Gender::Undefined,
             birthdate: None,
             last_login_at: SystemTime::now(),
+            saga_id: None,
         }
     }
 }
@@ -53,6 +54,7 @@ impl From<FacebookProfile> for NewUser {
             gender: Gender::from_str(facebook_id.gender.as_ref()).unwrap(),
             birthdate: None,
             last_login_at: SystemTime::now(),
+            saga_id: None,
         }
     }
 }

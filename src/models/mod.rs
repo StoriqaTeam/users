@@ -15,7 +15,6 @@ pub use self::jwt::*;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SagaCreateProfile {
-    pub user: NewUser,
+    pub user: Option<NewUser>,
     pub identity: NewIdentity,
-    pub saga_id: String,
 }

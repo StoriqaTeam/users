@@ -24,6 +24,9 @@ pub trait UserRolesRepo {
 
     /// Delete role of a user
     fn delete(&self, payload: OldUserRole) -> RepoResult<UserRole>;
+
+    /// Delete user roles by user id
+    fn delete_by_user_id(&self, user_id_arg: i32) -> RepoResult<UserRole>;
 }
 
 /// Implementation of UserRoles trait
@@ -55,6 +58,13 @@ impl<'a> UserRolesRepo for UserRolesRepoImpl<'a> {
         let filtered = user_roles
             .filter(user_id.eq(payload.user_id))
             .filter(role.eq(payload.role));
+        let query = diesel::delete(filtered);
+        query.get_result(&**self.db_conn).map_err(Error::from)
+    }
+
+    fn delete_by_user_id(&self, user_id_arg: i32) -> RepoResult<UserRole> {
+        let filtered = user_roles
+            .filter(user_id.eq(user_id_arg));
         let query = diesel::delete(filtered);
         query.get_result(&**self.db_conn).map_err(Error::from)
     }

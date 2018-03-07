@@ -30,6 +30,7 @@ pub trait IdentitiesRepo {
         password_arg: Option<String>,
         provider_arg: Provider,
         user_id_arg: UserId,
+        saga_id: Option<String>,
     ) -> Result<Identity, RepoError>;
 
     /// Verifies password
@@ -78,12 +79,14 @@ impl<'a> IdentitiesRepo for IdentitiesRepoImpl<'a> {
         password_arg: Option<String>,
         provider_arg: Provider,
         user_id_arg: UserId,
+        saga_id_arg: Option<String>,
     ) -> Result<Identity, RepoError> {
         let identity_arg = Identity {
             user_id: user_id_arg,
             email: email_arg,
             provider: provider_arg,
             password: password_arg,
+            saga_id: saga_id_arg,
         };
 
         let ident_query = diesel::insert_into(identities).values(&identity_arg);

@@ -4,7 +4,7 @@ use futures_cpupool::CpuPool;
 
 use stq_acl::SystemACL;
 
-use models::{NewUserRole, OldUserRole, UserRole};
+use models::{NewUserRole, OldUserRole, UserRole, Role, UserId};
 use super::types::ServiceFuture;
 use super::error::ServiceError;
 use repos::types::DbPool;
@@ -17,6 +17,10 @@ pub trait UserRolesService {
     fn delete(&self, payload: OldUserRole) -> ServiceFuture<UserRole>;
     /// Creates new user_role
     fn create(&self, payload: NewUserRole) -> ServiceFuture<UserRole>;
+    /// Deletes default roles for user
+    fn delete_default(&self, user_id: UserId) -> ServiceFuture<UserRole>;
+    /// Creates default roles for user
+    fn create_default(&self, user_id: UserId) -> ServiceFuture<UserRole>;
 }
 
 /// UserRoles services, responsible for UserRole-related CRUD operations
@@ -76,6 +80,42 @@ impl UserRolesService for UserRolesServiceImpl {
                     let user_roles_repo = UserRolesRepoImpl::new(&conn, Box::new(SystemACL::default()));
                     user_roles_repo
                         .create(new_user_role)
+                        .map_err(ServiceError::from)
+                })
+        }))
+    }
+
+    /// Deletes default roles for user
+    fn delete_default(&self, user_id_arg: UserId) -> ServiceFuture<UserRole> {
+        let db_pool = self.db_pool.clone();
+
+        Box::new(self.cpu_pool.spawn_fn(move || {
+            db_pool
+                .get()
+                .map_err(|e| ServiceError::Connection(e.into()))
+                .and_then(move |conn| {
+                    let user_roles_repo = UserRolesRepoImpl::new(&conn, Box::new(SystemACL::default()));
+                    user_roles_repo.delete_by_user_id(user_id_arg.0).map_err(ServiceError::from)
+                })
+        }))
+    }
+
+    /// Creates default roles for user
+    fn create_default(&self, user_id_arg: UserId) -> ServiceFuture<UserRole> {
+        let db_pool = self.db_pool.clone();
+
+        Box::new(self.cpu_pool.spawn_fn(move || {
+            db_pool
+                .get()
+                .map_err(|e| ServiceError::Connection(e.into()))
+                .and_then(move |conn| {
+                    let defaul_role = NewUserRole {
+                        user_id: user_id_arg.0,
+                        role: Role::User,
+                    };
+                    let user_roles_repo = UserRolesRepoImpl::new(&conn, Box::new(SystemACL::default()));
+                    user_roles_repo
+                        .create(defaul_role)
                         .map_err(ServiceError::from)
                 })
         }))

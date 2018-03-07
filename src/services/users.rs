@@ -189,6 +189,7 @@ impl UsersService for UsersServiceImpl {
                                             .map(|pass| Self::password_create(pass)),
                                         Provider::Email,
                                         user.id.clone(),
+                                        new_ident.saga_id,
                                     )
                                     .map_err(ServiceError::from)
                                     .map(|_| user)
