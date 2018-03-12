@@ -35,3 +35,4 @@ lazy_static = "1.0"
 stq_acl = { path = "vendor/libstqbackend/acl" }
 stq_http = { path = "vendor/libstqbackend/http" }
 stq_router = { path = "vendor/libstqbackend/router" }
+uuid = { version = "*", features = ["use_std", "v4", "serde"] }

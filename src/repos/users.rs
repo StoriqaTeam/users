@@ -42,6 +42,8 @@ pub trait UsersRepo {
 
     /// Deactivates specific user
     fn deactivate(&mut self, user_id: UserId) -> Result<User, RepoError>;
+
+    fn delete_by_saga_id(&mut self, saga_id_arg: String) -> Result<User, RepoError>;
 }
 
 impl<'a> UsersRepoImpl<'a> {
@@ -187,5 +189,13 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
 
                 query.get_result(&**self.db_conn).map_err(RepoError::from)
             })
+    }
+
+    /// Deactivates specific user
+    fn delete_by_saga_id(&mut self, saga_id_arg: String) -> Result<User, RepoError> {
+        let filtered = users
+            .filter(saga_id.eq(saga_id_arg));
+        let query = diesel::delete(filtered);
+        query.get_result(&**self.db_conn).map_err(RepoError::from)
     }
 }

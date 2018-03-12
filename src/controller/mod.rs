@@ -13,9 +13,6 @@ use futures_cpupool::CpuPool;
 use hyper::{Delete, Get, Post, Put};
 use hyper::server::Request;
 use hyper::header::Authorization;
-use serde_json;
-use serde::ser::Serialize;
-use std;
 use std::sync::Arc;
 use std::str::FromStr;
 use validator::Validate;
@@ -153,6 +150,9 @@ impl Controller for ControllerImpl {
 
             // DELETE /users/<user_id>
             (&Delete, Some(Route::User(user_id))) => serialize_future(users_service.deactivate(user_id)),
+
+            // DELETE /user_by_saga_id/<user_id>
+            (&Delete, Some(Route::UserBySagaId(saga_id))) => serialize_future(users_service.delete_by_saga_id(saga_id)),
 
             // POST /jwt/email
             (&Post, Some(Route::JWTEmail)) => serialize_future(

@@ -8,17 +8,15 @@ use rand::Rng;
 use base64::encode;
 use diesel::Connection;
 
-use stq_acl::{Acl, UnauthorizedACL};
+use stq_acl::{UnauthorizedACL};
 
 use models::{NewUser, UpdateUser, User, UserId};
 use models::{NewIdentity, Provider};
-use models::authorization::*;
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
 
 use super::types::ServiceFuture;
 use super::error::ServiceError;
-use repos::error::RepoError;
 use repos::types::DbPool;
 use repos::acl::{ApplicationAcl, BoxedAcl, RolesCacheImpl};
 
@@ -31,6 +29,8 @@ pub trait UsersService {
     fn list(&self, from: i32, count: i64) -> ServiceFuture<Vec<User>>;
     /// Deactivates specific user
     fn deactivate(&self, user_id: UserId) -> ServiceFuture<User>;
+    /// Deletes user by saga id
+    fn delete_by_saga_id(&self, saga_id: String) -> ServiceFuture<User>;
     /// Creates new user
     fn create(&self, payload: NewIdentity, user_payload: Option<NewUser>) -> ServiceFuture<User>;
     /// Updates specific user
@@ -59,7 +59,7 @@ impl UsersServiceImpl {
 }
 
 fn acl_for_id(roles_cache: RolesCacheImpl, user_id: Option<i32>) -> BoxedAcl {
-    user_id.map_or((Box::new(UnauthorizedACL::default()) as BoxedAcl), |id| {
+    user_id.map_or(Box::new(UnauthorizedACL::default()) as BoxedAcl, |id| {
         (Box::new(ApplicationAcl::new(roles_cache, id)) as BoxedAcl)
     })
 }
@@ -139,6 +139,24 @@ impl UsersService for UsersServiceImpl {
                     let acl = acl_for_id(roles_cache.clone(), current_uid);
                     let mut users_repo = UsersRepoImpl::new(&conn, acl);
                     users_repo.deactivate(user_id).map_err(ServiceError::from)
+                })
+        }))
+    }
+
+    /// Deactivates specific user
+    fn delete_by_saga_id(&self, saga_id: String) -> ServiceFuture<User> {
+        let r2d2_clone = self.r2d2_pool.clone();
+        let roles_cache = self.roles_cache.clone();
+        let current_uid = self.user_id.clone();
+
+        Box::new(self.cpu_pool.spawn_fn(move || {
+            r2d2_clone
+                .get()
+                .map_err(|e| ServiceError::Connection(e.into()))
+                .and_then(move |conn| {
+                    let acl = acl_for_id(roles_cache.clone(), current_uid);
+                    let mut users_repo = UsersRepoImpl::new(&conn, acl);
+                    users_repo.delete_by_saga_id(saga_id).map_err(ServiceError::from)
                 })
         }))
     }

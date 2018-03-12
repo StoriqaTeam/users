@@ -1,9 +1,5 @@
-use hyper;
-use serde::de::Deserialize;
 use std::collections::HashMap;
 use std::iter::FromIterator;
-
-use stq_http::errors::ControllerError;
 
 /// Splits query string to key-value pairs. See `macros::parse_query` for more sophisticated parsing.
 // TODO: Cover more complex cases, e.g. `from=count=10`

@@ -5,6 +5,8 @@ use std::str;
 
 use models::{Gender, NewUser, UpdateUser, User};
 
+use uuid::Uuid;
+
 /// User profile from google
 #[derive(Serialize, Deserialize, Clone)]
 pub struct GoogleProfile {
@@ -27,7 +29,7 @@ impl From<GoogleProfile> for NewUser {
             gender: Gender::Undefined,
             birthdate: None,
             last_login_at: SystemTime::now(),
-            saga_id: None,
+            saga_id: Uuid::new_v4().to_string(),
         }
     }
 }
@@ -54,7 +56,7 @@ impl From<FacebookProfile> for NewUser {
             gender: Gender::from_str(facebook_id.gender.as_ref()).unwrap(),
             birthdate: None,
             last_login_at: SystemTime::now(),
-            saga_id: None,
+            saga_id: Uuid::new_v4().to_string(),
         }
     }
 }

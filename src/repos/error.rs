@@ -1,5 +1,4 @@
 use diesel::result::Error as DieselError;
-use stq_acl;
 use models::authorization::*;
 
 use failure::Error;

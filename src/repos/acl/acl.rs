@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use stq_acl::{Acl, RolesCache, WithScope};
 use models::authorization::*;
 use repos::error::RepoError;
-use repos::types::{DbConnection, RepoResult};
+use repos::types::{DbConnection};
 
 pub fn check(
     acl: &Acl<Resource, Action, Scope, RepoError>,

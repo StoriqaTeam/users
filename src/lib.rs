@@ -34,7 +34,6 @@ extern crate serde;
 extern crate serde_derive;
 extern crate serde_json;
 extern crate sha3;
-#[macro_use]
 extern crate stq_acl;
 extern crate stq_http;
 extern crate stq_router;
@@ -42,6 +41,7 @@ extern crate tokio_core;
 extern crate validator;
 #[macro_use]
 extern crate validator_derive;
+extern crate uuid;
 
 #[macro_use]
 pub mod macros;

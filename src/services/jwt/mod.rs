@@ -16,7 +16,7 @@ use serde_json;
 use diesel::Connection;
 
 use models;
-use models::{Identity, JWTPayload, NewEmailIdentity, NewIdentity, NewUser, Provider, ProviderOauth, User, UserStatus, JWT};
+use models::{JWTPayload, NewEmailIdentity, NewIdentity, NewUser, Provider, ProviderOauth, User, UserStatus, JWT};
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
 use stq_acl::SystemACL;
@@ -28,6 +28,8 @@ use super::error::ServiceError;
 use repos::types::DbPool;
 use self::profile::{Email, FacebookProfile, GoogleProfile, IntoUser};
 use http::client::ClientHandle;
+
+use uuid::Uuid;
 
 /// JWT services, responsible for JsonWebToken operations
 pub trait JWTService {
@@ -102,8 +104,6 @@ trait ProfileService<P: Email> {
 
     fn create_profile(
         &self,
-        users_repo: UsersRepoImpl,
-        ident_repo: IdentitiesRepoImpl,
         profile: P,
         provider: Provider,
     ) -> Result<i32, ServiceError>;
@@ -144,14 +144,13 @@ where
                             .map_err(|e| ServiceError::Connection(e.into()))
                             .and_then(move |conn| {
                                 let users_repo = UsersRepoImpl::new(&conn, Box::new(SystemACL::default()));
-                                let ident_repo = IdentitiesRepoImpl::new(&conn);
                                 match status {
                                     ProfileStatus::ExistingProfile => service
                                         .get_id(profile, provider)
                                         .wait()
                                         .map(|id| (id, UserStatus::Exists)),
                                     ProfileStatus::NewUser => service
-                                        .create_profile(users_repo, ident_repo, profile, provider)
+                                        .create_profile(profile, provider)
                                         .map(|id| (id, UserStatus::New(id))),
                                     ProfileStatus::NewIdentity => service
                                         .update_profile(users_repo, profile)
@@ -184,13 +183,10 @@ where
 
     fn create_profile(
         &self,
-        users_repo: UsersRepoImpl,
-        ident_repo: IdentitiesRepoImpl,
         profile_arg: P,
         provider: Provider,
     ) -> Result<i32, ServiceError> {
         let new_user = NewUser::from(profile_arg.clone());
-        let profile = profile_arg.clone();
 
         let url = format!("{}/{}", &self.saga_addr, "create_profile");
 
@@ -205,7 +201,7 @@ where
                             email: new_user.email,
                             password: None,
                             provider,
-                            saga_id: None
+                            saga_id: Uuid::new_v4().to_string()
                         },
                     }).unwrap(),
                 ),

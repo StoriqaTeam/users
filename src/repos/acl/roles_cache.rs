@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use repos::user_roles::{UserRolesRepo, UserRolesRepoImpl};
-use repos::types::{DbConnection, RepoResult};
+use repos::types::{DbConnection};
 use models::authorization::*;
 use stq_acl::{RolesCache, SystemACL};
 use repos::error::RepoError as Error;

@@ -8,8 +8,6 @@ use diesel::query_dsl::RunQueryDsl;
 
 use models::user_role::user_roles::dsl::*;
 use models::{NewUserRole, OldUserRole, UserRole};
-use stq_acl::Acl;
-use models::authorization::*;
 use super::acl::BoxedAcl;
 use super::error::RepoError as Error;
 use super::types::{DbConnection, RepoResult};

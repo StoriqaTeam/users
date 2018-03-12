@@ -1,0 +1,3 @@
+-- Your SQL goes here
+ALTER TABLE users ADD COLUMN saga_id VARCHAR UNIQUE;
+ALTER TABLE identities ADD COLUMN saga_id VARCHAR UNIQUE;

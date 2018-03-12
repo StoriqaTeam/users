@@ -30,7 +30,7 @@ pub trait IdentitiesRepo {
         password_arg: Option<String>,
         provider_arg: Provider,
         user_id_arg: UserId,
-        saga_id: Option<String>,
+        saga_id: String,
     ) -> Result<Identity, RepoError>;
 
     /// Verifies password
@@ -79,7 +79,7 @@ impl<'a> IdentitiesRepo for IdentitiesRepoImpl<'a> {
         password_arg: Option<String>,
         provider_arg: Provider,
         user_id_arg: UserId,
-        saga_id_arg: Option<String>,
+        saga_id_arg: String,
     ) -> Result<Identity, RepoError> {
         let identity_arg = Identity {
             user_id: user_id_arg,

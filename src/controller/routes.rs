@@ -8,6 +8,7 @@ pub enum Route {
     Healthcheck,
     Users,
     User(UserId),
+    UserBySagaId(String),
     Current,
     JWTEmail,
     JWTGoogle,
@@ -27,6 +28,9 @@ pub fn create_route_parser() -> RouteParser<Route> {
     router.add_route(r"^/users$", || Route::Users);
 
     // Users Routes
+    router.add_route(r"^/users_by_saga_id", || Route::UsersBySagaId);
+
+    // Users Routes
     router.add_route(r"^/users/current$", || Route::Current);
 
     // JWT email route
@@ -44,6 +48,13 @@ pub fn create_route_parser() -> RouteParser<Route> {
             .get(0)
             .and_then(|string_id| string_id.parse::<UserId>().ok())
             .map(|user_id| Route::User(user_id))
+    });
+
+    // Users/:id route
+    router.add_route_with_params(r"^/users_by_saga_id/(\d+)$", |params| {
+        params
+            .get(0)
+            .map(|saga_id| Route::UserBySagaId(saga_id))
     });
 
     // User Routes
