@@ -61,7 +61,7 @@ impl JWTServiceImpl {
             db_pool: r2d2_pool,
             cpu_pool: cpu_pool,
             http_client: http_client,
-            saga_addr: config.saga_addr,
+            saga_addr: config.saga_addr.url.clone(),
             google_config: config.google,
             facebook_config: config.facebook,
             jwt_config: config.jwt,
@@ -188,7 +188,7 @@ where
     ) -> Result<i32, ServiceError> {
         let new_user = NewUser::from(profile_arg.clone());
 
-        let url = format!("{}/{}", &self.saga_addr, "create_profile");
+        let url = format!("{}/{}", &self.saga_addr, "create_account");
 
         let created_user = self.http_client
             .request::<User>(
@@ -201,7 +201,7 @@ where
                             email: new_user.email,
                             password: None,
                             provider,
-                            saga_id: Uuid::new_v4().to_string()
+                            saga_id: "".to_string()
                         },
                     }).unwrap(),
                 ),

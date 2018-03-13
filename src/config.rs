@@ -8,10 +8,15 @@ use config_crate::{Config as RawConfig, ConfigError, Environment, File};
 pub struct Config {
     pub server: Server,
     pub client: Client,
-    pub saga_addr: String,
+    pub saga_addr: SagaAddr,
     pub jwt: JWT,
     pub google: OAuth,
     pub facebook: OAuth,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct SagaAddr {
+    pub url: String
 }
 
 /// Common server settings

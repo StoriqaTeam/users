@@ -28,9 +28,6 @@ pub fn create_route_parser() -> RouteParser<Route> {
     router.add_route(r"^/users$", || Route::Users);
 
     // Users Routes
-    router.add_route(r"^/users_by_saga_id", || Route::UsersBySagaId);
-
-    // Users Routes
     router.add_route(r"^/users/current$", || Route::Current);
 
     // JWT email route
@@ -51,10 +48,10 @@ pub fn create_route_parser() -> RouteParser<Route> {
     });
 
     // Users/:id route
-    router.add_route_with_params(r"^/users_by_saga_id/(\d+)$", |params| {
+    router.add_route_with_params(r"^/user_by_saga_id/(.+)$", |params| {
         params
             .get(0)
-            .map(|saga_id| Route::UserBySagaId(saga_id))
+            .map(|saga_id| Route::UserBySagaId(saga_id.to_string()))
     });
 
     // User Routes
