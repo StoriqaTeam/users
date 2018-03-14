@@ -91,30 +91,30 @@ pub fn start_server(config: Config) {
         .parse()
         .expect("Address must be set in configuration");
 
+    // Prepare database pool
+    let database_url: String = config
+        .server
+        .database
+        .parse()
+        .expect("Database URL must be set in configuration");
+    let manager = ConnectionManager::<PgConnection>::new(database_url);
+    let db_pool = r2d2::Pool::builder()
+        .build(manager)
+        .expect("Failed to create connection pool");
+
+    // Prepare CPU pool
+    let cpu_pool = CpuPool::new(thread_count);
+
+    let roles_cache = RolesCacheImpl::default();
+
     let serve = Http::new()
         .serve_addr_handle(&address, &handle, move || {
-            // Prepare database pool
-            let database_url: String = config
-                .server
-                .database
-                .parse()
-                .expect("Database URL must be set in configuration");
-            let manager = ConnectionManager::<PgConnection>::new(database_url);
-            let r2d2_pool = r2d2::Pool::builder()
-                .build(manager)
-                .expect("Failed to create connection pool");
-
-            // Prepare CPU pool
-            let cpu_pool = CpuPool::new(thread_count);
-
-            let roles_cache = RolesCacheImpl::default();
-
             let controller = Box::new(controller::ControllerImpl::new(
-                r2d2_pool,
-                cpu_pool,
+                db_pool.clone(),
+                cpu_pool.clone(),
                 client_handle.clone(),
                 config.clone(),
-                roles_cache,
+                roles_cache.clone(),
             ));
 
             // Prepare application
