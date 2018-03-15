@@ -29,8 +29,6 @@ use repos::types::DbPool;
 use self::profile::{Email, FacebookProfile, GoogleProfile, IntoUser};
 use http::client::ClientHandle;
 
-use uuid::Uuid;
-
 /// JWT services, responsible for JsonWebToken operations
 pub trait JWTService {
     /// Creates new JWT token by email
