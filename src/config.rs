@@ -16,7 +16,7 @@ pub struct Config {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct SagaAddr {
-    pub url: String
+    pub url: String,
 }
 
 /// Common server settings

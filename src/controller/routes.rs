@@ -15,7 +15,7 @@ pub enum Route {
     JWTFacebook,
     UserRoles,
     UserRole(i32),
-    DefaultRole(UserId)
+    DefaultRole(UserId),
 }
 
 pub fn create_route_parser() -> RouteParser<Route> {

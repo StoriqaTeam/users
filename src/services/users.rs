@@ -8,7 +8,7 @@ use rand::Rng;
 use base64::encode;
 use diesel::Connection;
 
-use stq_acl::{UnauthorizedACL};
+use stq_acl::UnauthorizedACL;
 
 use models::{NewUser, UpdateUser, User, UserId};
 use models::{NewIdentity, Provider};
@@ -156,7 +156,9 @@ impl UsersService for UsersServiceImpl {
                 .and_then(move |conn| {
                     let acl = acl_for_id(roles_cache.clone(), current_uid);
                     let mut users_repo = UsersRepoImpl::new(&conn, acl);
-                    users_repo.delete_by_saga_id(saga_id).map_err(ServiceError::from)
+                    users_repo
+                        .delete_by_saga_id(saga_id)
+                        .map_err(ServiceError::from)
                 })
         }))
     }

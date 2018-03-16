@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use repos::user_roles::{UserRolesRepo, UserRolesRepoImpl};
-use repos::types::{DbConnection};
+use repos::types::DbConnection;
 use models::authorization::*;
 use stq_acl::{RolesCache, SystemACL};
 use repos::error::RepoError as Error;
@@ -18,16 +18,15 @@ impl RolesCache for RolesCacheImpl {
     type Role = Role;
     type Error = Error;
 
-    fn get(&self, id: i32, db_conn: Option<&DbConnection>) -> Result<Vec<Self::Role>, Self::Error> {
+    fn get(&self, user_id: i32, db_conn: Option<&DbConnection>) -> Result<Vec<Self::Role>, Self::Error> {
         let mut hash_map = self.roles_cache.lock().unwrap();
-        match hash_map.entry(id) {
+        match hash_map.entry(user_id) {
             Entry::Occupied(o) => Ok(o.get().clone()),
             Entry::Vacant(v) => db_conn
                 .ok_or(Error::Connection(format_err!("No connection to db")))
                 .and_then(|con| {
                     let repo = UserRolesRepoImpl::new(con, Box::new(SystemACL::default()));
-                    repo.list_for_user(id)
-                        .map(|users| users.into_iter().map(|u| u.role).collect())
+                    repo.list_for_user(user_id)
                 })
                 .and_then(move |vec: Vec<Role>| {
                     v.insert(vec.clone());

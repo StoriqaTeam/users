@@ -14,20 +14,17 @@ use base64::decode;
 use serde;
 use serde_json;
 use diesel::Connection;
+use stq_acl::SystemACL;
+use stq_http::client::ClientHandle;
 
-use models;
-use models::{JWTPayload, NewEmailIdentity, NewIdentity, NewUser, Provider, ProviderOauth, User, UserStatus, JWT};
+use config::{Config, JWT as JWTConfig, OAuth};
+use models::{self, JWTPayload, NewEmailIdentity, NewIdentity, NewUser, Provider, ProviderOauth, User, UserStatus, JWT};
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
-use stq_acl::SystemACL;
-use config::JWT as JWTConfig;
-use config::OAuth;
-use config::Config;
-use super::types::ServiceFuture;
-use super::error::ServiceError;
 use repos::types::DbPool;
+use services::types::ServiceFuture;
+use services::error::ServiceError;
 use self::profile::{Email, FacebookProfile, GoogleProfile, IntoUser};
-use http::client::ClientHandle;
 
 /// JWT services, responsible for JsonWebToken operations
 pub trait JWTService {
@@ -100,11 +97,7 @@ trait ProfileService<P: Email> {
         )
     }
 
-    fn create_profile(
-        &self,
-        profile: P,
-        provider: Provider,
-    ) -> Result<i32, ServiceError>;
+    fn create_profile(&self, profile: P, provider: Provider) -> Result<i32, ServiceError>;
 
     fn update_profile(&self, users_repo: UsersRepoImpl, profile: P) -> Result<i32, ServiceError>;
 
@@ -179,11 +172,7 @@ where
         )
     }
 
-    fn create_profile(
-        &self,
-        profile_arg: P,
-        provider: Provider,
-    ) -> Result<i32, ServiceError> {
+    fn create_profile(&self, profile_arg: P, provider: Provider) -> Result<i32, ServiceError> {
         let new_user = NewUser::from(profile_arg.clone());
 
         let url = format!("{}/{}", &self.saga_addr, "create_account");
@@ -199,7 +188,7 @@ where
                             email: new_user.email,
                             password: None,
                             provider,
-                            saga_id: "".to_string()
+                            saga_id: "".to_string(),
                         },
                     }).unwrap(),
                 ),
