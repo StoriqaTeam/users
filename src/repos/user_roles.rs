@@ -7,7 +7,7 @@ use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
 
 use models::user_role::user_roles::dsl::*;
-use models::{NewUserRole, OldUserRole, UserRole};
+use models::{NewUserRole, OldUserRole, Role, UserRole};
 use super::acl::BoxedAcl;
 use super::error::RepoError as Error;
 use super::types::{DbConnection, RepoResult};
@@ -15,7 +15,7 @@ use super::types::{DbConnection, RepoResult};
 /// UserRoles repository for handling UserRoles
 pub trait UserRolesRepo {
     /// Returns list of user_roles for a specific user
-    fn list_for_user(&self, user_id: i32) -> RepoResult<Vec<UserRole>>;
+    fn list_for_user(&self, user_id: i32) -> RepoResult<Vec<Role>>;
 
     /// Create a new user role
     fn create(&self, payload: NewUserRole) -> RepoResult<UserRole>;
@@ -40,11 +40,17 @@ impl<'a> UserRolesRepoImpl<'a> {
 }
 
 impl<'a> UserRolesRepo for UserRolesRepoImpl<'a> {
-    fn list_for_user(&self, user_id_value: i32) -> RepoResult<Vec<UserRole>> {
+    fn list_for_user(&self, user_id_value: i32) -> RepoResult<Vec<Role>> {
         let query = user_roles.filter(user_id.eq(user_id_value));
         query
-            .get_results(&**self.db_conn)
+            .get_results::<UserRole>(&**self.db_conn)
             .map_err(|e| Error::from(e))
+            .and_then(|user_roles_arg| {
+                Ok(user_roles_arg
+                    .into_iter()
+                    .map(|user_role| user_role.role)
+                    .collect::<Vec<Role>>())
+            })
     }
 
     fn create(&self, payload: NewUserRole) -> RepoResult<UserRole> {
@@ -61,8 +67,7 @@ impl<'a> UserRolesRepo for UserRolesRepoImpl<'a> {
     }
 
     fn delete_by_user_id(&self, user_id_arg: i32) -> RepoResult<UserRole> {
-        let filtered = user_roles
-            .filter(user_id.eq(user_id_arg));
+        let filtered = user_roles.filter(user_id.eq(user_id_arg));
         let query = diesel::delete(filtered);
         query.get_result(&**self.db_conn).map_err(Error::from)
     }

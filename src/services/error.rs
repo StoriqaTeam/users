@@ -5,7 +5,7 @@ use failure::Error;
 use stq_http::errors::ControllerError;
 
 use validator::ValidationErrors;
-use http::client::Error as HttpError;
+use stq_http::client::Error as HttpError;
 use repos::error::RepoError;
 
 #[derive(Debug, Fail)]

@@ -193,8 +193,7 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
 
     /// Deactivates specific user
     fn delete_by_saga_id(&mut self, saga_id_arg: String) -> Result<User, RepoError> {
-        let filtered = users
-            .filter(saga_id.eq(saga_id_arg));
+        let filtered = users.filter(saga_id.eq(saga_id_arg));
         let query = diesel::delete(filtered);
         query.get_result(&**self.db_conn).map_err(RepoError::from)
     }

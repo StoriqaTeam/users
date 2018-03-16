@@ -38,10 +38,10 @@ extern crate stq_acl;
 extern crate stq_http;
 extern crate stq_router;
 extern crate tokio_core;
+extern crate uuid;
 extern crate validator;
 #[macro_use]
 extern crate validator_derive;
-extern crate uuid;
 
 #[macro_use]
 pub mod macros;
@@ -51,7 +51,6 @@ pub mod repos;
 pub mod services;
 pub mod config;
 pub mod types;
-pub mod http;
 
 use std::sync::Arc;
 use std::process;
@@ -64,6 +63,7 @@ use diesel::pg::PgConnection;
 use r2d2_diesel::ConnectionManager;
 use tokio_core::reactor::Core;
 
+use stq_http::client::Config as HttpConfig;
 use stq_http::controller::Application;
 
 use config::Config;
@@ -78,7 +78,11 @@ pub fn start_server(config: Config) {
     let mut core = Core::new().expect("Unexpected error creating event loop core");
     let handle = Arc::new(core.handle());
 
-    let client = http::client::Client::new(&config, &handle);
+    let http_config = HttpConfig {
+        http_client_retries: config.client.http_client_retries,
+        http_client_buffer_size: config.client.http_client_buffer_size,
+    };
+    let client = stq_http::client::Client::new(&http_config, &handle);
     let client_handle = client.handle();
     let client_stream = client.stream();
     handle.spawn(client_stream.for_each(|_| Ok(())));
