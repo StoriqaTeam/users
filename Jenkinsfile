@@ -22,7 +22,8 @@ node {
     stage('Build app image') {
         sh 'cp -f docker/Dockerfile.run Dockerfile'
         app = docker.build("storiqateam/stq-users:${env.BRANCH_NAME}")
-        sh 'rm -f Dockerfile'
+        sh 'sudo /bin/rm -f Dockerfile users diesel'
+        sh 'sudo /bin/rm -rf migrations'
     }
 
     stage('Push image') {
