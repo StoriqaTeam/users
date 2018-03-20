@@ -17,6 +17,8 @@ pub enum RepoError {
     MismatchedType(Error),
     #[fail(display = "Connection")]
     Connection(Error),
+    #[fail(display = "Invalid token")]
+    InvalidToken,
     #[fail(display = "Unknown")]
     Unknown(Error),
 }

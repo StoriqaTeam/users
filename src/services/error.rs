@@ -32,6 +32,8 @@ pub enum ServiceError {
     IncorrectCredentials,
     #[fail(display = "Unauthorized")]
     Unauthorized(String),
+    #[fail(display = "Invalid token")]
+    InvalidToken,
     #[fail(display = "Unknown error: {}", _0)]
     Unknown(String),
 }
@@ -44,6 +46,7 @@ impl From<RepoError> for ServiceError {
             RepoError::ContstaintViolation(e) => ServiceError::Database(RepoError::ContstaintViolation(e).into()),
             RepoError::MismatchedType(e) => ServiceError::Database(RepoError::MismatchedType(e).into()),
             RepoError::Connection(e) => ServiceError::Database(RepoError::Connection(e).into()),
+            RepoError::InvalidToken => ServiceError::InvalidToken,
             RepoError::Unknown(e) => ServiceError::Database(RepoError::Unknown(e).into()),
             RepoError::Unauthorized(res, act) => ServiceError::Unauthorized(format!(
                 "Unauthorized access: Resource: {}, Action: {}",
@@ -76,6 +79,7 @@ impl From<ServiceError> for ControllerError {
             ServiceError::Database(msg) => ControllerError::InternalServerError(ServiceError::Database(msg).into()),
             ServiceError::HttpClient(msg) => ControllerError::InternalServerError(ServiceError::HttpClient(msg).into()),
             ServiceError::EmailAlreadyExists(msg) => ControllerError::BadRequest(ServiceError::EmailAlreadyExists(msg).into()),
+            ServiceError::InvalidToken => ControllerError::BadRequest(ServiceError::InvalidToken.into()),
             ServiceError::IncorrectCredentials => ControllerError::BadRequest(ServiceError::IncorrectCredentials.into()),
             ServiceError::Connection(msg) => ControllerError::InternalServerError(ServiceError::Connection(msg).into()),
             ServiceError::Transaction(msg) => ControllerError::InternalServerError(ServiceError::Transaction(msg).into()),

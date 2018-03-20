@@ -1,5 +1,7 @@
 //! Users Services, presents CRUD operations with users
 
+use std::time::SystemTime;
+
 use futures::future;
 use futures_cpupool::CpuPool;
 use sha3::{Digest, Sha3_256};
@@ -7,13 +9,16 @@ use rand;
 use rand::Rng;
 use base64::encode;
 use diesel::Connection;
+use uuid::Uuid;
 
 use stq_acl::{UnauthorizedACL};
 
 use models::{NewUser, UpdateUser, User, UserId};
-use models::{NewIdentity, Provider};
+use models::{NewIdentity, UpdateIdentity, Provider};
+use models::ResetToken;
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
+use repos::reset_token::{ResetTokenRepo, ResetTokenRepoImpl};
 
 use super::types::ServiceFuture;
 use super::error::ServiceError;
@@ -37,6 +42,10 @@ pub trait UsersService {
     fn update(&self, user_id: UserId, payload: UpdateUser) -> ServiceFuture<User>;
     /// creates hashed password
     fn password_create(clear_password: String) -> String;
+    /// Request password reset
+    fn password_reset_request(&self, email_arg: String) -> ServiceFuture<bool>;
+    /// Apply password reset
+    fn password_reset_apply(&self, email_arg: String, token_arg: String) -> ServiceFuture<bool>;
 }
 
 /// Users services, responsible for User-related CRUD operations
@@ -235,6 +244,82 @@ impl UsersService for UsersServiceImpl {
                         .and_then(move |_user| users_repo.update(user_id, payload))
                         .map_err(ServiceError::from)
                 })
+        }))
+    }
+
+
+    fn password_reset_request(&self, email_arg: String) -> ServiceFuture<bool> {
+        let r2d2_clone = self.r2d2_pool.clone();
+
+        Box::new(self.cpu_pool.spawn_fn(move || {
+            r2d2_clone
+                .get()
+                .map_err(|e| ServiceError::Connection(e.into()))
+                .and_then(move |conn| {
+                    let reset_repo = ResetTokenRepoImpl::new(&conn);
+                    let ident_repo = IdentitiesRepoImpl::new(&conn);
+
+                    ident_repo
+                        .find_by_email_provider(email_arg.clone(), Provider::Email)
+                        .and_then(|ident| {
+                            let new_token = Uuid::new_v4().to_string();
+                            let reset_token = ResetToken {
+                                token: new_token,
+                                email: ident.email.clone(),
+                                created_at: SystemTime::now(),
+                            };
+
+                            reset_repo
+                                .create(reset_token)
+                                .and_then(|token| {
+                                    // Send mail
+                                    Ok(true)
+                                })
+                        }).map_err(|_e| ServiceError::InvalidToken)
+                })
+        }))
+    }
+
+    fn password_reset_apply(&self, token_arg: String, new_pass: String) -> ServiceFuture<bool> {
+        let r2d2_clone = self.r2d2_pool.clone();
+
+        Box::new(self.cpu_pool.spawn_fn(move || {
+            r2d2_clone
+                .get()
+                .map_err(|e| ServiceError::Connection(e.into()))
+                .and_then(move |conn| {
+                    let reset_repo = ResetTokenRepoImpl::new(&conn);
+                    let ident_repo = IdentitiesRepoImpl::new(&conn);
+
+                    reset_repo
+                        .find_by_token(token_arg.clone())
+                        .map_err(|_e| ServiceError::InvalidToken)
+                        .and_then(move |reset_token| {
+
+                            match SystemTime::now().duration_since(reset_token.created_at) {
+                                Ok(elapsed) => {
+                                    if elapsed.as_secs() < 3600 {
+                                        ident_repo
+                                            .find_by_email_provider(reset_token.email.clone(), Provider::Email)
+                                            .and_then(move |ident| {
+                                                let update = UpdateIdentity {
+                                                    password: Some(Self::password_create(new_pass)),
+                                                };
+
+                                                ident_repo
+                                                    .update(ident, update)
+                                                    .map(|_ident| true)
+                                            })
+                                            .map_err(|_e| ServiceError::InvalidToken)
+                                    } else {
+                                        Err(ServiceError::InvalidToken)
+                                    }
+                                },
+                                Err(_) => Err(ServiceError::InvalidToken)
+                            }
+                        })
+                })
+
         }))
     }
 

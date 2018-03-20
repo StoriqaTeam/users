@@ -9,7 +9,7 @@ use diesel::query_dsl::LoadQuery;
 use diesel::pg::PgConnection;
 
 use models::UserId;
-use models::{Identity, Provider};
+use models::{Identity, UpdateIdentity, Provider};
 use models::identity::identity::identities::dsl::*;
 use super::error::RepoError;
 use super::types::DbConnection;
@@ -38,6 +38,9 @@ pub trait IdentitiesRepo {
 
     /// Find specific user by email
     fn find_by_email_provider(&self, email_arg: String, provider_arg: Provider) -> Result<Identity, RepoError>;
+
+    /// Update identity
+    fn update(&self, ident: Identity, update: UpdateIdentity) -> Result<Identity, RepoError>;
 }
 
 impl<'a> IdentitiesRepoImpl<'a> {
@@ -103,6 +106,18 @@ impl<'a> IdentitiesRepo for IdentitiesRepoImpl<'a> {
 
         query
             .first::<Identity>(&**self.db_conn)
+            .map_err(RepoError::from)
+    }
+
+    /// Update identity
+    fn update(&self, ident: Identity, update: UpdateIdentity) -> Result<Identity, RepoError> {
+        let filter = identities
+            .filter(email.eq(ident.email))
+            .filter(provider.eq(ident.provider));
+
+        let query = diesel::update(filter).set(&update);
+        query
+            .get_result::<Identity>(&**self.db_conn)
             .map_err(RepoError::from)
     }
 }

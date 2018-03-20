@@ -236,6 +236,31 @@ impl Controller for ControllerImpl {
                     .map_err(ControllerError::from),
             ),
 
+            // POST /users/password_reset/request
+            (&Post, Some(Route::PasswordResetRequest)) => serialize_future(
+                parse_body::<models::ResetRequest>(req.body())
+                    .map_err(|_| ControllerError::UnprocessableEntity(format_err!("Error parsing request from gateway body")))
+                    .and_then(move |reset_req| {
+                        users_service
+                            .password_reset_request(reset_req.email)
+                            .map_err(ControllerError::from)
+                    }),
+            ),
+
+            // POST /users/password_reset/apply
+            (&Post, Some(Route::PasswordResetApply)) => serialize_future(
+                parse_body::<models::ResetApply>(req.body())
+                    .map_err(|_| ControllerError::UnprocessableEntity(format_err!("Error parsing request from gateway body")))
+                    .and_then(move |reset_pass| {
+                        users_service
+                            .password_reset_apply(
+                                reset_pass.token,
+                                reset_pass.password
+                            )
+                            .map_err(ControllerError::from)
+                    }),
+            ),
+
             // Fallback
             _ => Box::new(future::err(ControllerError::NotFound)),
         }
