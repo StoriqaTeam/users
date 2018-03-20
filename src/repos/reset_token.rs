@@ -20,6 +20,8 @@ pub trait ResetTokenRepo {
 
     /// Find user by token
     fn find_by_token(&self, token_arg: String) -> Result<ResetToken, RepoError>;
+
+    fn delete(&self, token_arg: String) -> Result<ResetToken, RepoError>;
 }
 
 impl<'a> ResetTokenRepoImpl<'a> {
@@ -46,5 +48,12 @@ impl<'a> ResetTokenRepo for ResetTokenRepoImpl<'a> {
         query
             .first::<ResetToken>(&**self.db_conn)
             .map_err(RepoError::from)
+    }
+
+    /// Removes specified token
+    fn delete(&self, token_arg: String) -> Result<ResetToken, RepoError> {
+        let filtered = reset_tokens.filter(token.eq(token_arg));
+        let query = diesel::delete(filtered);
+        query.get_result(&**self.db_conn).map_err(RepoError::from)
     }
 }

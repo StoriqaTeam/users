@@ -75,8 +75,10 @@ impl Controller for ControllerImpl {
         let users_service = UsersServiceImpl::new(
             self.db_pool.clone(),
             self.cpu_pool.clone(),
+            self.client_handle.clone(),
             cached_roles,
             user_id,
+            self.config.notifications.clone(),
         );
         let jwt_service = JWTServiceImpl::new(
             self.db_pool.clone(),
@@ -241,9 +243,15 @@ impl Controller for ControllerImpl {
                 parse_body::<models::ResetRequest>(req.body())
                     .map_err(|_| ControllerError::UnprocessableEntity(format_err!("Error parsing request from gateway body")))
                     .and_then(move |reset_req| {
-                        users_service
-                            .password_reset_request(reset_req.email)
-                            .map_err(ControllerError::from)
+                        reset_req
+                            .validate()
+                            .map_err(|e| ControllerError::Validate(e))
+                            .into_future()
+                            .and_then(move |_| {
+                                users_service
+                                    .password_reset_request(reset_req.email)
+                                    .map_err(ControllerError::from)
+                            })
                     }),
             ),
 
@@ -251,13 +259,19 @@ impl Controller for ControllerImpl {
             (&Post, Some(Route::PasswordResetApply)) => serialize_future(
                 parse_body::<models::ResetApply>(req.body())
                     .map_err(|_| ControllerError::UnprocessableEntity(format_err!("Error parsing request from gateway body")))
-                    .and_then(move |reset_pass| {
-                        users_service
-                            .password_reset_apply(
-                                reset_pass.token,
-                                reset_pass.password
-                            )
-                            .map_err(ControllerError::from)
+                    .and_then(move |reset_apply| {
+                        reset_apply
+                            .validate()
+                            .map_err(|e| ControllerError::Validate(e))
+                            .into_future()
+                            .and_then(move |_| {
+                                users_service
+                                    .password_reset_apply(
+                                        reset_apply.token,
+                                        reset_apply.password
+                                    )
+                                    .map_err(ControllerError::from)
+                            })
                     }),
             ),
 

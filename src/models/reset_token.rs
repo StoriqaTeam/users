@@ -1,6 +1,8 @@
 //! Models for password reset
 use std::time::SystemTime;
 
+use validator::Validate;
+
 table! {
     reset_tokens (token) {
         token -> VarChar,
@@ -17,13 +19,22 @@ pub struct ResetToken {
     pub created_at: SystemTime,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Validate, Debug)]
 pub struct ResetRequest {
+    #[validate(email(message = "Invalid email format"))]
     pub email: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Validate, Debug)]
 pub struct ResetApply {
     pub token: String,
+    #[validate(length(min = "8", max = "30", message = "Password should be between 8 and 30 symbols"))]
     pub password: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ResetMail {
+    pub to: String,
+    pub subject: String,
+    pub text: String,
 }
