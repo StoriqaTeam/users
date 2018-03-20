@@ -14,14 +14,16 @@ node {
     }
 
     stage('Get binary') {
-        sh "docker run -i --rm --volume ${env.WORKSPACE}:/mnt/ storiqateam/stq-users-interm:${env.BRANCH_NAME} cp -f /app/target/release/users /mnt/"
+        sh "docker run -i --rm --volume ${env.WORKSPACE}:/mnt/ storiqateam/stq-users-interm:${env.BRANCH_NAME} cp -pf /app/target/release/users /mnt/"
+        sh "docker run -i --rm --volume ${env.WORKSPACE}:/mnt/ storiqateam/stq-users-interm:${env.BRANCH_NAME} cp -pf /usr/local/cargo/bin/diesel /mnt/"
+        sh "docker run -i --rm --volume ${env.WORKSPACE}:/mnt/ storiqateam/stq-users-interm:${env.BRANCH_NAME} cp -rpf /app/migrations /mnt/ || mkdir migrations"
     }
 
     stage('Build app image') {
         sh 'cp -f docker/Dockerfile.run Dockerfile'
         app = docker.build("storiqateam/stq-users:${env.BRANCH_NAME}")
-        sh 'rm -f Dockerfile'
-        sh 'rm -f users'
+        sh 'rm -f Dockerfile users diesel'
+        sh 'rm -rf migrations'
     }
 
     stage('Push image') {
