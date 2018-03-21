@@ -1,24 +1,36 @@
 //! Users Services, presents CRUD operations with users
 
+use std::time::SystemTime;
+
 use futures::future;
+use futures::Future;
+use futures::IntoFuture;
 use futures_cpupool::CpuPool;
+use hyper::Method;
 use sha3::{Digest, Sha3_256};
 use rand;
 use rand::Rng;
 use base64::encode;
 use diesel::Connection;
+use uuid::Uuid;
+use serde_json;
 
 use stq_acl::UnauthorizedACL;
+use stq_http::client::ClientHandle;
 
 use models::{NewUser, UpdateUser, User, UserId};
-use models::{NewIdentity, Provider};
+use models::{NewIdentity, Provider, UpdateIdentity};
+use models::{ResetMail, ResetToken};
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
+use repos::reset_token::{ResetTokenRepo, ResetTokenRepoImpl};
+use repos::types::DbPool;
+use repos::acl::{ApplicationAcl, BoxedAcl, RolesCacheImpl};
+
+use config::Notifications;
 
 use super::types::ServiceFuture;
 use super::error::ServiceError;
-use repos::types::DbPool;
-use repos::acl::{ApplicationAcl, BoxedAcl, RolesCacheImpl};
 
 pub trait UsersService {
     /// Returns user by ID
@@ -37,23 +49,38 @@ pub trait UsersService {
     fn update(&self, user_id: UserId, payload: UpdateUser) -> ServiceFuture<User>;
     /// creates hashed password
     fn password_create(clear_password: String) -> String;
+    /// Request password reset
+    fn password_reset_request(&self, email_arg: String) -> ServiceFuture<bool>;
+    /// Apply password reset
+    fn password_reset_apply(&self, email_arg: String, token_arg: String) -> ServiceFuture<bool>;
 }
 
 /// Users services, responsible for User-related CRUD operations
 pub struct UsersServiceImpl {
-    pub r2d2_pool: DbPool,
+    pub db_pool: DbPool,
     pub cpu_pool: CpuPool,
+    pub http_client: ClientHandle,
     roles_cache: RolesCacheImpl,
     user_id: Option<i32>,
+    pub notif_conf: Notifications,
 }
 
 impl UsersServiceImpl {
-    pub fn new(db_pool: DbPool, cpu_pool: CpuPool, roles_cache: RolesCacheImpl, user_id: Option<i32>) -> Self {
+    pub fn new(
+        db_pool: DbPool,
+        cpu_pool: CpuPool,
+        http_client: ClientHandle,
+        roles_cache: RolesCacheImpl,
+        user_id: Option<i32>,
+        notif_conf: Notifications,
+    ) -> Self {
         Self {
-            r2d2_pool: db_pool,
-            cpu_pool: cpu_pool,
-            roles_cache: roles_cache,
-            user_id: user_id,
+            db_pool,
+            cpu_pool,
+            http_client,
+            roles_cache,
+            user_id,
+            notif_conf,
         }
     }
 }
@@ -67,12 +94,12 @@ fn acl_for_id(roles_cache: RolesCacheImpl, user_id: Option<i32>) -> BoxedAcl {
 impl UsersService for UsersServiceImpl {
     /// Returns user by ID
     fn get(&self, user_id: UserId) -> ServiceFuture<User> {
-        let r2d2_clone = self.r2d2_pool.clone();
+        let db_clone = self.db_pool.clone();
         let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
 
         Box::new(self.cpu_pool.spawn_fn(move || {
-            r2d2_clone
+            db_clone
                 .get()
                 .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
@@ -86,12 +113,12 @@ impl UsersService for UsersServiceImpl {
     /// Returns current user
     fn current(&self) -> ServiceFuture<User> {
         if let Some(id) = self.user_id {
-            let r2d2_clone = self.r2d2_pool.clone();
+            let db_clone = self.db_pool.clone();
             let roles_cache = self.roles_cache.clone();
             let current_uid = self.user_id.clone();
 
             Box::new(self.cpu_pool.spawn_fn(move || {
-                r2d2_clone
+                db_clone
                     .get()
                     .map_err(|e| ServiceError::Connection(e.into()))
                     .and_then(move |conn| {
@@ -109,12 +136,12 @@ impl UsersService for UsersServiceImpl {
 
     /// Lists users limited by `from` and `count` parameters
     fn list(&self, from: i32, count: i64) -> ServiceFuture<Vec<User>> {
-        let r2d2_clone = self.r2d2_pool.clone();
+        let db_clone = self.db_pool.clone();
         let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
 
         Box::new(self.cpu_pool.spawn_fn(move || {
-            r2d2_clone
+            db_clone
                 .get()
                 .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
@@ -127,12 +154,12 @@ impl UsersService for UsersServiceImpl {
 
     /// Deactivates specific user
     fn deactivate(&self, user_id: UserId) -> ServiceFuture<User> {
-        let r2d2_clone = self.r2d2_pool.clone();
+        let db_clone = self.db_pool.clone();
         let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
 
         Box::new(self.cpu_pool.spawn_fn(move || {
-            r2d2_clone
+            db_clone
                 .get()
                 .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
@@ -145,12 +172,12 @@ impl UsersService for UsersServiceImpl {
 
     /// Deactivates specific user
     fn delete_by_saga_id(&self, saga_id: String) -> ServiceFuture<User> {
-        let r2d2_clone = self.r2d2_pool.clone();
+        let db_clone = self.db_pool.clone();
         let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
 
         Box::new(self.cpu_pool.spawn_fn(move || {
-            r2d2_clone
+            db_clone
                 .get()
                 .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
@@ -165,12 +192,12 @@ impl UsersService for UsersServiceImpl {
 
     /// Creates new user
     fn create(&self, payload: NewIdentity, user_payload: Option<NewUser>) -> ServiceFuture<User> {
-        let r2d2_clone = self.r2d2_pool.clone();
+        let db_clone = self.db_pool.clone();
         let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
 
         Box::new(self.cpu_pool.spawn_fn(move || {
-            r2d2_clone
+            db_clone
                 .get()
                 .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
@@ -221,12 +248,12 @@ impl UsersService for UsersServiceImpl {
 
     /// Updates specific user
     fn update(&self, user_id: UserId, payload: UpdateUser) -> ServiceFuture<User> {
-        let r2d2_clone = self.r2d2_pool.clone();
+        let db_clone = self.db_pool.clone();
         let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
 
         Box::new(self.cpu_pool.spawn_fn(move || {
-            r2d2_clone
+            db_clone
                 .get()
                 .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
@@ -238,6 +265,128 @@ impl UsersService for UsersServiceImpl {
                         .map_err(ServiceError::from)
                 })
         }))
+    }
+
+    fn password_reset_request(&self, email_arg: String) -> ServiceFuture<bool> {
+        let db_clone = self.db_pool.clone();
+        let http_clone = self.http_client.clone();
+        let email = email_arg.clone();
+        let notif_config = self.notif_conf.clone();
+
+        Box::new(
+            self.cpu_pool
+                .spawn_fn(move || {
+                    db_clone
+                        .get()
+                        .map_err(|e| ServiceError::Connection(e.into()))
+                        .and_then(move |conn| {
+                            let reset_repo = ResetTokenRepoImpl::new(&conn);
+                            let ident_repo = IdentitiesRepoImpl::new(&conn);
+
+                            ident_repo
+                                .find_by_email_provider(email.clone(), Provider::Email)
+                                .map_err(|_e| ServiceError::InvalidToken)
+                                .and_then(|ident| {
+                                    let new_token = Uuid::new_v4().to_string();
+                                    let reset_token = ResetToken {
+                                        token: new_token,
+                                        email: ident.email.clone(),
+                                        created_at: SystemTime::now(),
+                                    };
+
+                                    reset_repo
+                                        .create(reset_token)
+                                        .map_err(|_e| ServiceError::Unknown("Cannot create reset token".to_string()))
+                                })
+                        })
+                })
+                .and_then(move |token| {
+                    let url = format!("{}/sendmail", notif_config.url.clone());
+
+                    let link_text = format!("{}/{}", notif_config.link_path.clone(), token.token.clone(),);
+
+                    serde_json::to_string(&ResetMail {
+                        to: token.email.clone(),
+                        subject: "Password reset".to_string(),
+                        text: link_text,
+                    }).map_err(ServiceError::from)
+                        .into_future()
+                        .and_then(move |body| {
+                            http_clone
+                                .request::<String>(Method::Post, url, Some(body), None)
+                                .map(|_v| true)
+                                .map_err(|_e| ServiceError::Connection(format_err!("Error sending email")))
+                        })
+                }),
+        )
+    }
+
+    fn password_reset_apply(&self, token_arg: String, new_pass: String) -> ServiceFuture<bool> {
+        let db_clone = self.db_pool.clone();
+        let http_clone = self.http_client.clone();
+        let notif_config = self.notif_conf.clone();
+
+        Box::new(
+            self.cpu_pool
+                .spawn_fn(move || {
+                    db_clone
+                        .get()
+                        .map_err(|e| ServiceError::Connection(e.into()))
+                        .and_then(move |conn| {
+                            let reset_repo = ResetTokenRepoImpl::new(&conn);
+                            let ident_repo = IdentitiesRepoImpl::new(&conn);
+
+                            reset_repo
+                                .find_by_token(token_arg.clone())
+                                .map_err(|_e| ServiceError::InvalidToken)
+                                .and_then(|reset_token| {
+                                    reset_repo.delete(reset_token.token.clone()).map_err(|_e| {
+                                        println!("Unable to delete token");
+                                        ServiceError::Unknown("".to_string())
+                                    })
+                                })
+                                .and_then(
+                                    move |reset_token| match SystemTime::now().duration_since(reset_token.created_at) {
+                                        Ok(elapsed) => {
+                                            if elapsed.as_secs() < 3600 {
+                                                ident_repo
+                                                    .find_by_email_provider(reset_token.email.clone(), Provider::Email)
+                                                    .and_then(move |ident| {
+                                                        let update = UpdateIdentity {
+                                                            password: Some(Self::password_create(new_pass)),
+                                                        };
+
+                                                        ident_repo.update(ident, update)
+                                                    })
+                                                    .map_err(|_e| ServiceError::InvalidToken)
+                                            } else {
+                                                Err(ServiceError::InvalidToken)
+                                            }
+                                        }
+                                        Err(_) => Err(ServiceError::InvalidToken),
+                                    },
+                                )
+                        })
+                })
+                .and_then(move |ident| {
+                    let url = format!("{}/sendmail", notif_config.url.clone());
+
+                    let text = "Password for linked account has been successfully reset.".to_string();
+
+                    serde_json::to_string(&ResetMail {
+                        to: ident.email.clone(),
+                        subject: "Password reset success".to_string(),
+                        text: text,
+                    }).map_err(ServiceError::from)
+                        .into_future()
+                        .and_then(move |body| {
+                            http_clone
+                                .request::<String>(Method::Post, url, Some(body), None)
+                                .map(|_v| true)
+                                .map_err(|_e| ServiceError::Connection(format_err!("Error sending email")))
+                        })
+                }),
+        )
     }
 
     fn password_create(clear_password: String) -> String {

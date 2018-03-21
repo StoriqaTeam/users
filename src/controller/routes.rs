@@ -16,6 +16,8 @@ pub enum Route {
     UserRoles,
     UserRole(i32),
     DefaultRole(UserId),
+    PasswordResetRequest,
+    PasswordResetApply,
 }
 
 pub fn create_route_parser() -> RouteParser<Route> {
@@ -51,7 +53,8 @@ pub fn create_route_parser() -> RouteParser<Route> {
     router.add_route_with_params(r"^/user_by_saga_id/(.+)$", |params| {
         params
             .get(0)
-            .map(|saga_id| Route::UserBySagaId(saga_id.to_string()))
+            .and_then(|string_id| string_id.parse::<String>().ok())
+            .map(|saga_id| Route::UserBySagaId(saga_id))
     });
 
     // User Routes
@@ -71,6 +74,16 @@ pub fn create_route_parser() -> RouteParser<Route> {
             .get(0)
             .and_then(|string_id| string_id.parse::<UserId>().ok())
             .map(|user_id| Route::DefaultRole(user_id))
+    });
+
+    // /users/password_reset/request/:email route
+    router.add_route(r"^/users/password_reset/request$", || {
+        Route::PasswordResetRequest
+    });
+
+    // /users/password_reset/apply/:token route
+    router.add_route(r"^/users/password_reset/apply$", || {
+        Route::PasswordResetApply
     });
 
     router

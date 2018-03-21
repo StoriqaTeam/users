@@ -48,6 +48,14 @@ pub struct NewEmailIdentity {
     pub password: String,
 }
 
+/// Payload for updating identity password
+#[derive(Serialize, Deserialize, Insertable, Validate, AsChangeset)]
+#[table_name = "identities"]
+pub struct UpdateIdentity {
+    #[validate(length(min = "8", max = "30", message = "Password should be between 8 and 30 symbols"))]
+    pub password: Option<String>,
+}
+
 impl From<NewEmailIdentity> for NewIdentity {
     fn from(v: NewEmailIdentity) -> Self {
         Self {

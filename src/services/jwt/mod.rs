@@ -177,23 +177,18 @@ where
 
         let url = format!("{}/{}", &self.saga_addr, "create_account");
 
+        let body = serde_json::to_string(&models::SagaCreateProfile {
+            user: Some(new_user.clone()),
+            identity: NewIdentity {
+                email: new_user.email,
+                password: None,
+                provider,
+                saga_id: "".to_string(),
+            },
+        }).map_err(ServiceError::from)?;
+
         let created_user = self.http_client
-            .request::<User>(
-                Method::Post,
-                url,
-                Some(
-                    serde_json::to_string(&models::SagaCreateProfile {
-                        user: Some(new_user.clone()),
-                        identity: NewIdentity {
-                            email: new_user.email,
-                            password: None,
-                            provider,
-                            saga_id: "".to_string(),
-                        },
-                    }).unwrap(),
-                ),
-                None,
-            )
+            .request::<User>(Method::Post, url, Some(body), None)
             .wait()?;
 
         Ok(created_user.id.0)
