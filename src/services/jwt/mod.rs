@@ -14,20 +14,17 @@ use base64::decode;
 use serde;
 use serde_json;
 use diesel::Connection;
+use stq_acl::SystemACL;
+use stq_http::client::ClientHandle;
 
-use models;
-use models::{JWTPayload, NewEmailIdentity, NewIdentity, NewUser, Provider, ProviderOauth, User, UserStatus, JWT};
+use config::{Config, JWT as JWTConfig, OAuth};
+use models::{self, JWTPayload, NewEmailIdentity, NewIdentity, NewUser, Provider, ProviderOauth, User, UserStatus, JWT};
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
-use stq_acl::SystemACL;
-use config::JWT as JWTConfig;
-use config::OAuth;
-use config::Config;
-use super::types::ServiceFuture;
-use super::error::ServiceError;
 use repos::types::DbPool;
+use services::types::ServiceFuture;
+use services::error::ServiceError;
 use self::profile::{Email, FacebookProfile, GoogleProfile, IntoUser};
-use http::client::ClientHandle;
 
 /// JWT services, responsible for JsonWebToken operations
 pub trait JWTService {

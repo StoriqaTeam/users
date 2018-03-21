@@ -16,7 +16,7 @@ use uuid::Uuid;
 use serde_json;
 
 use stq_acl::UnauthorizedACL;
-use http::client::ClientHandle;
+use stq_http::client::ClientHandle;
 
 use models::{NewUser, UpdateUser, User, UserId};
 use models::{NewIdentity, Provider, UpdateIdentity};

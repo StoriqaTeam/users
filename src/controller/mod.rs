@@ -6,6 +6,9 @@
 pub mod routes;
 pub mod utils;
 
+use std::sync::Arc;
+use std::str::FromStr;
+
 use futures::Future;
 use futures::future;
 use futures::IntoFuture;
@@ -13,14 +16,13 @@ use futures_cpupool::CpuPool;
 use hyper::{Delete, Get, Post, Put};
 use hyper::server::Request;
 use hyper::header::Authorization;
-use std::sync::Arc;
-use std::str::FromStr;
 use validator::Validate;
-
 use stq_http::controller::Controller;
-use stq_http::request_util::serialize_future;
 use stq_http::errors::ControllerError;
+use stq_http::request_util::serialize_future;
 use stq_http::request_util::ControllerFuture;
+use stq_http::request_util::parse_body;
+use stq_http::client::ClientHandle;
 use stq_router::RouteParser;
 
 use services::system::{SystemService, SystemServiceImpl};
@@ -29,11 +31,8 @@ use services::jwt::{JWTService, JWTServiceImpl};
 use services::user_roles::{UserRolesService, UserRolesServiceImpl};
 use repos::types::DbPool;
 use repos::acl::RolesCacheImpl;
-
 use models;
-use stq_http::request_util::parse_body;
 use self::routes::Route;
-use http::client::ClientHandle;
 use config::Config;
 
 /// Controller handles route parsing and calling `Service` layer
@@ -76,7 +75,7 @@ impl Controller for ControllerImpl {
             self.db_pool.clone(),
             self.cpu_pool.clone(),
             self.client_handle.clone(),
-            cached_roles,
+            cached_roles.clone(),
             user_id,
             self.config.notifications.clone(),
         );
@@ -86,7 +85,7 @@ impl Controller for ControllerImpl {
             self.client_handle.clone(),
             self.config.clone(),
         );
-        let user_roles_service = UserRolesServiceImpl::new(self.db_pool.clone(), self.cpu_pool.clone());
+        let user_roles_service = UserRolesServiceImpl::new(self.db_pool.clone(), self.cpu_pool.clone(), cached_roles);
 
         match (req.method(), self.route_parser.test(req.path())) {
             // GET /healthcheck
@@ -200,8 +199,8 @@ impl Controller for ControllerImpl {
                     }),
             ),
 
-            // GET /user_role/<user_role_id>
-            (&Get, Some(Route::UserRole(user_role_id))) => serialize_future(user_roles_service.get(user_role_id)),
+            // GET /user_roles/<user_id>
+            (&Get, Some(Route::UserRole(user_id))) => serialize_future(user_roles_service.get_roles(user_id)),
 
             // POST /user_roles
             (&Post, Some(Route::UserRoles)) => serialize_future(
