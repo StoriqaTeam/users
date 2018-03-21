@@ -61,8 +61,7 @@ impl<'a> UserRolesRepo for UserRolesRepoImpl<'a> {
     }
 
     fn delete_by_user_id(&self, user_id_arg: i32) -> RepoResult<UserRole> {
-        let filtered = user_roles
-            .filter(user_id.eq(user_id_arg));
+        let filtered = user_roles.filter(user_id.eq(user_id_arg));
         let query = diesel::delete(filtered);
         query.get_result(&**self.db_conn).map_err(Error::from)
     }

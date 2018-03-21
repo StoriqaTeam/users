@@ -9,7 +9,7 @@ use diesel::query_dsl::LoadQuery;
 use diesel::pg::PgConnection;
 
 use models::UserId;
-use models::{Identity, UpdateIdentity, Provider};
+use models::{Identity, Provider, UpdateIdentity};
 use models::identity::identity::identities::dsl::*;
 use super::error::RepoError;
 use super::types::DbConnection;

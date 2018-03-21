@@ -4,6 +4,7 @@ use std::time::SystemTime;
 
 use futures::future;
 use futures::Future;
+use futures::IntoFuture;
 use futures_cpupool::CpuPool;
 use hyper::Method;
 use sha3::{Digest, Sha3_256};
@@ -14,12 +15,12 @@ use diesel::Connection;
 use uuid::Uuid;
 use serde_json;
 
-use stq_acl::{UnauthorizedACL};
+use stq_acl::UnauthorizedACL;
 use http::client::ClientHandle;
 
 use models::{NewUser, UpdateUser, User, UserId};
-use models::{NewIdentity, UpdateIdentity, Provider};
-use models::{ResetToken, ResetMail};
+use models::{NewIdentity, Provider, UpdateIdentity};
+use models::{ResetMail, ResetToken};
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
 use repos::users::{UsersRepo, UsersRepoImpl};
 use repos::reset_token::{ResetTokenRepo, ResetTokenRepoImpl};
@@ -182,7 +183,9 @@ impl UsersService for UsersServiceImpl {
                 .and_then(move |conn| {
                     let acl = acl_for_id(roles_cache.clone(), current_uid);
                     let mut users_repo = UsersRepoImpl::new(&conn, acl);
-                    users_repo.delete_by_saga_id(saga_id).map_err(ServiceError::from)
+                    users_repo
+                        .delete_by_saga_id(saga_id)
+                        .map_err(ServiceError::from)
                 })
         }))
     }
@@ -264,121 +267,126 @@ impl UsersService for UsersServiceImpl {
         }))
     }
 
-
     fn password_reset_request(&self, email_arg: String) -> ServiceFuture<bool> {
         let db_clone = self.db_pool.clone();
         let http_clone = self.http_client.clone();
         let email = email_arg.clone();
         let notif_config = self.notif_conf.clone();
 
-        Box::new(self.cpu_pool.spawn_fn(move || {
-            db_clone
-                .get()
-                .map_err(|e| ServiceError::Connection(e.into()))
-                .and_then(move |conn| {
-                    let reset_repo = ResetTokenRepoImpl::new(&conn);
-                    let ident_repo = IdentitiesRepoImpl::new(&conn);
+        Box::new(
+            self.cpu_pool
+                .spawn_fn(move || {
+                    db_clone
+                        .get()
+                        .map_err(|e| ServiceError::Connection(e.into()))
+                        .and_then(move |conn| {
+                            let reset_repo = ResetTokenRepoImpl::new(&conn);
+                            let ident_repo = IdentitiesRepoImpl::new(&conn);
 
-                    ident_repo
-                        .find_by_email_provider(email.clone(), Provider::Email)
-                        .map_err(|_e| ServiceError::InvalidToken)
-                        .and_then(|ident| {
-                            let new_token = Uuid::new_v4().to_string();
-                            let reset_token = ResetToken {
-                                token: new_token,
-                                email: ident.email.clone(),
-                                created_at: SystemTime::now(),
-                            };
+                            ident_repo
+                                .find_by_email_provider(email.clone(), Provider::Email)
+                                .map_err(|_e| ServiceError::InvalidToken)
+                                .and_then(|ident| {
+                                    let new_token = Uuid::new_v4().to_string();
+                                    let reset_token = ResetToken {
+                                        token: new_token,
+                                        email: ident.email.clone(),
+                                        created_at: SystemTime::now(),
+                                    };
 
-                            reset_repo
-                                .create(reset_token)
-                                .map_err(|_e| ServiceError::Unknown("Cannot create reset token".to_string()))
-                        })
-                        .and_then(|token| {
-                            let url = format!(
-                                "{}/{}",
-                                notif_config.url.clone(),
-                                notif_config.sendmail_path.clone()
-                            );
-
-                            let link_text = format!(
-                                "{}/{}",
-                                notif_config.link_path.clone(),
-                                token.token.clone(),
-                            );
-
-                            http_clone
-                                .request::<String>(
-                                    Method::Post,
-                                    url,
-                                    Some(
-                                        serde_json::to_string(&ResetMail {
-                                            to: token.email.clone(),
-                                            subject: "Password reset".to_string(),
-                                            text: link_text,
-                                        }).unwrap(),
-                                    ),
-                                    None,
-                                )
-                                .wait()
-                                .map(|_v| true)
-                                .map_err(|_e| ServiceError::Connection(
-                                    format_err!("Error sending email")
-                                ))
+                                    reset_repo
+                                        .create(reset_token)
+                                        .map_err(|_e| ServiceError::Unknown("Cannot create reset token".to_string()))
+                                })
                         })
                 })
-        }))
+                .and_then(move |token| {
+                    let url = format!("{}/sendmail", notif_config.url.clone());
+
+                    let link_text = format!("{}/{}", notif_config.link_path.clone(), token.token.clone(),);
+
+                    serde_json::to_string(&ResetMail {
+                        to: token.email.clone(),
+                        subject: "Password reset".to_string(),
+                        text: link_text,
+                    }).map_err(ServiceError::from)
+                        .into_future()
+                        .and_then(move |body| {
+                            http_clone
+                                .request::<String>(Method::Post, url, Some(body), None)
+                                .map(|_v| true)
+                                .map_err(|_e| ServiceError::Connection(format_err!("Error sending email")))
+                        })
+                }),
+        )
     }
 
     fn password_reset_apply(&self, token_arg: String, new_pass: String) -> ServiceFuture<bool> {
         let db_clone = self.db_pool.clone();
+        let http_clone = self.http_client.clone();
+        let notif_config = self.notif_conf.clone();
 
-        Box::new(self.cpu_pool.spawn_fn(move || {
-            db_clone
-                .get()
-                .map_err(|e| ServiceError::Connection(e.into()))
-                .and_then(move |conn| {
-                    let reset_repo = ResetTokenRepoImpl::new(&conn);
-                    let ident_repo = IdentitiesRepoImpl::new(&conn);
+        Box::new(
+            self.cpu_pool
+                .spawn_fn(move || {
+                    db_clone
+                        .get()
+                        .map_err(|e| ServiceError::Connection(e.into()))
+                        .and_then(move |conn| {
+                            let reset_repo = ResetTokenRepoImpl::new(&conn);
+                            let ident_repo = IdentitiesRepoImpl::new(&conn);
 
-                    reset_repo
-                        .find_by_token(token_arg.clone())
-                        .map_err(|_e| ServiceError::InvalidToken)
-                        .and_then(|reset_token| {
                             reset_repo
-                                .delete(reset_token.token.clone())
-                                .map_err(|_e| {
-                                    println!("Unable to delete token");
-                                    ServiceError::Unknown("".to_string())
+                                .find_by_token(token_arg.clone())
+                                .map_err(|_e| ServiceError::InvalidToken)
+                                .and_then(|reset_token| {
+                                    reset_repo.delete(reset_token.token.clone()).map_err(|_e| {
+                                        println!("Unable to delete token");
+                                        ServiceError::Unknown("".to_string())
+                                    })
                                 })
-                        })
-                        .and_then(move |reset_token| {
-
-                            match SystemTime::now().duration_since(reset_token.created_at) {
-                                Ok(elapsed) => {
-                                    if elapsed.as_secs() < 3600 {
-                                        ident_repo
-                                            .find_by_email_provider(reset_token.email.clone(), Provider::Email)
-                                            .and_then(move |ident| {
-                                                let update = UpdateIdentity {
-                                                    password: Some(Self::password_create(new_pass)),
-                                                };
-
+                                .and_then(
+                                    move |reset_token| match SystemTime::now().duration_since(reset_token.created_at) {
+                                        Ok(elapsed) => {
+                                            if elapsed.as_secs() < 3600 {
                                                 ident_repo
-                                                    .update(ident, update)
-                                                    .map(|_ident| true)
-                                            })
-                                            .map_err(|_e| ServiceError::InvalidToken)
-                                    } else {
-                                        Err(ServiceError::InvalidToken)
-                                    }
-                                },
-                                Err(_) => Err(ServiceError::InvalidToken)
-                            }
+                                                    .find_by_email_provider(reset_token.email.clone(), Provider::Email)
+                                                    .and_then(move |ident| {
+                                                        let update = UpdateIdentity {
+                                                            password: Some(Self::password_create(new_pass)),
+                                                        };
+
+                                                        ident_repo.update(ident, update)
+                                                    })
+                                                    .map_err(|_e| ServiceError::InvalidToken)
+                                            } else {
+                                                Err(ServiceError::InvalidToken)
+                                            }
+                                        }
+                                        Err(_) => Err(ServiceError::InvalidToken),
+                                    },
+                                )
                         })
                 })
+                .and_then(move |ident| {
+                    let url = format!("{}/sendmail", notif_config.url.clone());
 
-        }))
+                    let text = "Password for linked account has been successfully reset.".to_string();
+
+                    serde_json::to_string(&ResetMail {
+                        to: ident.email.clone(),
+                        subject: "Password reset success".to_string(),
+                        text: text,
+                    }).map_err(ServiceError::from)
+                        .into_future()
+                        .and_then(move |body| {
+                            http_clone
+                                .request::<String>(Method::Post, url, Some(body), None)
+                                .map(|_v| true)
+                                .map_err(|_e| ServiceError::Connection(format_err!("Error sending email")))
+                        })
+                }),
+        )
     }
 
     fn password_create(clear_password: String) -> String {

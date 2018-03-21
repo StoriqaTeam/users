@@ -12,5 +12,4 @@ url = "http://saga:8004"
 
 [notifications]
 url = "http://notifications:8005"
-sendmail_path = "sendmail"
 link_path = "https://localhost/password_reset"

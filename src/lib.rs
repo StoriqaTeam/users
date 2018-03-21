@@ -38,10 +38,10 @@ extern crate stq_acl;
 extern crate stq_http;
 extern crate stq_router;
 extern crate tokio_core;
+extern crate uuid;
 extern crate validator;
 #[macro_use]
 extern crate validator_derive;
-extern crate uuid;
 
 #[macro_use]
 pub mod macros;

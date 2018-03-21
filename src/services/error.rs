@@ -6,6 +6,7 @@ use stq_http::errors::ControllerError;
 
 use validator::ValidationErrors;
 use http::client::Error as HttpError;
+use serde_json::Error as SerdeError;
 use repos::error::RepoError;
 
 #[derive(Debug, Fail)]
@@ -53,6 +54,12 @@ impl From<RepoError> for ServiceError {
                 res, act
             )),
         }
+    }
+}
+
+impl From<SerdeError> for ServiceError {
+    fn from(err: SerdeError) -> Self {
+        ServiceError::Parse(err.to_string())
     }
 }
 

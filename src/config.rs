@@ -45,13 +45,12 @@ pub struct OAuth {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct SagaAddr {
-    pub url: String
+    pub url: String,
 }
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Notifications {
     pub url: String,
-    pub sendmail_path: String,
     pub link_path: String,
 }
 

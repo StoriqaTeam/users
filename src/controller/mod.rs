@@ -114,7 +114,8 @@ impl Controller for ControllerImpl {
                 parse_body::<models::SagaCreateProfile>(req.body())
                     .map_err(|e| ControllerError::UnprocessableEntity(e.into()))
                     .and_then(move |payload| {
-                        payload.identity
+                        payload
+                            .identity
                             .validate()
                             .map_err(|e| ControllerError::Validate(e))
                             .into_future()
@@ -266,10 +267,7 @@ impl Controller for ControllerImpl {
                             .into_future()
                             .and_then(move |_| {
                                 users_service
-                                    .password_reset_apply(
-                                        reset_apply.token,
-                                        reset_apply.password
-                                    )
+                                    .password_reset_apply(reset_apply.token, reset_apply.password)
                                     .map_err(ControllerError::from)
                             })
                     }),

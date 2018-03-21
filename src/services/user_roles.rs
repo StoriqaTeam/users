@@ -4,7 +4,7 @@ use futures_cpupool::CpuPool;
 
 use stq_acl::SystemACL;
 
-use models::{NewUserRole, OldUserRole, UserRole, Role, UserId};
+use models::{NewUserRole, OldUserRole, Role, UserId, UserRole};
 use super::types::ServiceFuture;
 use super::error::ServiceError;
 use repos::types::DbPool;
@@ -95,7 +95,9 @@ impl UserRolesService for UserRolesServiceImpl {
                 .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
                     let user_roles_repo = UserRolesRepoImpl::new(&conn, Box::new(SystemACL::default()));
-                    user_roles_repo.delete_by_user_id(user_id_arg.0).map_err(ServiceError::from)
+                    user_roles_repo
+                        .delete_by_user_id(user_id_arg.0)
+                        .map_err(ServiceError::from)
                 })
         }))
     }
