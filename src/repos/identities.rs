@@ -94,7 +94,7 @@ impl<'a> IdentitiesRepo for IdentitiesRepoImpl<'a> {
 
         let ident_query = diesel::insert_into(identities).values(&identity_arg);
         ident_query
-            .get_result::<Identity>(&**self.db_conn)
+            .get_result::<Identity>(self.db_conn)
             .map_err(RepoError::from)
     }
 
@@ -105,7 +105,7 @@ impl<'a> IdentitiesRepo for IdentitiesRepoImpl<'a> {
             .filter(provider.eq(provider_arg));
 
         query
-            .first::<Identity>(&**self.db_conn)
+            .first::<Identity>(self.db_conn)
             .map_err(RepoError::from)
     }
 
@@ -117,7 +117,7 @@ impl<'a> IdentitiesRepo for IdentitiesRepoImpl<'a> {
 
         let query = diesel::update(filter).set(&update);
         query
-            .get_result::<Identity>(&**self.db_conn)
+            .get_result::<Identity>(self.db_conn)
             .map_err(RepoError::from)
     }
 }

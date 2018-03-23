@@ -8,4 +8,4 @@ use r2d2_diesel::ConnectionManager;
 pub type RepoFuture<T> = Box<Future<Item = T, Error = RepoError>>;
 pub type RepoResult<T> = Result<T, RepoError>;
 pub type DbPool = r2d2::Pool<ConnectionManager<PgConnection>>;
-pub type DbConnection = r2d2::PooledConnection<ConnectionManager<PgConnection>>;
+pub type DbConnection = PgConnection;
