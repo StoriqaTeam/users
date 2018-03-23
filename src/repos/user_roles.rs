@@ -43,7 +43,7 @@ impl<'a> UserRolesRepo for UserRolesRepoImpl<'a> {
     fn list_for_user(&self, user_id_value: i32) -> RepoResult<Vec<Role>> {
         let query = user_roles.filter(user_id.eq(user_id_value));
         query
-            .get_results::<UserRole>(&**self.db_conn)
+            .get_results::<UserRole>(self.db_conn)
             .map_err(|e| Error::from(e))
             .and_then(|user_roles_arg| {
                 Ok(user_roles_arg
@@ -55,7 +55,7 @@ impl<'a> UserRolesRepo for UserRolesRepoImpl<'a> {
 
     fn create(&self, payload: NewUserRole) -> RepoResult<UserRole> {
         let query = diesel::insert_into(user_roles).values(&payload);
-        query.get_result(&**self.db_conn).map_err(Error::from)
+        query.get_result(self.db_conn).map_err(Error::from)
     }
 
     fn delete(&self, payload: OldUserRole) -> RepoResult<UserRole> {
@@ -63,12 +63,12 @@ impl<'a> UserRolesRepo for UserRolesRepoImpl<'a> {
             .filter(user_id.eq(payload.user_id))
             .filter(role.eq(payload.role));
         let query = diesel::delete(filtered);
-        query.get_result(&**self.db_conn).map_err(Error::from)
+        query.get_result(self.db_conn).map_err(Error::from)
     }
 
     fn delete_by_user_id(&self, user_id_arg: i32) -> RepoResult<UserRole> {
         let filtered = user_roles.filter(user_id.eq(user_id_arg));
         let query = diesel::delete(filtered);
-        query.get_result(&**self.db_conn).map_err(Error::from)
+        query.get_result(self.db_conn).map_err(Error::from)
     }
 }

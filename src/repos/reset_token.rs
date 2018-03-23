@@ -36,7 +36,7 @@ impl<'a> ResetTokenRepo for ResetTokenRepoImpl<'a> {
         let insert_query = diesel::insert_into(reset_tokens).values(&reset_token_arg);
 
         insert_query
-            .get_result::<ResetToken>(&**self.db_conn)
+            .get_result::<ResetToken>(self.db_conn)
             .map_err(RepoError::from)
     }
 
@@ -45,7 +45,7 @@ impl<'a> ResetTokenRepo for ResetTokenRepoImpl<'a> {
         let query = reset_tokens.filter(token.eq(token_arg));
 
         query
-            .first::<ResetToken>(&**self.db_conn)
+            .first::<ResetToken>(self.db_conn)
             .map_err(RepoError::from)
     }
 
@@ -53,6 +53,6 @@ impl<'a> ResetTokenRepo for ResetTokenRepoImpl<'a> {
     fn delete(&self, token_arg: String) -> Result<ResetToken, RepoError> {
         let filtered = reset_tokens.filter(token.eq(token_arg));
         let query = diesel::delete(filtered);
-        query.get_result(&**self.db_conn).map_err(RepoError::from)
+        query.get_result(self.db_conn).map_err(RepoError::from)
     }
 }

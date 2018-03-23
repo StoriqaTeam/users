@@ -58,7 +58,7 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
         let query = users.find(user_id_arg);
 
         query
-            .get_result(&**self.db_conn)
+            .get_result(self.db_conn)
             .map_err(RepoError::from)
             .and_then(|user: User| {
                 acl::check(
@@ -75,7 +75,7 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
         let query = select(exists(users.filter(email.eq(email_arg))));
 
         query
-            .get_result(&**self.db_conn)
+            .get_result(self.db_conn)
             .map_err(RepoError::from)
             .and_then(|exists| {
                 acl::check(
@@ -93,7 +93,7 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
         let query = users.filter(email.eq(email_arg));
 
         query
-            .first::<User>(&**self.db_conn)
+            .first::<User>(self.db_conn)
             .map_err(RepoError::from)
             .and_then(|user: User| {
                 acl::check(
@@ -115,7 +115,7 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
             .limit(count);
 
         query
-            .get_results(&**self.db_conn)
+            .get_results(self.db_conn)
             .map_err(RepoError::from)
             .and_then(|users_res: Vec<User>| {
                 let resources = users_res
@@ -137,7 +137,7 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
     fn create(&mut self, payload: NewUser) -> Result<User, RepoError> {
         let query_user = diesel::insert_into(users).values(&payload);
         query_user
-            .get_result::<User>(&**self.db_conn)
+            .get_result::<User>(self.db_conn)
             .map_err(RepoError::from)
     }
 
@@ -146,7 +146,7 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
         let query = users.find(user_id_arg.clone());
 
         query
-            .get_result(&**self.db_conn)
+            .get_result(self.db_conn)
             .map_err(RepoError::from)
             .and_then(|user: User| {
                 acl::check(
@@ -162,7 +162,7 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
 
                 let query = diesel::update(filter).set(&payload);
                 query
-                    .get_result::<User>(&**self.db_conn)
+                    .get_result::<User>(self.db_conn)
                     .map_err(RepoError::from)
             })
     }
@@ -172,7 +172,7 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
         let query = users.find(user_id_arg.clone());
 
         query
-            .get_result(&**self.db_conn)
+            .get_result(self.db_conn)
             .map_err(RepoError::from)
             .and_then(|user: User| {
                 acl::check(
@@ -187,7 +187,7 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
                 let filter = users.filter(id.eq(user_id_arg)).filter(is_active.eq(true));
                 let query = diesel::update(filter).set(is_active.eq(false));
 
-                query.get_result(&**self.db_conn).map_err(RepoError::from)
+                query.get_result(self.db_conn).map_err(RepoError::from)
             })
     }
 
@@ -195,6 +195,6 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
     fn delete_by_saga_id(&mut self, saga_id_arg: String) -> Result<User, RepoError> {
         let filtered = users.filter(saga_id.eq(saga_id_arg));
         let query = diesel::delete(filtered);
-        query.get_result(&**self.db_conn).map_err(RepoError::from)
+        query.get_result(self.db_conn).map_err(RepoError::from)
     }
 }
