@@ -2,35 +2,35 @@
 
 use std::time::SystemTime;
 
-use futures::future;
-use futures::Future;
-use futures::IntoFuture;
-use futures_cpupool::CpuPool;
-use hyper::Method;
-use sha3::{Digest, Sha3_256};
-use rand;
-use rand::Rng;
 use base64::encode;
 use diesel::Connection;
-use uuid::Uuid;
+use futures::Future;
+use futures::IntoFuture;
+use futures::future;
+use futures_cpupool::CpuPool;
+use hyper::Method;
+use rand;
+use rand::Rng;
 use serde_json;
+use sha3::{Digest, Sha3_256};
+use uuid::Uuid;
 
 use stq_acl::UnauthorizedACL;
 use stq_http::client::ClientHandle;
 
-use models::{NewUser, UpdateUser, User, UserId};
 use models::{NewIdentity, Provider, UpdateIdentity};
+use models::{NewUser, UpdateUser, User, UserId};
 use models::{ResetMail, ResetToken};
+use repos::acl::{ApplicationAcl, BoxedAcl, RolesCacheImpl};
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
-use repos::users::{UsersRepo, UsersRepoImpl};
 use repos::reset_token::{ResetTokenRepo, ResetTokenRepoImpl};
 use repos::types::DbPool;
-use repos::acl::{ApplicationAcl, BoxedAcl, RolesCacheImpl};
+use repos::users::{UsersRepo, UsersRepoImpl};
 
 use config::Notifications;
 
-use super::types::ServiceFuture;
 use super::error::ServiceError;
+use super::types::ServiceFuture;
 
 pub trait UsersService {
     /// Returns user by ID
@@ -183,9 +183,7 @@ impl UsersService for UsersServiceImpl {
                 .and_then(move |conn| {
                     let acl = acl_for_id(roles_cache.clone(), current_uid);
                     let mut users_repo = UsersRepoImpl::new(&conn, acl);
-                    users_repo
-                        .delete_by_saga_id(saga_id)
-                        .map_err(ServiceError::from)
+                    users_repo.delete_by_saga_id(saga_id).map_err(ServiceError::from)
                 })
         }))
     }
@@ -230,10 +228,7 @@ impl UsersService for UsersServiceImpl {
                                 ident_repo
                                     .create(
                                         new_ident.email,
-                                        new_ident
-                                            .password
-                                            .clone()
-                                            .map(|pass| Self::password_create(pass)),
+                                        new_ident.password.clone().map(|pass| Self::password_create(pass)),
                                         Provider::Email,
                                         user.id.clone(),
                                         new_ident.saga_id,
@@ -345,27 +340,25 @@ impl UsersService for UsersServiceImpl {
                                         ServiceError::Unknown("".to_string())
                                     })
                                 })
-                                .and_then(
-                                    move |reset_token| match SystemTime::now().duration_since(reset_token.created_at) {
-                                        Ok(elapsed) => {
-                                            if elapsed.as_secs() < 3600 {
-                                                ident_repo
-                                                    .find_by_email_provider(reset_token.email.clone(), Provider::Email)
-                                                    .and_then(move |ident| {
-                                                        let update = UpdateIdentity {
-                                                            password: Some(Self::password_create(new_pass)),
-                                                        };
+                                .and_then(move |reset_token| match SystemTime::now().duration_since(reset_token.created_at) {
+                                    Ok(elapsed) => {
+                                        if elapsed.as_secs() < 3600 {
+                                            ident_repo
+                                                .find_by_email_provider(reset_token.email.clone(), Provider::Email)
+                                                .and_then(move |ident| {
+                                                    let update = UpdateIdentity {
+                                                        password: Some(Self::password_create(new_pass)),
+                                                    };
 
-                                                        ident_repo.update(ident, update)
-                                                    })
-                                                    .map_err(|_e| ServiceError::InvalidToken)
-                                            } else {
-                                                Err(ServiceError::InvalidToken)
-                                            }
+                                                    ident_repo.update(ident, update)
+                                                })
+                                                .map_err(|_e| ServiceError::InvalidToken)
+                                        } else {
+                                            Err(ServiceError::InvalidToken)
                                         }
-                                        Err(_) => Err(ServiceError::InvalidToken),
-                                    },
-                                )
+                                    }
+                                    Err(_) => Err(ServiceError::InvalidToken),
+                                })
                         })
                 })
                 .and_then(move |ident| {
@@ -390,10 +383,7 @@ impl UsersService for UsersServiceImpl {
     }
 
     fn password_create(clear_password: String) -> String {
-        let salt = rand::thread_rng()
-            .gen_ascii_chars()
-            .take(10)
-            .collect::<String>();
+        let salt = rand::thread_rng().gen_ascii_chars().take(10).collect::<String>();
         let pass = clear_password + &salt;
         let mut hasher = Sha3_256::default();
         hasher.input(pass.as_bytes());

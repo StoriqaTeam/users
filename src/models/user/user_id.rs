@@ -23,11 +23,11 @@ mod diesel_impl {
     use diesel::expression::bound::Bound;
     use diesel::pg::Pg;
     use diesel::row::Row;
-    use diesel::types::{IsNull, ToSql};
     use diesel::serialize::Output;
+    use diesel::sql_types::*;
     use diesel::types::FromSql;
     use diesel::types::FromSqlRow;
-    use diesel::sql_types::*;
+    use diesel::types::{IsNull, ToSql};
     use std::error::Error;
     use std::io::Write;
 

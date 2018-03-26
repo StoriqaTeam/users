@@ -1,11 +1,11 @@
 //! Module containing info about User models
-use std::time::SystemTime;
 use chrono::NaiveDate;
+use std::time::SystemTime;
 
-use validator::{Validate, ValidationError};
 use regex::Regex;
 use std::borrow::Cow;
 use std::collections::HashMap;
+use validator::{Validate, ValidationError};
 
 use stq_acl::WithScope;
 

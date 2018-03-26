@@ -1,7 +1,7 @@
 //! Models for managing Roles
-use stq_acl::WithScope;
 use models::{Role, Scope};
 use repos::types::DbConnection;
+use stq_acl::WithScope;
 
 table! {
     user_roles (id) {

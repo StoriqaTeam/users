@@ -2,19 +2,19 @@
 use std::convert::From;
 
 use diesel;
-use diesel::prelude::*;
-use diesel::select;
 use diesel::dsl::exists;
+use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
+use diesel::select;
 
-use stq_acl::*;
-use models::{NewUser, UpdateUser, User, UserId};
-use models::user::user::users::dsl::*;
+use super::acl;
+use super::acl::BoxedAcl;
 use super::error::RepoError;
 use super::types::DbConnection;
 use models::authorization::*;
-use super::acl;
-use super::acl::BoxedAcl;
+use models::user::user::users::dsl::*;
+use models::{NewUser, UpdateUser, User, UserId};
+use stq_acl::*;
 
 /// Users repository, responsible for handling users
 pub struct UsersRepoImpl<'a> {
@@ -57,18 +57,9 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
     fn find(&mut self, user_id_arg: UserId) -> Result<User, RepoError> {
         let query = users.find(user_id_arg);
 
-        query
-            .get_result(&**self.db_conn)
-            .map_err(RepoError::from)
-            .and_then(|user: User| {
-                acl::check(
-                    &*self.acl,
-                    &Resource::Users,
-                    &Action::Read,
-                    &[&user],
-                    Some(self.db_conn),
-                ).and_then(|_| Ok(user))
-            })
+        query.get_result(&**self.db_conn).map_err(RepoError::from).and_then(|user: User| {
+            acl::check(&*self.acl, &Resource::Users, &Action::Read, &[&user], Some(self.db_conn)).and_then(|_| Ok(user))
+        })
     }
 
     fn email_exists(&self, email_arg: String) -> Result<bool, RepoError> {
@@ -77,15 +68,7 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
         query
             .get_result(&**self.db_conn)
             .map_err(RepoError::from)
-            .and_then(|exists| {
-                acl::check(
-                    &*self.acl,
-                    &Resource::Users,
-                    &Action::Read,
-                    &[],
-                    Some(self.db_conn),
-                ).and_then(|_| Ok(exists))
-            })
+            .and_then(|exists| acl::check(&*self.acl, &Resource::Users, &Action::Read, &[], Some(self.db_conn)).and_then(|_| Ok(exists)))
     }
 
     /// Find specific user by email
@@ -96,23 +79,13 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
             .first::<User>(&**self.db_conn)
             .map_err(RepoError::from)
             .and_then(|user: User| {
-                acl::check(
-                    &*self.acl,
-                    &Resource::Users,
-                    &Action::Read,
-                    &[&user],
-                    Some(self.db_conn),
-                ).and_then(|_| Ok(user))
+                acl::check(&*self.acl, &Resource::Users, &Action::Read, &[&user], Some(self.db_conn)).and_then(|_| Ok(user))
             })
     }
 
     /// Returns list of users, limited by `from` and `count` parameters
     fn list(&mut self, from: i32, count: i64) -> Result<Vec<User>, RepoError> {
-        let query = users
-            .filter(is_active.eq(true))
-            .filter(id.ge(from))
-            .order(id)
-            .limit(count);
+        let query = users.filter(is_active.eq(true)).filter(id.ge(from)).order(id).limit(count);
 
         query
             .get_results(&**self.db_conn)
@@ -122,13 +95,7 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
                     .iter()
                     .map(|user| (user as &WithScope<Scope>))
                     .collect::<Vec<&WithScope<Scope>>>();
-                acl::check(
-                    &*self.acl,
-                    &Resource::Users,
-                    &Action::Read,
-                    &resources,
-                    Some(self.db_conn),
-                ).and_then(|_| Ok(users_res.clone()))
+                acl::check(&*self.acl, &Resource::Users, &Action::Read, &resources, Some(self.db_conn)).and_then(|_| Ok(users_res.clone()))
             })
     }
 
@@ -136,9 +103,7 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
     // TODO - set e-mail uniqueness in database
     fn create(&mut self, payload: NewUser) -> Result<User, RepoError> {
         let query_user = diesel::insert_into(users).values(&payload);
-        query_user
-            .get_result::<User>(&**self.db_conn)
-            .map_err(RepoError::from)
+        query_user.get_result::<User>(&**self.db_conn).map_err(RepoError::from)
     }
 
     /// Updates specific user
@@ -148,22 +113,12 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
         query
             .get_result(&**self.db_conn)
             .map_err(RepoError::from)
-            .and_then(|user: User| {
-                acl::check(
-                    &*self.acl,
-                    &Resource::Users,
-                    &Action::Write,
-                    &[&user],
-                    Some(self.db_conn),
-                )
-            })
+            .and_then(|user: User| acl::check(&*self.acl, &Resource::Users, &Action::Write, &[&user], Some(self.db_conn)))
             .and_then(|_| {
                 let filter = users.filter(id.eq(user_id_arg)).filter(is_active.eq(true));
 
                 let query = diesel::update(filter).set(&payload);
-                query
-                    .get_result::<User>(&**self.db_conn)
-                    .map_err(RepoError::from)
+                query.get_result::<User>(&**self.db_conn).map_err(RepoError::from)
             })
     }
 
@@ -174,15 +129,7 @@ impl<'a> UsersRepo for UsersRepoImpl<'a> {
         query
             .get_result(&**self.db_conn)
             .map_err(RepoError::from)
-            .and_then(|user: User| {
-                acl::check(
-                    &*self.acl,
-                    &Resource::Users,
-                    &Action::Write,
-                    &[&user],
-                    Some(self.db_conn),
-                )
-            })
+            .and_then(|user: User| acl::check(&*self.acl, &Resource::Users, &Action::Write, &[&user], Some(self.db_conn)))
             .and_then(|_| {
                 let filter = users.filter(id.eq(user_id_arg)).filter(is_active.eq(true));
                 let query = diesel::update(filter).set(is_active.eq(false));

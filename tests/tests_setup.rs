@@ -7,28 +7,28 @@ extern crate sha3;
 extern crate tokio_core;
 extern crate users_lib;
 
-use std::time::SystemTime;
 use std::sync::{Arc, Mutex};
+use std::time::SystemTime;
 
-use tokio_core::reactor::Core;
+use base64::encode;
 use futures::Stream;
 use sha3::{Digest, Sha3_256};
-use base64::encode;
+use tokio_core::reactor::Core;
 
-use users_lib::repos::users::UsersRepo;
-use users_lib::repos::user_roles::UserRolesRepo;
-use users_lib::repos::identities::IdentitiesRepo;
-use users_lib::repos::types::RepoFuture;
-use users_lib::services::users::{UsersService, UsersServiceImpl};
-use users_lib::services::jwt::{JWTService, JWTServiceImpl};
-use users_lib::models::user::{Gender, NewUser, UpdateUser, User};
-use users_lib::models::identity::{Identity, NewIdentity, Provider};
-use users_lib::models::user_role::{NewUserRole, UserRole};
-use users_lib::models::authorization::Role;
-use users_lib::models::jwt::ProviderOauth;
-use users_lib::models::authorization::*;
 use users_lib::config::Config;
 use users_lib::http::client::{Client, ClientHandle};
+use users_lib::models::authorization::Role;
+use users_lib::models::authorization::*;
+use users_lib::models::identity::{Identity, NewIdentity, Provider};
+use users_lib::models::jwt::ProviderOauth;
+use users_lib::models::user::{Gender, NewUser, UpdateUser, User};
+use users_lib::models::user_role::{NewUserRole, UserRole};
+use users_lib::repos::identities::IdentitiesRepo;
+use users_lib::repos::types::RepoFuture;
+use users_lib::repos::user_roles::UserRolesRepo;
+use users_lib::repos::users::UsersRepo;
+use users_lib::services::jwt::{JWTService, JWTServiceImpl};
+use users_lib::services::users::{UsersService, UsersServiceImpl};
 
 #[derive(Clone)]
 pub struct UsersRepoMock;
@@ -97,12 +97,7 @@ impl IdentitiesRepo for IdentitiesRepoMock {
     }
 
     fn find_by_email_provider(&self, email_arg: String, provider_arg: Provider) -> RepoFuture<Identity> {
-        let ident = create_identity(
-            email_arg,
-            Some(password_create(MOCK_PASSWORD.to_string())),
-            1,
-            provider_arg,
-        );
+        let ident = create_identity(email_arg, Some(password_create(MOCK_PASSWORD.to_string())), 1, provider_arg);
         Box::new(futures::future::ok(ident))
     }
 }

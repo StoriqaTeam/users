@@ -1,13 +1,13 @@
 //! RolesCache is a module that caches received from db information about user and his roles
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::sync::{Arc, Mutex};
 
-use repos::user_roles::{UserRolesRepo, UserRolesRepoImpl};
-use repos::types::DbConnection;
 use models::authorization::*;
-use stq_acl::{RolesCache, SystemACL};
 use repos::error::RepoError as Error;
+use repos::types::DbConnection;
+use repos::user_roles::{UserRolesRepo, UserRolesRepoImpl};
+use stq_acl::{RolesCache, SystemACL};
 
 #[derive(Clone, Default)]
 pub struct RolesCacheImpl {
