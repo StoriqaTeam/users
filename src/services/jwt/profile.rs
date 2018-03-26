@@ -1,7 +1,7 @@
 //! Models for managing profiles from google and facebook
-use std::time::SystemTime;
-use std::str::FromStr;
 use std::str;
+use std::str::FromStr;
+use std::time::SystemTime;
 
 use models::{Gender, NewUser, UpdateUser, User};
 
@@ -114,11 +114,7 @@ impl IntoUser for FacebookProfile {
 
 impl IntoUser for GoogleProfile {
     fn merge_into_user(&self, user: User) -> UpdateUser {
-        let first_name = if user.first_name.is_none() {
-            Some(self.name.clone())
-        } else {
-            None
-        };
+        let first_name = if user.first_name.is_none() { Some(self.name.clone()) } else { None };
         let last_name = if user.last_name.is_none() {
             Some(self.family_name.clone())
         } else {

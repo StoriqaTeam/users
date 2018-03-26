@@ -43,19 +43,19 @@ impl FromStr for Provider {
 
 mod diesel_impl {
     use diesel::Queryable;
+    use diesel::deserialize::FromSqlRow;
     use diesel::expression::AsExpression;
     use diesel::expression::bound::Bound;
     use diesel::pg::Pg;
     use diesel::row::Row;
-    use diesel::serialize::{IsNull, ToSql};
     use diesel::serialize::Output;
-    use diesel::deserialize::FromSqlRow;
+    use diesel::serialize::{IsNull, ToSql};
     use diesel::sql_types::*;
     use std::error::Error;
     use std::io::Write;
 
-    use super::Provider;
     use super::FromStr;
+    use super::Provider;
 
     impl<'a> AsExpression<Varchar> for &'a Provider {
         type Expression = Bound<Varchar, &'a Provider>;

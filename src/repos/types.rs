@@ -1,6 +1,6 @@
-use futures::future::Future;
 use super::error::RepoError;
 use diesel::pg::PgConnection;
+use futures::future::Future;
 use r2d2;
 use r2d2_diesel::ConnectionManager;
 

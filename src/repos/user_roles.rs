@@ -6,11 +6,11 @@ use diesel;
 use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
 
-use models::user_role::user_roles::dsl::*;
-use models::{NewUserRole, OldUserRole, Role, UserRole};
 use super::acl::BoxedAcl;
 use super::error::RepoError as Error;
 use super::types::{DbConnection, RepoResult};
+use models::user_role::user_roles::dsl::*;
+use models::{NewUserRole, OldUserRole, Role, UserRole};
 
 /// UserRoles repository for handling UserRoles
 pub trait UserRolesRepo {
@@ -45,12 +45,7 @@ impl<'a> UserRolesRepo for UserRolesRepoImpl<'a> {
         query
             .get_results::<UserRole>(&**self.db_conn)
             .map_err(|e| Error::from(e))
-            .and_then(|user_roles_arg| {
-                Ok(user_roles_arg
-                    .into_iter()
-                    .map(|user_role| user_role.role)
-                    .collect::<Vec<Role>>())
-            })
+            .and_then(|user_roles_arg| Ok(user_roles_arg.into_iter().map(|user_role| user_role.role).collect::<Vec<Role>>()))
     }
 
     fn create(&self, payload: NewUserRole) -> RepoResult<UserRole> {
@@ -59,9 +54,7 @@ impl<'a> UserRolesRepo for UserRolesRepoImpl<'a> {
     }
 
     fn delete(&self, payload: OldUserRole) -> RepoResult<UserRole> {
-        let filtered = user_roles
-            .filter(user_id.eq(payload.user_id))
-            .filter(role.eq(payload.role));
+        let filtered = user_roles.filter(user_id.eq(payload.user_id)).filter(role.eq(payload.role));
         let query = diesel::delete(filtered);
         query.get_result(&**self.db_conn).map_err(Error::from)
     }
