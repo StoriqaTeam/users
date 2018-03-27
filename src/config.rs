@@ -51,7 +51,8 @@ pub struct SagaAddr {
 #[derive(Deserialize, Debug, Clone)]
 pub struct Notifications {
     pub url: String,
-    pub link_path: String,
+    pub verify_email_path: String,
+    pub reset_password_path: String,
 }
 
 /// Creates new app config struct

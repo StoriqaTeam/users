@@ -103,6 +103,7 @@ pub struct UpdateUser {
     pub gender: Option<Gender>,
     pub birthdate: Option<NaiveDate>,
     pub is_active: Option<bool>,
+    pub email_verified: Option<bool>,
 }
 
 impl UpdateUser {
