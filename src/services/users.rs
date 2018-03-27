@@ -98,6 +98,8 @@ impl UsersService for UsersServiceImpl {
         let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
 
+        debug!("Getting user {}", user_id);
+
         Box::new(self.cpu_pool.spawn_fn(move || {
             db_clone
                 .get()
@@ -116,6 +118,8 @@ impl UsersService for UsersServiceImpl {
             let db_clone = self.db_pool.clone();
             let roles_cache = self.roles_cache.clone();
             let current_uid = self.user_id.clone();
+
+            debug!("Fetching current user ({})", id);
 
             Box::new(self.cpu_pool.spawn_fn(move || {
                 db_clone
@@ -140,6 +144,8 @@ impl UsersService for UsersServiceImpl {
         let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
 
+        debug!("Fetching {} users starting from {}", count, from);
+
         Box::new(self.cpu_pool.spawn_fn(move || {
             db_clone
                 .get()
@@ -157,6 +163,8 @@ impl UsersService for UsersServiceImpl {
         let db_clone = self.db_pool.clone();
         let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
+
+        debug!("Deactivating user {}", &user_id);
 
         Box::new(self.cpu_pool.spawn_fn(move || {
             db_clone
@@ -176,6 +184,8 @@ impl UsersService for UsersServiceImpl {
         let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
 
+        debug!("Deleting user with saga ID {}", &saga_id);
+
         Box::new(self.cpu_pool.spawn_fn(move || {
             db_clone
                 .get()
@@ -193,6 +203,11 @@ impl UsersService for UsersServiceImpl {
         let db_clone = self.db_pool.clone();
         let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
+
+        debug!(
+            "Creating new user with payload: {:?} and user_payload: {:?}",
+            &payload, &user_payload
+        );
 
         Box::new(self.cpu_pool.spawn_fn(move || {
             db_clone
@@ -247,6 +262,8 @@ impl UsersService for UsersServiceImpl {
         let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
 
+        debug!("Updating user {} with payload: {:?}", &user_id, &payload);
+
         Box::new(self.cpu_pool.spawn_fn(move || {
             db_clone
                 .get()
@@ -268,6 +285,8 @@ impl UsersService for UsersServiceImpl {
         let email = email_arg.clone();
         let notif_config = self.notif_conf.clone();
 
+        debug!("Resetting password for email {}", &email_arg);
+
         Box::new(
             self.cpu_pool
                 .spawn_fn(move || {
@@ -282,6 +301,7 @@ impl UsersService for UsersServiceImpl {
                                 .find_by_email_provider(email.clone(), Provider::Email)
                                 .map_err(|_e| ServiceError::InvalidToken)
                                 .and_then(|ident| {
+                                    debug!("Found identity {:?}, generating reset token.", &ident);
                                     let new_token = Uuid::new_v4().to_string();
                                     let reset_token = ResetToken {
                                         token: new_token,
@@ -307,6 +327,7 @@ impl UsersService for UsersServiceImpl {
                     }).map_err(ServiceError::from)
                         .into_future()
                         .and_then(move |body| {
+                            debug!("Sending email request to notification service.");
                             http_clone
                                 .request::<String>(Method::Post, url, Some(body), None)
                                 .map(|_v| true)
@@ -320,6 +341,8 @@ impl UsersService for UsersServiceImpl {
         let db_clone = self.db_pool.clone();
         let http_clone = self.http_client.clone();
         let notif_config = self.notif_conf.clone();
+
+        debug!("Resetting password for token {}.", &token_arg);
 
         Box::new(
             self.cpu_pool
@@ -335,29 +358,35 @@ impl UsersService for UsersServiceImpl {
                                 .find_by_token(token_arg.clone())
                                 .map_err(|_e| ServiceError::InvalidToken)
                                 .and_then(|reset_token| {
+                                    debug!("Removing reset token {:?}.", &reset_token);
                                     reset_repo.delete(reset_token.token.clone()).map_err(|_e| {
                                         println!("Unable to delete token");
                                         ServiceError::Unknown("".to_string())
                                     })
                                 })
-                                .and_then(move |reset_token| match SystemTime::now().duration_since(reset_token.created_at) {
-                                    Ok(elapsed) => {
-                                        if elapsed.as_secs() < 3600 {
-                                            ident_repo
-                                                .find_by_email_provider(reset_token.email.clone(), Provider::Email)
-                                                .and_then(move |ident| {
-                                                    let update = UpdateIdentity {
-                                                        password: Some(Self::password_create(new_pass)),
-                                                    };
+                                .and_then(move |reset_token| {
+                                    debug!("Checking reset token's {:?} expiration", &reset_token);
+                                    match SystemTime::now().duration_since(reset_token.created_at) {
+                                        Ok(elapsed) => {
+                                            if elapsed.as_secs() < 3600 {
+                                                ident_repo
+                                                    .find_by_email_provider(reset_token.email.clone(), Provider::Email)
+                                                    .and_then(move |ident| {
+                                                        debug!("Token check successful, resetting password for identity {:?}", &ident);
+                                                        let update = UpdateIdentity {
+                                                            password: Some(Self::password_create(new_pass)),
+                                                        };
 
-                                                    ident_repo.update(ident, update)
-                                                })
-                                                .map_err(|_e| ServiceError::InvalidToken)
-                                        } else {
-                                            Err(ServiceError::InvalidToken)
+                                                        ident_repo.update(ident, update)
+                                                    })
+                                                    .map_err(|_e| ServiceError::InvalidToken)
+                                            } else {
+                                                error!("Token {:?} has expired", &reset_token);
+                                                Err(ServiceError::InvalidToken)
+                                            }
                                         }
+                                        Err(_) => Err(ServiceError::InvalidToken),
                                     }
-                                    Err(_) => Err(ServiceError::InvalidToken),
                                 })
                         })
                 })

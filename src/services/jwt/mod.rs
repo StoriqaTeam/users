@@ -131,13 +131,26 @@ where
                             let users_repo = UsersRepoImpl::new(&conn, Box::new(SystemACL::default()));
                             match status {
                                 ProfileStatus::ExistingProfile => {
-                                    service.get_id(profile, provider).wait().map(|id| (id, UserStatus::Exists))
+                                    debug!("User exists for this profile. Looking up ID.");
+                                    service
+                                        .get_id(profile, provider)
+                                        .inspect(move |id| debug!("Fetched user ID: {}", &id))
+                                        .map(|id| (id, UserStatus::Exists))
+                                        .wait()
                                 }
-                                ProfileStatus::NewUser => service
-                                    .create_profile(profile.clone(), provider)
-                                    .map(|id| (id, UserStatus::New(id))),
+                                ProfileStatus::NewUser => {
+                                    debug!("No user matches profile. Creating one");
+                                    service.create_profile(profile.clone(), provider).map(|id| {
+                                        debug!("Created user {} for profile.", &id);
+                                        (id, UserStatus::New(id))
+                                    })
+                                }
                                 ProfileStatus::NewIdentity => {
-                                    service.update_profile(users_repo, profile).map(|id| (id, UserStatus::New(id)))
+                                    debug!("User exists, tying new identity to them.");
+                                    service.update_profile(users_repo, profile).map(|id| {
+                                        debug!("Created identity for user {}", id);
+                                        (id, UserStatus::New(id))
+                                    })
                                 }
                             }
                         })

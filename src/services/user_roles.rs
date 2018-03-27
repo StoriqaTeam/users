@@ -48,6 +48,8 @@ impl UserRolesService for UserRolesServiceImpl {
         let db_pool = self.db_pool.clone();
         let cached_roles = self.cached_roles.clone();
 
+        debug!("Fetching user roles for ID {}", user_id);
+
         Box::new(self.cpu_pool.spawn_fn(move || {
             db_pool
                 .get()
@@ -61,6 +63,8 @@ impl UserRolesService for UserRolesServiceImpl {
         let db_pool = self.db_pool.clone();
         let cached_roles = self.cached_roles.clone();
         let user_id = payload.user_id;
+
+        debug!("Deleting user roles for ID {}", user_id);
 
         Box::new(self.cpu_pool.spawn_fn(move || {
             db_pool
@@ -80,6 +84,8 @@ impl UserRolesService for UserRolesServiceImpl {
         let cached_roles = self.cached_roles.clone();
         let user_id = new_user_role.user_id;
 
+        debug!("Creating user role: {:?}", &new_user_role);
+
         Box::new(self.cpu_pool.spawn_fn(move || {
             db_pool
                 .get()
@@ -98,6 +104,8 @@ impl UserRolesService for UserRolesServiceImpl {
         let cached_roles = self.cached_roles.clone();
         let user_id = user_id_arg.0;
 
+        debug!("Deleting default roles for user {}", &user_id_arg);
+
         Box::new(self.cpu_pool.spawn_fn(move || {
             db_pool
                 .get()
@@ -115,6 +123,8 @@ impl UserRolesService for UserRolesServiceImpl {
         let db_pool = self.db_pool.clone();
         let cached_roles = self.cached_roles.clone();
         let user_id = user_id_arg.0;
+
+        debug!("Creating default roles for user {}", &user_id);
 
         Box::new(self.cpu_pool.spawn_fn(move || {
             db_pool
