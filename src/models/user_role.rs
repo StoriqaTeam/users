@@ -19,14 +19,14 @@ pub struct UserRole {
     pub role: Role,
 }
 
-#[derive(Serialize, Deserialize, Insertable, Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize, Insertable)]
 #[table_name = "user_roles"]
 pub struct NewUserRole {
     pub user_id: i32,
     pub role: Role,
 }
 
-#[derive(Serialize, Deserialize, Insertable, Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize, Insertable)]
 #[table_name = "user_roles"]
 pub struct OldUserRole {
     pub user_id: i32,

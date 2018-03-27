@@ -69,7 +69,7 @@ pub struct User {
 }
 
 /// Payload for creating users
-#[derive(Serialize, Deserialize, Insertable, Validate, Clone)]
+#[derive(Debug, Serialize, Deserialize, Insertable, Validate, Clone)]
 #[table_name = "users"]
 pub struct NewUser {
     #[validate(email(message = "Invalid email format"))]
@@ -89,7 +89,7 @@ pub struct NewUser {
 }
 
 /// Payload for updating users
-#[derive(Serialize, Deserialize, Insertable, Validate, AsChangeset)]
+#[derive(Debug, Serialize, Deserialize, Insertable, Validate, AsChangeset)]
 #[table_name = "users"]
 pub struct UpdateUser {
     #[validate(custom = "validate_phone")]

@@ -30,7 +30,7 @@ pub struct Identity {
 }
 
 /// Payload for creating users
-#[derive(Serialize, Deserialize, Validate, Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize, Validate)]
 pub struct NewIdentity {
     #[validate(email(message = "Invalid email format"))]
     pub email: String,
@@ -40,7 +40,7 @@ pub struct NewIdentity {
     pub saga_id: String,
 }
 
-#[derive(Serialize, Deserialize, Validate, Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize, Validate)]
 pub struct NewEmailIdentity {
     #[validate(email(message = "Invalid email format"))]
     pub email: String,
@@ -49,7 +49,7 @@ pub struct NewEmailIdentity {
 }
 
 /// Payload for updating identity password
-#[derive(Serialize, Deserialize, Insertable, Validate, AsChangeset)]
+#[derive(Clone, Debug, Serialize, Deserialize, Insertable, Validate, AsChangeset)]
 #[table_name = "identities"]
 pub struct UpdateIdentity {
     #[validate(length(min = "8", max = "30", message = "Password should be between 8 and 30 symbols"))]
