@@ -15,7 +15,7 @@ pub use self::reset_token::*;
 pub use self::user::*;
 pub use self::user_role::*;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SagaCreateProfile {
     pub user: Option<NewUser>,
     pub identity: NewIdentity,
