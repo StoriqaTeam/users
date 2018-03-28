@@ -261,6 +261,9 @@ impl UsersService for UsersServiceImpl {
                                 };
 
                                 reset_repo
+                                    .delete_by_email(reset_token.email.clone());
+
+                                reset_repo
                                     .create(reset_token)
                                     .map(|token| (token, user))
                                     .map_err(|_e| ServiceError::Unknown("Cannot create reset token".to_string()))
@@ -272,9 +275,11 @@ impl UsersService for UsersServiceImpl {
                 let to = token.email.clone();
                 let subject = "Email verification".to_string();
                 let text = format!("{}/{}", notif_config.verify_email_path.clone(), token.token.clone());
+                let user_clone = user.clone();
 
                 Self::send_mail(http_clone.clone(), notif_config.clone(), to, subject, text)
                     .map(|_| user)
+                    .or_else(|_| future::ok(user_clone))
             })
         )
     }
@@ -315,6 +320,7 @@ impl UsersService for UsersServiceImpl {
                 let text = format!("{}/{}", notif_config.verify_email_path.clone(), token.token.clone());
 
                 Self::send_mail(http_clone.clone(), notif_config.clone(), to, subject, text)
+                    .or_else(|_| future::ok(true))
             })
         )
     }
@@ -380,6 +386,7 @@ impl UsersService for UsersServiceImpl {
                 let text = "Email for linked account has been verified".to_string();
 
                 Self::send_mail(http_clone.clone(), notif_config.clone(), to, subject, text)
+                    .or_else(|_| future::ok(true))
             })
         )
     }
@@ -444,6 +451,7 @@ impl UsersService for UsersServiceImpl {
                     let text = format!("{}/{}", notif_config.reset_password_path.clone(), token.token.clone());
 
                     Self::send_mail(http_clone.clone(), notif_config.clone(), to, subject, text)
+                        .or_else(|_| future::ok(true))
                 }),
         )
     }
@@ -501,6 +509,7 @@ impl UsersService for UsersServiceImpl {
                     let text = "Password for linked account has been successfully reset.".to_string();
 
                     Self::send_mail(http_clone.clone(), notif_config.clone(), to, subject, text)
+                        .or_else(|_| future::ok(true))
                 }),
         )
     }
