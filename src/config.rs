@@ -35,6 +35,7 @@ pub struct Client {
 #[derive(Debug, Deserialize, Clone)]
 pub struct JWT {
     pub secret_key: String,
+    pub check_email: bool,
 }
 
 /// Oauth 2.0 basic settings

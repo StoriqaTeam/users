@@ -1,5 +1,6 @@
 [jwt]
 secret_key = "jwt secret key"
+check_email = false
 
 [google]
 info_url = "https://www.googleapis.com/userinfo/v2/me"
