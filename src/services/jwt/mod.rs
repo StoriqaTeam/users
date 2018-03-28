@@ -3,28 +3,28 @@ pub mod profile;
 
 use std::str;
 
+use base64::decode;
+use diesel::Connection;
 use futures::future;
 use futures::{Future, IntoFuture};
 use futures_cpupool::CpuPool;
-use hyper::{Headers, Method};
 use hyper::header::{Authorization, Bearer};
+use hyper::{Headers, Method};
 use jsonwebtoken::{encode, Header};
-use sha3::{Digest, Sha3_256};
-use base64::decode;
 use serde;
 use serde_json;
-use diesel::Connection;
+use sha3::{Digest, Sha3_256};
 use stq_acl::SystemACL;
 use stq_http::client::ClientHandle;
 
+use self::profile::{Email, FacebookProfile, GoogleProfile, IntoUser};
 use config::{Config, JWT as JWTConfig, OAuth};
 use models::{self, JWTPayload, NewEmailIdentity, NewIdentity, NewUser, Provider, ProviderOauth, User, UserStatus, JWT};
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
-use repos::users::{UsersRepo, UsersRepoImpl};
 use repos::types::DbPool;
-use services::types::ServiceFuture;
+use repos::users::{UsersRepo, UsersRepoImpl};
 use services::error::ServiceError;
-use self::profile::{Email, FacebookProfile, GoogleProfile, IntoUser};
+use services::types::ServiceFuture;
 
 /// JWT services, responsible for JsonWebToken operations
 pub trait JWTService {
@@ -83,17 +83,16 @@ trait ProfileService<P: Email> {
     fn profile_status(&self, profile: P, provider: Provider) -> ServiceFuture<ProfileStatus>;
 
     fn create_jwt(&self, id: i32, status: UserStatus, secret: String) -> ServiceFuture<JWT> {
+        debug!("Creating token for user {}", id);
         let tokenpayload = JWTPayload::new(id);
         Box::new(
             encode(&Header::default(), &tokenpayload, secret.as_ref())
                 .map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}.", tokenpayload)))
                 .into_future()
-                .and_then(|t| {
-                    future::ok(JWT {
-                        token: t,
-                        status: status,
-                    })
-                }),
+                .inspect(move |token| {
+                    debug!("Token {} created successfully for id {}", token, id);
+                })
+                .and_then(move |token| future::ok(JWT { token, status })),
         )
     }
 
@@ -118,9 +117,7 @@ where
                 let provider = provider.clone();
                 move |profile| {
                     let profile_clone = profile.clone();
-                    service
-                        .profile_status(profile, provider)
-                        .map(|status| (status, profile_clone))
+                    service.profile_status(profile, provider).map(|status| (status, profile_clone))
                 }
             })
             .and_then({
@@ -130,24 +127,33 @@ where
 
                 move |(status, profile)| -> ServiceFuture<(i32, UserStatus)> {
                     Box::new(thread_pool.spawn_fn(move || {
-                        db_pool
-                            .get()
-                            .map_err(|e| ServiceError::Connection(e.into()))
-                            .and_then(move |conn| {
-                                let users_repo = UsersRepoImpl::new(&conn, Box::new(SystemACL::default()));
-                                match status {
-                                    ProfileStatus::ExistingProfile => service
+                        db_pool.get().map_err(|e| ServiceError::Connection(e.into())).and_then(move |conn| {
+                            let users_repo = UsersRepoImpl::new(&conn, Box::new(SystemACL::default()));
+                            match status {
+                                ProfileStatus::ExistingProfile => {
+                                    debug!("User exists for this profile. Looking up ID.");
+                                    service
                                         .get_id(profile, provider)
+                                        .inspect(move |id| debug!("Fetched user ID: {}", &id))
+                                        .map(|id| (id, UserStatus::Exists))
                                         .wait()
-                                        .map(|id| (id, UserStatus::Exists)),
-                                    ProfileStatus::NewUser => service
-                                        .create_profile(profile, provider)
-                                        .map(|id| (id, UserStatus::New(id))),
-                                    ProfileStatus::NewIdentity => service
-                                        .update_profile(users_repo, profile)
-                                        .map(|id| (id, UserStatus::New(id))),
                                 }
-                            })
+                                ProfileStatus::NewUser => {
+                                    debug!("No user matches profile. Creating one");
+                                    service.create_profile(profile.clone(), provider).map(|id| {
+                                        debug!("Created user {} for profile.", &id);
+                                        (id, UserStatus::New(id))
+                                    })
+                                }
+                                ProfileStatus::NewIdentity => {
+                                    debug!("User exists, tying new identity to them.");
+                                    service.update_profile(users_repo, profile).map(|id| {
+                                        debug!("Created identity for user {}", id);
+                                        (id, UserStatus::New(id))
+                                    })
+                                }
+                            }
+                        })
                     }))
                 }
             })
@@ -163,12 +169,7 @@ where
         Box::new(
             self.http_client
                 .request::<P>(Method::Get, url, None, headers)
-                .map_err(|e| {
-                    ServiceError::HttpClient(format!(
-                        "Failed to receive user info from provider. {}",
-                        e.to_string()
-                    ))
-                }),
+                .map_err(|e| ServiceError::HttpClient(format!("Failed to receive user info from provider. {}", e.to_string()))),
         )
     }
 
@@ -187,9 +188,7 @@ where
             },
         }).map_err(ServiceError::from)?;
 
-        let created_user = self.http_client
-            .request::<User>(Method::Post, url, Some(body), None)
-            .wait()?;
+        let created_user = self.http_client.request::<User>(Method::Post, url, Some(body), None).wait()?;
 
         Ok(created_user.id.0)
     }
@@ -205,10 +204,7 @@ where
                 if update_user.is_empty() {
                     Ok(user.id.0)
                 } else {
-                    users_repo
-                        .update(user.id, update_user)
-                        .map_err(ServiceError::from)
-                        .map(|u| u.id.0)
+                    users_repo.update(user.id, update_user).map_err(ServiceError::from).map(|u| u.id.0)
                 }
             })
     }
@@ -217,28 +213,25 @@ where
         Box::new({
             let db_pool = self.db_pool.clone();
             self.cpu_pool.spawn_fn(move || {
-                db_pool
-                    .get()
-                    .map_err(|e| ServiceError::Connection(e.into()))
-                    .and_then(move |conn| {
-                        let users_repo = UsersRepoImpl::new(&conn, Box::new(SystemACL::default()));
-                        let ident_repo = IdentitiesRepoImpl::new(&conn);
+                db_pool.get().map_err(|e| ServiceError::Connection(e.into())).and_then(move |conn| {
+                    let users_repo = UsersRepoImpl::new(&conn, Box::new(SystemACL::default()));
+                    let ident_repo = IdentitiesRepoImpl::new(&conn);
 
-                        conn.transaction(move || {
-                            users_repo
-                                .email_exists(profile.get_email())
-                                .and_then(|user_exists| match user_exists {
-                                    false => Ok(ProfileStatus::NewUser),
-                                    true => ident_repo
-                                        .email_provider_exists(profile.get_email(), provider)
-                                        .map(|identity_exists| match identity_exists {
-                                            false => ProfileStatus::NewIdentity,
-                                            true => ProfileStatus::ExistingProfile,
-                                        }),
-                                })
-                                .map_err(ServiceError::from)
-                        })
+                    conn.transaction(move || {
+                        users_repo
+                            .email_exists(profile.get_email())
+                            .and_then(|user_exists| match user_exists {
+                                false => Ok(ProfileStatus::NewUser),
+                                true => ident_repo
+                                    .email_provider_exists(profile.get_email(), provider)
+                                    .map(|identity_exists| match identity_exists {
+                                        false => ProfileStatus::NewIdentity,
+                                        true => ProfileStatus::ExistingProfile,
+                                    }),
+                            })
+                            .map_err(ServiceError::from)
                     })
+                })
             })
         })
     }
@@ -247,17 +240,14 @@ where
         Box::new({
             let db_pool = self.db_pool.clone();
             self.cpu_pool.spawn_fn(move || {
-                db_pool
-                    .get()
-                    .map_err(|e| ServiceError::Connection(e.into()))
-                    .and_then(move |conn| {
-                        let ident_repo = IdentitiesRepoImpl::new(&conn);
+                db_pool.get().map_err(|e| ServiceError::Connection(e.into())).and_then(move |conn| {
+                    let ident_repo = IdentitiesRepoImpl::new(&conn);
 
-                        ident_repo
-                            .find_by_email_provider(profile.get_email(), provider)
-                            .map_err(ServiceError::from)
-                            .map(|ident| ident.user_id.0)
-                    })
+                    ident_repo
+                        .find_by_email_provider(profile.get_email(), provider)
+                        .map_err(ServiceError::from)
+                        .map(|ident| ident.user_id.0)
+                })
             })
         })
     }

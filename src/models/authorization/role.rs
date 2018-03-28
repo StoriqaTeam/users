@@ -11,14 +11,14 @@ mod diesel_impl {
     use std::io::Write;
     use std::str;
 
+    use diesel::deserialize::Queryable;
+    use diesel::expression::AsExpression;
+    use diesel::expression::bound::Bound;
     use diesel::pg::Pg;
     use diesel::row::Row;
-    use diesel::expression::bound::Bound;
-    use diesel::expression::AsExpression;
-    use diesel::types::{FromSqlRow, IsNull, NotNull, SingleValue, ToSql};
     use diesel::serialize::Output;
-    use diesel::deserialize::Queryable;
     use diesel::sql_types::VarChar;
+    use diesel::types::{FromSqlRow, IsNull, NotNull, SingleValue, ToSql};
 
     use super::Role;
 

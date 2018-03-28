@@ -1,11 +1,11 @@
 //! Module containing info about User models
-use std::time::SystemTime;
 use chrono::NaiveDate;
+use std::time::SystemTime;
 
-use validator::{Validate, ValidationError};
 use regex::Regex;
 use std::borrow::Cow;
 use std::collections::HashMap;
+use validator::{Validate, ValidationError};
 
 use stq_acl::WithScope;
 
@@ -69,7 +69,7 @@ pub struct User {
 }
 
 /// Payload for creating users
-#[derive(Serialize, Deserialize, Insertable, Validate, Clone)]
+#[derive(Debug, Serialize, Deserialize, Insertable, Validate, Clone)]
 #[table_name = "users"]
 pub struct NewUser {
     #[validate(email(message = "Invalid email format"))]
@@ -89,7 +89,7 @@ pub struct NewUser {
 }
 
 /// Payload for updating users
-#[derive(Serialize, Deserialize, Insertable, Validate, AsChangeset)]
+#[derive(Debug, Serialize, Deserialize, Insertable, Validate, AsChangeset)]
 #[table_name = "users"]
 pub struct UpdateUser {
     #[validate(custom = "validate_phone")]

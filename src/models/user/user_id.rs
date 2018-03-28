@@ -1,10 +1,18 @@
 //! Module containing info about UserId and its impls of service traits for converting to integer in db
 
 // UserId type
+use std::fmt;
+use std::fmt::Display;
 use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UserId(pub i32);
+
+impl Display for UserId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 impl FromStr for UserId {
     type Err = (String);
@@ -23,11 +31,11 @@ mod diesel_impl {
     use diesel::expression::bound::Bound;
     use diesel::pg::Pg;
     use diesel::row::Row;
-    use diesel::types::{IsNull, ToSql};
     use diesel::serialize::Output;
+    use diesel::sql_types::*;
     use diesel::types::FromSql;
     use diesel::types::FromSqlRow;
-    use diesel::sql_types::*;
+    use diesel::types::{IsNull, ToSql};
     use std::error::Error;
     use std::io::Write;
 

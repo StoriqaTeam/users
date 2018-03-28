@@ -2,36 +2,36 @@
 
 use std::time::SystemTime;
 
-use futures::future;
-use futures::Future;
-use futures::IntoFuture;
-use futures_cpupool::CpuPool;
-use hyper::Method;
-use sha3::{Digest, Sha3_256};
-use rand;
-use rand::Rng;
 use base64::encode;
 use diesel::Connection;
-use uuid::Uuid;
+use futures::Future;
+use futures::IntoFuture;
+use futures::future;
+use futures_cpupool::CpuPool;
+use hyper::Method;
+use rand;
+use rand::Rng;
 use serde_json;
+use sha3::{Digest, Sha3_256};
+use uuid::Uuid;
 
 use stq_acl::UnauthorizedACL;
 use stq_acl::SystemACL;
 use stq_http::client::ClientHandle;
 
-use models::{NewUser, UpdateUser, User, UserId};
 use models::{NewIdentity, Provider, UpdateIdentity};
+use models::{NewUser, UpdateUser, User, UserId};
 use models::{ResetMail, ResetToken};
+use repos::acl::{ApplicationAcl, BoxedAcl, RolesCacheImpl};
 use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
-use repos::users::{UsersRepo, UsersRepoImpl};
 use repos::reset_token::{ResetTokenRepo, ResetTokenRepoImpl};
 use repos::types::DbPool;
-use repos::acl::{ApplicationAcl, BoxedAcl, RolesCacheImpl};
+use repos::users::{UsersRepo, UsersRepoImpl};
 
 use config::Notifications;
 
-use super::types::ServiceFuture;
 use super::error::ServiceError;
+use super::types::ServiceFuture;
 
 pub trait UsersService {
     /// Returns user by ID
@@ -105,6 +105,8 @@ impl UsersService for UsersServiceImpl {
         let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
 
+        debug!("Getting user {}", user_id);
+
         Box::new(self.cpu_pool.spawn_fn(move || {
             db_clone
                 .get()
@@ -123,6 +125,8 @@ impl UsersService for UsersServiceImpl {
             let db_clone = self.db_pool.clone();
             let roles_cache = self.roles_cache.clone();
             let current_uid = self.user_id.clone();
+
+            debug!("Fetching current user ({})", id);
 
             Box::new(self.cpu_pool.spawn_fn(move || {
                 db_clone
@@ -147,6 +151,8 @@ impl UsersService for UsersServiceImpl {
         let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
 
+        debug!("Fetching {} users starting from {}", count, from);
+
         Box::new(self.cpu_pool.spawn_fn(move || {
             db_clone
                 .get()
@@ -164,6 +170,8 @@ impl UsersService for UsersServiceImpl {
         let db_clone = self.db_pool.clone();
         let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
+
+        debug!("Deactivating user {}", &user_id);
 
         Box::new(self.cpu_pool.spawn_fn(move || {
             db_clone
@@ -183,6 +191,8 @@ impl UsersService for UsersServiceImpl {
         let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
 
+        debug!("Deleting user with saga ID {}", &saga_id);
+
         Box::new(self.cpu_pool.spawn_fn(move || {
             db_clone
                 .get()
@@ -190,9 +200,7 @@ impl UsersService for UsersServiceImpl {
                 .and_then(move |conn| {
                     let acl = acl_for_id(roles_cache.clone(), current_uid);
                     let mut users_repo = UsersRepoImpl::new(&conn, acl);
-                    users_repo
-                        .delete_by_saga_id(saga_id)
-                        .map_err(ServiceError::from)
+                    users_repo.delete_by_saga_id(saga_id).map_err(ServiceError::from)
                 })
         }))
     }
@@ -204,6 +212,11 @@ impl UsersService for UsersServiceImpl {
         let current_uid = self.user_id.clone();
         let http_clone = self.http_client.clone();
         let notif_config = self.notif_conf.clone();
+
+        debug!(
+            "Creating new user with payload: {:?} and user_payload: {:?}",
+            &payload, &user_payload
+        );
 
         Box::new(
             self.cpu_pool
@@ -408,6 +421,8 @@ impl UsersService for UsersServiceImpl {
         let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
 
+        debug!("Updating user {} with payload: {:?}", &user_id, &payload);
+
         Box::new(self.cpu_pool.spawn_fn(move || {
             db_clone
                 .get()
@@ -429,6 +444,8 @@ impl UsersService for UsersServiceImpl {
         let http_clone = self.http_client.clone();
         let notif_config = self.notif_conf.clone();
 
+        debug!("Resetting password for email {}", &email_arg);
+
         Box::new(
             self.cpu_pool
                 .spawn_fn(move || {
@@ -443,6 +460,7 @@ impl UsersService for UsersServiceImpl {
                                 .find_by_email_provider(email.clone(), Provider::Email)
                                 .map_err(|_e| ServiceError::InvalidToken)
                                 .and_then(|ident| {
+                                    debug!("Found identity {:?}, generating reset token.", &ident);
                                     let new_token = Uuid::new_v4().to_string();
                                     let reset_token = ResetToken {
                                         token: new_token,
@@ -475,6 +493,8 @@ impl UsersService for UsersServiceImpl {
         let http_clone = self.http_client.clone();
         let notif_config = self.notif_conf.clone();
 
+        debug!("Resetting password for token {}.", &token_arg);
+
         Box::new(
             self.cpu_pool
                 .spawn_fn(move || {
@@ -496,13 +516,15 @@ impl UsersService for UsersServiceImpl {
                                             ServiceError::Unknown("".to_string())
                                         })
                                 })
-                                .and_then(
-                                    move |reset_token| match SystemTime::now().duration_since(reset_token.created_at) {
+                                .and_then(move |reset_token| {
+                                    debug!("Checking reset token's {:?} expiration", &reset_token);
+                                    match SystemTime::now().duration_since(reset_token.created_at) {
                                         Ok(elapsed) => {
                                             if elapsed.as_secs() < 3600 {
                                                 ident_repo
                                                     .find_by_email_provider(reset_token.email.clone(), Provider::Email)
                                                     .and_then(move |ident| {
+                                                        debug!("Token check successful, resetting password for identity {:?}", &ident);
                                                         let update = UpdateIdentity {
                                                             password: Some(Self::password_create(new_pass)),
                                                         };
@@ -511,12 +533,13 @@ impl UsersService for UsersServiceImpl {
                                                     })
                                                     .map_err(|_e| ServiceError::InvalidToken)
                                             } else {
+                                                error!("Token {:?} has expired", &reset_token);
                                                 Err(ServiceError::InvalidToken)
                                             }
                                         }
                                         Err(_) => Err(ServiceError::InvalidToken),
-                                    },
-                                )
+                                    }
+                                })
                         })
                 })
                 .and_then(move |ident| {
@@ -530,10 +553,7 @@ impl UsersService for UsersServiceImpl {
     }
 
     fn password_create(clear_password: String) -> String {
-        let salt = rand::thread_rng()
-            .gen_ascii_chars()
-            .take(10)
-            .collect::<String>();
+        let salt = rand::thread_rng().gen_ascii_chars().take(10).collect::<String>();
         let pass = clear_password + &salt;
         let mut hasher = Sha3_256::default();
         hasher.input(pass.as_bytes());

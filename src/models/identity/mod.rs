@@ -4,7 +4,7 @@ pub mod identity;
 pub mod provider;
 
 pub use self::identity::Identity;
-pub use self::identity::NewIdentity;
 pub use self::identity::NewEmailIdentity;
+pub use self::identity::NewIdentity;
 pub use self::identity::UpdateIdentity;
 pub use self::provider::Provider;

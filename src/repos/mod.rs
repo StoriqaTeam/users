@@ -2,9 +2,9 @@
 
 #[macro_use]
 pub mod acl;
-pub mod users;
-pub mod user_roles;
-pub mod identities;
 pub mod error;
-pub mod types;
+pub mod identities;
 pub mod reset_token;
+pub mod types;
+pub mod user_roles;
+pub mod users;

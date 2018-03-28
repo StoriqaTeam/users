@@ -2,15 +2,15 @@
 
 use futures_cpupool::CpuPool;
 
-use stq_acl::SystemACL;
 use stq_acl::RolesCache;
+use stq_acl::SystemACL;
 
-use models::{NewUserRole, OldUserRole, Role, UserId, UserRole};
-use super::types::ServiceFuture;
 use super::error::ServiceError;
+use super::types::ServiceFuture;
+use models::{NewUserRole, OldUserRole, Role, UserId, UserRole};
+use repos::acl::RolesCacheImpl;
 use repos::types::DbPool;
 use repos::user_roles::{UserRolesRepo, UserRolesRepoImpl};
-use repos::acl::RolesCacheImpl;
 
 pub trait UserRolesService {
     /// Returns role by user ID
@@ -48,15 +48,13 @@ impl UserRolesService for UserRolesServiceImpl {
         let db_pool = self.db_pool.clone();
         let cached_roles = self.cached_roles.clone();
 
+        debug!("Fetching user roles for ID {}", user_id);
+
         Box::new(self.cpu_pool.spawn_fn(move || {
             db_pool
                 .get()
                 .map_err(|e| ServiceError::Connection(e.into()))
-                .and_then(move |conn| {
-                    cached_roles
-                        .get(user_id, Some(&conn))
-                        .map_err(ServiceError::from)
-                })
+                .and_then(move |conn| cached_roles.get(user_id, Some(&conn)).map_err(ServiceError::from))
         }))
     }
 
@@ -66,6 +64,8 @@ impl UserRolesService for UserRolesServiceImpl {
         let cached_roles = self.cached_roles.clone();
         let user_id = payload.user_id;
 
+        debug!("Deleting user roles for ID {}", user_id);
+
         Box::new(self.cpu_pool.spawn_fn(move || {
             db_pool
                 .get()
@@ -74,12 +74,7 @@ impl UserRolesService for UserRolesServiceImpl {
                     let user_roles_repo = UserRolesRepoImpl::new(&conn, Box::new(SystemACL::default()));
                     user_roles_repo.delete(payload).map_err(ServiceError::from)
                 })
-                .and_then(|user_role| {
-                    cached_roles
-                        .remove(user_id)
-                        .map(|_| user_role)
-                        .map_err(ServiceError::from)
-                })
+                .and_then(|user_role| cached_roles.remove(user_id).map(|_| user_role).map_err(ServiceError::from))
         }))
     }
 
@@ -89,22 +84,17 @@ impl UserRolesService for UserRolesServiceImpl {
         let cached_roles = self.cached_roles.clone();
         let user_id = new_user_role.user_id;
 
+        debug!("Creating user role: {:?}", &new_user_role);
+
         Box::new(self.cpu_pool.spawn_fn(move || {
             db_pool
                 .get()
                 .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
                     let user_roles_repo = UserRolesRepoImpl::new(&conn, Box::new(SystemACL::default()));
-                    user_roles_repo
-                        .create(new_user_role)
-                        .map_err(ServiceError::from)
+                    user_roles_repo.create(new_user_role).map_err(ServiceError::from)
                 })
-                .and_then(|user_role| {
-                    cached_roles
-                        .remove(user_id)
-                        .map(|_| user_role)
-                        .map_err(ServiceError::from)
-                })
+                .and_then(|user_role| cached_roles.remove(user_id).map(|_| user_role).map_err(ServiceError::from))
         }))
     }
 
@@ -114,22 +104,17 @@ impl UserRolesService for UserRolesServiceImpl {
         let cached_roles = self.cached_roles.clone();
         let user_id = user_id_arg.0;
 
+        debug!("Deleting default roles for user {}", &user_id_arg);
+
         Box::new(self.cpu_pool.spawn_fn(move || {
             db_pool
                 .get()
                 .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
                     let user_roles_repo = UserRolesRepoImpl::new(&conn, Box::new(SystemACL::default()));
-                    user_roles_repo
-                        .delete_by_user_id(user_id)
-                        .map_err(ServiceError::from)
+                    user_roles_repo.delete_by_user_id(user_id).map_err(ServiceError::from)
                 })
-                .and_then(|user_role| {
-                    cached_roles
-                        .remove(user_id)
-                        .map(|_| user_role)
-                        .map_err(ServiceError::from)
-                })
+                .and_then(|user_role| cached_roles.remove(user_id).map(|_| user_role).map_err(ServiceError::from))
         }))
     }
 
@@ -138,6 +123,8 @@ impl UserRolesService for UserRolesServiceImpl {
         let db_pool = self.db_pool.clone();
         let cached_roles = self.cached_roles.clone();
         let user_id = user_id_arg.0;
+
+        debug!("Creating default roles for user {}", &user_id);
 
         Box::new(self.cpu_pool.spawn_fn(move || {
             db_pool
@@ -149,16 +136,9 @@ impl UserRolesService for UserRolesServiceImpl {
                         role: Role::User,
                     };
                     let user_roles_repo = UserRolesRepoImpl::new(&conn, Box::new(SystemACL::default()));
-                    user_roles_repo
-                        .create(defaul_role)
-                        .map_err(ServiceError::from)
+                    user_roles_repo.create(defaul_role).map_err(ServiceError::from)
                 })
-                .and_then(|user_role| {
-                    cached_roles
-                        .remove(user_id)
-                        .map(|_| user_role)
-                        .map_err(ServiceError::from)
-                })
+                .and_then(|user_role| cached_roles.remove(user_id).map(|_| user_role).map_err(ServiceError::from))
         }))
     }
 }

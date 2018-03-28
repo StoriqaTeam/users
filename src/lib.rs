@@ -45,21 +45,21 @@ extern crate validator_derive;
 
 #[macro_use]
 pub mod macros;
+pub mod config;
 pub mod controller;
 pub mod models;
 pub mod repos;
 pub mod services;
-pub mod config;
 pub mod types;
 
-use std::sync::Arc;
 use std::process;
+use std::sync::Arc;
 
-use futures::{Future, Stream};
+use diesel::pg::PgConnection;
 use futures::future;
+use futures::{Future, Stream};
 use futures_cpupool::CpuPool;
 use hyper::server::Http;
-use diesel::pg::PgConnection;
 use r2d2_diesel::ConnectionManager;
 use tokio_core::reactor::Core;
 
@@ -89,22 +89,12 @@ pub fn start_server(config: Config) {
 
     // Prepare server
     let thread_count = config.server.thread_count.clone();
-    let address = config
-        .server
-        .address
-        .parse()
-        .expect("Address must be set in configuration");
+    let address = config.server.address.parse().expect("Address must be set in configuration");
 
     // Prepare database pool
-    let database_url: String = config
-        .server
-        .database
-        .parse()
-        .expect("Database URL must be set in configuration");
+    let database_url: String = config.server.database.parse().expect("Database URL must be set in configuration");
     let manager = ConnectionManager::<PgConnection>::new(database_url);
-    let db_pool = r2d2::Pool::builder()
-        .build(manager)
-        .expect("Failed to create connection pool");
+    let db_pool = r2d2::Pool::builder().build(manager).expect("Failed to create connection pool");
 
     // Prepare CPU pool
     let cpu_pool = CpuPool::new(thread_count);
@@ -135,10 +125,7 @@ pub fn start_server(config: Config) {
     handle.spawn(
         serve
             .for_each(move |conn| {
-                handle_arc2.spawn(
-                    conn.map(|_| ())
-                        .map_err(|why| error!("Server Error: {:?}", why)),
-                );
+                handle_arc2.spawn(conn.map(|_| ()).map_err(|why| error!("Server Error: {:?}", why)));
                 Ok(())
             })
             .map_err(|_| ()),
