@@ -18,6 +18,8 @@ pub enum Route {
     DefaultRole(UserId),
     PasswordResetRequest,
     PasswordResetApply,
+    EmailVerifyResend(String),
+    EmailVerifyApply(String),
 }
 
 pub fn create_route_parser() -> RouteParser<Route> {
@@ -81,6 +83,20 @@ pub fn create_route_parser() -> RouteParser<Route> {
 
     // /users/password_reset/apply/:token route
     router.add_route(r"^/users/password_reset/apply$", || Route::PasswordResetApply);
+
+    router.add_route_with_params(r"^/email_verify/resend/(.+)$", |params| {
+        params
+            .get(0)
+            .and_then(|string_id| string_id.parse::<String>().ok())
+            .map(|email| Route::EmailVerifyResend(email))
+    });
+
+    router.add_route_with_params(r"^/email_verify/apply/(.+)$", |params| {
+        params
+            .get(0)
+            .and_then(|string_id| string_id.parse::<String>().ok())
+            .map(|token| Route::EmailVerifyApply(token))
+    });
 
     router
 }

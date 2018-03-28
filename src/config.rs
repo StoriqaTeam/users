@@ -35,6 +35,7 @@ pub struct Client {
 #[derive(Debug, Deserialize, Clone)]
 pub struct JWT {
     pub secret_key: String,
+    pub check_email: bool,
 }
 
 /// Oauth 2.0 basic settings
@@ -51,7 +52,8 @@ pub struct SagaAddr {
 #[derive(Deserialize, Debug, Clone)]
 pub struct Notifications {
     pub url: String,
-    pub link_path: String,
+    pub verify_email_path: String,
+    pub reset_password_path: String,
 }
 
 /// Creates new app config struct

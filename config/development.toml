@@ -1,5 +1,6 @@
 [jwt]
 secret_key = "jwt secret key"
+check_email = false
 
 [google]
 info_url = "https://www.googleapis.com/userinfo/v2/me"
@@ -12,4 +13,5 @@ url = "http://saga:8004"
 
 [notifications]
 url = "http://notifications:8005"
-link_path = "https://localhost/password_reset"
+verify_email_path = "https://localhost/verify_email"
+reset_password_path = "https://localhost/password_reset"
