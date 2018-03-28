@@ -133,7 +133,7 @@ impl IntoUser for GoogleProfile {
             gender: None,
             birthdate: None,
             is_active: Some(true),
-            email_verified: None
+            email_verified: None,
         }
     }
 }

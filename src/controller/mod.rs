@@ -276,14 +276,14 @@ impl Controller for ControllerImpl {
             (&Post, Some(Route::EmailVerifyResend(email))) => serialize_future(
                 users_service
                     .resend_verification_link(email)
-                    .map_err(ControllerError::from)
+                    .map_err(ControllerError::from),
             ),
 
             // POST /email_verify/apply/<token>
             (&Post, Some(Route::EmailVerifyApply(token))) => serialize_future(
                 users_service
                     .verify_email(token)
-                    .map_err(ControllerError::from)
+                    .map_err(ControllerError::from),
             ),
 
             // Fallback

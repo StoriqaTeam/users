@@ -38,7 +38,6 @@ impl<'a> ResetTokenRepoImpl<'a> {
 }
 
 impl<'a> ResetTokenRepo for ResetTokenRepoImpl<'a> {
-
     fn create(&self, reset_token_arg: ResetToken) -> Result<ResetToken, RepoError> {
         let insert_query = diesel::insert_into(reset_tokens).values(&reset_token_arg);
 

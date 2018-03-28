@@ -291,11 +291,10 @@ impl JWTService for JWTServiceImpl {
                                     )),
                                     // email exists, checking password
                                     true => {
-                                        let email_verified =
-                                            users_repo
-                                                .find_by_email(new_ident.email.clone())
-                                                .map(|user| user.email_verified)
-                                                .unwrap_or(false);
+                                        let email_verified = users_repo
+                                            .find_by_email(new_ident.email.clone())
+                                            .map(|user| user.email_verified)
+                                            .unwrap_or(false);
 
                                         if check_email && !email_verified {
                                             Err(ServiceError::Validate(
