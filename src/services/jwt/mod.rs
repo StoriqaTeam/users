@@ -104,11 +104,11 @@ trait ProfileService<P: Email> {
 }
 
 impl<P> ProfileService<P> for JWTServiceImpl
-where
-    P: Email + Clone + Send + 'static,
-    NewUser: From<P>,
-    P: for<'a> serde::Deserialize<'a>,
-    P: IntoUser,
+    where
+        P: Email + Clone + Send + 'static,
+        NewUser: From<P>,
+        P: for<'a> serde::Deserialize<'a>,
+        P: IntoUser,
 {
     fn create_token(&self, provider: Provider, secret: String, info_url: String, headers: Option<Headers>) -> ServiceFuture<JWT> {
         let future = self.get_profile(info_url, headers)
@@ -258,7 +258,6 @@ impl JWTService for JWTServiceImpl {
     fn create_token_email(&self, payload: NewEmailIdentity) -> ServiceFuture<JWT> {
         let r2d2_clone = self.db_pool.clone();
         let jwt_secret_key = self.jwt_config.secret_key.clone();
-        let check_email = self.jwt_config.check_email.clone();
 
         Box::new(self.cpu_pool.spawn_fn(move || {
             r2d2_clone
@@ -266,7 +265,6 @@ impl JWTService for JWTServiceImpl {
                 .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
                     let ident_repo = IdentitiesRepoImpl::new(&conn);
-                    let mut users_repo = UsersRepoImpl::new(&conn, Box::new(SystemACL::default()));
 
                     conn.transaction::<JWT, ServiceError, _>(move || {
                         ident_repo
@@ -281,41 +279,27 @@ impl JWTService for JWTServiceImpl {
                                     )),
                                     // email exists, checking password
                                     true => {
-                                        let email_verified = users_repo
-                                            .find_by_email(new_ident.email.clone())
-                                            .map(|user| user.email_verified)
-                                            .unwrap_or(false);
-
-                                        if check_email && !email_verified {
-                                            Err(ServiceError::Validate(
-                                                validation_errors!({"email": ["email" => "Email not verified"]}),
-                                            ))
-                                        } else {
-                                            let new_ident_clone = new_ident.clone();
-                                            ident_repo
-                                                .find_by_email_provider(new_ident.email.clone(), Provider::Email)
-                                                .map_err(ServiceError::from)
-                                                .and_then(move |identity| {
-                                                    Self::password_verify(
-                                                        identity.password.unwrap().clone(),
-                                                        new_ident.password.clone(),
-                                                    )
-                                                })
-                                                .map(move |verified| (verified, new_ident_clone))
-                                                .and_then(move |(verified, new_ident)| -> Result<i32, ServiceError> {
-                                                    match verified {
-                                                        //password not verified
-                                                        false => Err(ServiceError::Validate(
-                                                            validation_errors!({"password": ["password" => "Wrong password"]}),
-                                                        )),
-                                                        //password verified
-                                                        true => ident_repo
-                                                            .find_by_email_provider(new_ident.email, Provider::Email)
-                                                            .map_err(ServiceError::from)
-                                                            .map(|ident| ident.user_id.0),
-                                                    }
-                                                })
-                                        }
+                                        let new_ident_clone = new_ident.clone();
+                                        ident_repo
+                                            .find_by_email_provider(new_ident.email.clone(), Provider::Email)
+                                            .map_err(ServiceError::from)
+                                            .and_then(move |identity| {
+                                                Self::password_verify(identity.password.unwrap().clone(), new_ident.password.clone())
+                                            })
+                                            .map(move |verified| (verified, new_ident_clone))
+                                            .and_then(move |(verified, new_ident)| -> Result<i32, ServiceError> {
+                                                match verified {
+                                                    //password not verified
+                                                    false => Err(ServiceError::Validate(
+                                                        validation_errors!({"password": ["password" => "Wrong password"]}),
+                                                    )),
+                                                    //password verified
+                                                    true => ident_repo
+                                                        .find_by_email_provider(new_ident.email, Provider::Email)
+                                                        .map_err(ServiceError::from)
+                                                        .map(|ident| ident.user_id.0),
+                                                }
+                                            })
                                     }
                                 }
                             })

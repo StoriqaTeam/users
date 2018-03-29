@@ -9,6 +9,10 @@ pub mod utils;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use diesel::Connection;
+use diesel::connection::AnsiTransactionManager;
+use diesel::pg::Pg;
+
 use futures::Future;
 use futures::IntoFuture;
 use futures::future;
@@ -24,11 +28,13 @@ use stq_http::request_util::parse_body;
 use stq_http::request_util::serialize_future;
 use stq_router::RouteParser;
 use validator::Validate;
+use r2d2::{ManageConnection, Pool};
 
 use self::routes::Route;
 use config::Config;
 use models;
 use repos::acl::RolesCacheImpl;
+use repos::repo_factory::*;
 use repos::types::DbPool;
 use services::jwt::{JWTService, JWTServiceImpl};
 use services::system::{SystemService, SystemServiceImpl};
@@ -36,18 +42,36 @@ use services::user_roles::{UserRolesService, UserRolesServiceImpl};
 use services::users::{UsersService, UsersServiceImpl};
 
 /// Controller handles route parsing and calling `Service` layer
-pub struct ControllerImpl {
-    pub db_pool: DbPool,
+pub struct ControllerImpl<T, M, F>
+    where
+        T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
+        M: ManageConnection<Connection = T>,
+        F: ReposFactory<T>,
+{
+    pub db_pool: Pool<M>,
     pub cpu_pool: CpuPool,
     pub route_parser: Arc<RouteParser<Route>>,
     pub config: Config,
     pub client_handle: ClientHandle,
     pub roles_cache: RolesCacheImpl,
+    pub repo_factory: F,
 }
 
-impl ControllerImpl {
+impl<
+    T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
+    M: ManageConnection<Connection = T>,
+    F: ReposFactory<T>,
+> ControllerImpl<T, M, F> {
     /// Create a new controller based on services
-    pub fn new(db_pool: DbPool, cpu_pool: CpuPool, client_handle: ClientHandle, config: Config, roles_cache: RolesCacheImpl) -> Self {
+    pub fn new(
+        db_pool: Pool<M>,
+        cpu_pool: CpuPool,
+        client_handle: ClientHandle,
+        config: Config,
+        roles_cache: RolesCacheImpl,
+        repo_factory: F,
+    ) -> Self {
+
         let route_parser = Arc::new(routes::create_route_parser());
         Self {
             route_parser,
@@ -56,11 +80,16 @@ impl ControllerImpl {
             client_handle,
             config,
             roles_cache,
+            repo_factory,
         }
     }
 }
 
-impl Controller for ControllerImpl {
+impl<
+    T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
+    M: ManageConnection<Connection = T>,
+    F: ReposFactory<T>,
+> Controller for ControllerImpl<T, M, F> {
     /// Handle a request and get future response
     fn call(&self, req: Request) -> ControllerFuture {
         let headers = req.headers().clone();
@@ -76,14 +105,21 @@ impl Controller for ControllerImpl {
             cached_roles.clone(),
             user_id,
             self.config.notifications.clone(),
+            self.repo_factory.clone(),
         );
         let jwt_service = JWTServiceImpl::new(
             self.db_pool.clone(),
             self.cpu_pool.clone(),
             self.client_handle.clone(),
             self.config.clone(),
+            Arc::new(Box::new(self.repo_factory.clone())),
         );
-        let user_roles_service = UserRolesServiceImpl::new(self.db_pool.clone(), self.cpu_pool.clone(), cached_roles);
+        let user_roles_service = UserRolesServiceImpl::new(
+            self.db_pool.clone(),
+            self.cpu_pool.clone(),
+            cached_roles,
+            self.repo_factory.clone(),
+        );
 
         match (req.method(), self.route_parser.test(req.path())) {
             // GET /healthcheck
@@ -246,13 +282,13 @@ impl Controller for ControllerImpl {
             // POST /roles/default/<user_id>
             (&Post, Some(Route::DefaultRole(user_id))) => {
                 debug!("Received request to add default role for user {}", user_id);
-                serialize_future(user_roles_service.create_default(user_id).map_err(ControllerError::from))
+                serialize_future(user_roles_service.create_default(user_id.0).map_err(ControllerError::from))
             }
 
             // DELETE /roles/default/<user_id>
             (&Delete, Some(Route::DefaultRole(user_id))) => {
                 debug!("Received request to delete default role for user {}", user_id);
-                serialize_future(user_roles_service.delete_default(user_id).map_err(ControllerError::from))
+                serialize_future(user_roles_service.delete_default(user_id.0).map_err(ControllerError::from))
             }
 
             // POST /users/password_reset/request

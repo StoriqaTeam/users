@@ -7,8 +7,6 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use validator::{Validate, ValidationError};
 
-use stq_acl::WithScope;
-
 use models::{Gender, NewIdentity, Scope, UserId};
 use repos::types::DbConnection;
 
@@ -110,15 +108,6 @@ impl UpdateUser {
     pub fn is_empty(&self) -> bool {
         self.phone.is_none() && self.first_name.is_none() && self.last_name.is_none() && self.middle_name.is_none() && self.gender.is_none()
             && self.birthdate.is_none()
-    }
-}
-
-impl WithScope<Scope> for User {
-    fn is_in_scope(&self, scope: &Scope, user_id: i32, _conn: Option<&DbConnection>) -> bool {
-        match *scope {
-            Scope::All => true,
-            Scope::Owned => self.id.0 == user_id,
-        }
     }
 }
 

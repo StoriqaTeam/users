@@ -1,7 +1,6 @@
 //! Models for managing Roles
 use models::{Role, Scope};
 use repos::types::DbConnection;
-use stq_acl::WithScope;
 
 table! {
     user_roles (id) {
@@ -31,13 +30,4 @@ pub struct NewUserRole {
 pub struct OldUserRole {
     pub user_id: i32,
     pub role: Role,
-}
-
-impl WithScope<Scope> for UserRole {
-    fn is_in_scope(&self, scope: &Scope, user_id: i32, _conn: Option<&DbConnection>) -> bool {
-        match *scope {
-            Scope::All => true,
-            Scope::Owned => self.user_id == user_id,
-        }
-    }
 }

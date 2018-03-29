@@ -68,6 +68,7 @@ use stq_http::controller::Application;
 
 use config::Config;
 use repos::acl::RolesCacheImpl;
+use repos::repo_factory::ReposFactoryImpl;
 
 /// Starts new web service from provided `Config`
 pub fn start_server(config: Config) {
@@ -101,6 +102,8 @@ pub fn start_server(config: Config) {
 
     let roles_cache = RolesCacheImpl::default();
 
+    let repo_factory = ReposFactoryImpl::new(roles_cache.clone());
+
     let serve = Http::new()
         .serve_addr_handle(&address, &handle, move || {
             let controller = Box::new(controller::ControllerImpl::new(
@@ -109,6 +112,7 @@ pub fn start_server(config: Config) {
                 client_handle.clone(),
                 config.clone(),
                 roles_cache.clone(),
+                repo_factory.clone(),
             ));
 
             // Prepare application
