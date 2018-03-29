@@ -1,6 +1,5 @@
 //! Models for managing Roles
-use models::{Role, Scope};
-use repos::types::DbConnection;
+use models::Role;
 
 table! {
     user_roles (id) {

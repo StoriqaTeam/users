@@ -97,7 +97,12 @@ impl IdentitiesRepo for IdentitiesRepoMock {
     }
 
     fn find_by_email_provider(&self, email_arg: String, provider_arg: Provider) -> RepoFuture<Identity> {
-        let ident = create_identity(email_arg, Some(password_create(MOCK_PASSWORD.to_string())), 1, provider_arg);
+        let ident = create_identity(
+            email_arg,
+            Some(password_create(MOCK_PASSWORD.to_string())),
+            1,
+            provider_arg,
+        );
         Box::new(futures::future::ok(ident))
     }
 }

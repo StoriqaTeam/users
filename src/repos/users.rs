@@ -18,7 +18,6 @@ use super::error::RepoError;
 use models::authorization::*;
 use models::user::user::users::dsl::*;
 use models::{NewUser, UpdateUser, User, UserId};
-use stq_acl::*;
 
 /// Users repository, responsible for handling users
 pub struct UsersRepoImpl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static> {
@@ -61,9 +60,18 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
     fn find(&mut self, user_id_arg: UserId) -> Result<User, RepoError> {
         let query = users.find(user_id_arg);
 
-        query.get_result(self.db_conn).map_err(RepoError::from).and_then(|user: User| {
-            acl::check(&*self.acl, &Resource::Users, &Action::Read, self, Some(&user)).and_then(|_| Ok(user))
-        })
+        query
+            .get_result(self.db_conn)
+            .map_err(RepoError::from)
+            .and_then(|user: User| {
+                acl::check(
+                    &*self.acl,
+                    &Resource::Users,
+                    &Action::Read,
+                    self,
+                    Some(&user),
+                ).and_then(|_| Ok(user))
+            })
     }
 
     fn email_exists(&self, email_arg: String) -> Result<bool, RepoError> {
@@ -83,13 +91,23 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
             .first::<User>(self.db_conn)
             .map_err(RepoError::from)
             .and_then(|user: User| {
-                acl::check(&*self.acl, &Resource::Users, &Action::Read, self, Some(&user)).and_then(|_| Ok(user))
+                acl::check(
+                    &*self.acl,
+                    &Resource::Users,
+                    &Action::Read,
+                    self,
+                    Some(&user),
+                ).and_then(|_| Ok(user))
             })
     }
 
     /// Returns list of users, limited by `from` and `count` parameters
     fn list(&mut self, from: i32, count: i64) -> Result<Vec<User>, RepoError> {
-        let query = users.filter(is_active.eq(true)).filter(id.ge(from)).order(id).limit(count);
+        let query = users
+            .filter(is_active.eq(true))
+            .filter(id.ge(from))
+            .order(id)
+            .limit(count);
 
         query
             .get_results(self.db_conn)
@@ -113,7 +131,9 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
     // TODO - set e-mail uniqueness in database
     fn create(&mut self, payload: NewUser) -> Result<User, RepoError> {
         let query_user = diesel::insert_into(users).values(&payload);
-        query_user.get_result::<User>(self.db_conn).map_err(RepoError::from)
+        query_user
+            .get_result::<User>(self.db_conn)
+            .map_err(RepoError::from)
     }
 
     /// Updates specific user
@@ -123,12 +143,22 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
         query
             .get_result(self.db_conn)
             .map_err(RepoError::from)
-            .and_then(|user: User| acl::check(&*self.acl, &Resource::Users, &Action::Write, self, Some(&user)))
+            .and_then(|user: User| {
+                acl::check(
+                    &*self.acl,
+                    &Resource::Users,
+                    &Action::Write,
+                    self,
+                    Some(&user),
+                )
+            })
             .and_then(|_| {
                 let filter = users.filter(id.eq(user_id_arg)).filter(is_active.eq(true));
 
                 let query = diesel::update(filter).set(&payload);
-                query.get_result::<User>(self.db_conn).map_err(RepoError::from)
+                query
+                    .get_result::<User>(self.db_conn)
+                    .map_err(RepoError::from)
             })
     }
 
@@ -139,7 +169,15 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
         query
             .get_result(self.db_conn)
             .map_err(RepoError::from)
-            .and_then(|user: User| acl::check(&*self.acl, &Resource::Users, &Action::Write, self, Some(&user)))
+            .and_then(|user: User| {
+                acl::check(
+                    &*self.acl,
+                    &Resource::Users,
+                    &Action::Write,
+                    self,
+                    Some(&user),
+                )
+            })
             .and_then(|_| {
                 let filter = users.filter(id.eq(user_id_arg)).filter(is_active.eq(true));
                 let query = diesel::update(filter).set(is_active.eq(false));
@@ -157,7 +195,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 }
 
 impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static> CheckScope<Scope, User>
-for UsersRepoImpl<'a, T>
+    for UsersRepoImpl<'a, T>
 {
     fn is_in_scope(&self, user_id_arg: i32, scope: &Scope, obj: Option<&User>) -> bool {
         match *scope {

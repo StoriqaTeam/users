@@ -7,8 +7,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use validator::{Validate, ValidationError};
 
-use models::{Gender, NewIdentity, Scope, UserId};
-use repos::types::DbConnection;
+use models::{Gender, NewIdentity, UserId};
 
 pub fn validate_phone(phone: &String) -> Result<(), ValidationError> {
     lazy_static! {

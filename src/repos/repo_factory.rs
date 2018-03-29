@@ -8,7 +8,7 @@ use stq_acl::{Acl, SystemACL, UnauthorizedACL};
 use repos::error::RepoError;
 
 pub trait ReposFactory<C: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static>
-: Clone + Send + 'static {
+    : Clone + Send + Sync + 'static {
     fn create_users_repo<'a>(&self, db_conn: &'a C, user_id: Option<i32>) -> Box<UsersRepo + 'a>;
     fn create_users_repo_with_sys_acl<'a>(&self, db_conn: &'a C) -> Box<UsersRepo + 'a>;
     fn create_identities_repo<'a>(&self, db_conn: &'a C) -> Box<IdentitiesRepo + 'a>;
@@ -73,7 +73,7 @@ impl<C: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 
     fn create_users_repo_with_sys_acl<'a>(&self, db_conn: &'a C) -> Box<UsersRepo + 'a> {
         Box::new(UsersRepoImpl::new(
             db_conn,
-            Box::new(SystemACL::default()) as Box<Acl<Resource, Action, Scope, RepoError, User>>
+            Box::new(SystemACL::default()) as Box<Acl<Resource, Action, Scope, RepoError, User>>,
         )) as Box<UsersRepo>
     }
 

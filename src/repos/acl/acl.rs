@@ -37,7 +37,10 @@ impl ApplicationAcl {
         let mut hash = ::std::collections::HashMap::new();
         hash.insert(
             Role::Superuser,
-            vec![permission!(Resource::Users), permission!(Resource::UserRoles)],
+            vec![
+                permission!(Resource::Users),
+                permission!(Resource::UserRoles),
+            ],
         );
         hash.insert(
             Role::User,
@@ -144,9 +147,21 @@ mod tests {
 
         let resources = vec![&resource as &WithScope<Scope>];
 
-        assert_eq!(acl.allows(Resource::Products, Action::All, &resources, None).unwrap(), true);
-        assert_eq!(acl.allows(Resource::Products, Action::Read, &resources, None).unwrap(), true);
-        assert_eq!(acl.allows(Resource::Products, Action::Create, &resources, None).unwrap(), true);
+        assert_eq!(
+            acl.allows(Resource::Products, Action::All, &resources, None)
+                .unwrap(),
+            true
+        );
+        assert_eq!(
+            acl.allows(Resource::Products, Action::Read, &resources, None)
+                .unwrap(),
+            true
+        );
+        assert_eq!(
+            acl.allows(Resource::Products, Action::Create, &resources, None)
+                .unwrap(),
+            true
+        );
     }
 
     #[test]
@@ -156,9 +171,21 @@ mod tests {
         let resource = create_store();
         let resources = vec![&resource as &WithScope];
 
-        assert_eq!(acl.allows(Resource::Products, Action::All, &resources, None).unwrap(), false);
-        assert_eq!(acl.allows(Resource::Products, Action::Read, &resources, None).unwrap(), true);
-        assert_eq!(acl.allows(Resource::Products, Action::Create, &resources, None).unwrap(), false);
+        assert_eq!(
+            acl.allows(Resource::Products, Action::All, &resources, None)
+                .unwrap(),
+            false
+        );
+        assert_eq!(
+            acl.allows(Resource::Products, Action::Read, &resources, None)
+                .unwrap(),
+            true
+        );
+        assert_eq!(
+            acl.allows(Resource::Products, Action::Create, &resources, None)
+                .unwrap(),
+            false
+        );
     }
 
     #[test]
@@ -172,9 +199,24 @@ mod tests {
         };
         let resources = vec![&resource as &WithScope<Scope>];
 
-        assert_eq!(group.allows(Resource::UserRoles, Action::All, &resources, None).unwrap(), true);
-        assert_eq!(group.allows(Resource::UserRoles, Action::Read, &resources, None).unwrap(), true);
-        assert_eq!(group.allows(Resource::UserRoles, Action::Create, &resources, None).unwrap(), true);
+        assert_eq!(
+            group
+                .allows(Resource::UserRoles, Action::All, &resources, None)
+                .unwrap(),
+            true
+        );
+        assert_eq!(
+            group
+                .allows(Resource::UserRoles, Action::Read, &resources, None)
+                .unwrap(),
+            true
+        );
+        assert_eq!(
+            group
+                .allows(Resource::UserRoles, Action::Create, &resources, None)
+                .unwrap(),
+            true
+        );
     }
 
     #[test]
@@ -189,15 +231,18 @@ mod tests {
         let resources = vec![&resource as &WithScope<Scope>];
 
         assert_eq!(
-            acl.allows(Resource::UserRoles, Action::All, resources.clone(), None).unwrap(),
+            acl.allows(Resource::UserRoles, Action::All, resources.clone(), None)
+                .unwrap(),
             false
         );
         assert_eq!(
-            acl.allows(Resource::UserRoles, Action::Read, resources.clone(), None).unwrap(),
+            acl.allows(Resource::UserRoles, Action::Read, resources.clone(), None)
+                .unwrap(),
             false
         );
         assert_eq!(
-            acl.allows(Resource::UserRoles, Action::Create, resources.clone(), None).unwrap(),
+            acl.allows(Resource::UserRoles, Action::Create, resources.clone(), None)
+                .unwrap(),
             false
         );
     }

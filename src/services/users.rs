@@ -18,17 +18,12 @@ use sha3::{Digest, Sha3_256};
 use uuid::Uuid;
 use r2d2::{ManageConnection, Pool};
 
-use stq_acl::UnauthorizedACL;
-use stq_acl::SystemACL;
 use stq_http::client::ClientHandle;
 
 use models::{NewIdentity, Provider, UpdateIdentity};
 use models::{NewUser, UpdateUser, User, UserId};
 use models::{ResetMail, ResetToken};
-use repos::acl::{ApplicationAcl, RolesCacheImpl};
-use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
-use repos::reset_token::{ResetTokenRepo, ResetTokenRepoImpl};
-use repos::users::{UsersRepo, UsersRepoImpl};
+use repos::acl::RolesCacheImpl;
 use repos::repo_factory::ReposFactory;
 
 use config::Notifications;
@@ -84,7 +79,8 @@ impl<
     T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
     M: ManageConnection<Connection = T>,
     F: ReposFactory<T>,
-> UsersServiceImpl<T, M, F> {
+> UsersServiceImpl<T, M, F>
+{
     pub fn new(
         db_pool: Pool<M>,
         cpu_pool: CpuPool,
@@ -110,11 +106,11 @@ impl<
     T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
     M: ManageConnection<Connection = T>,
     F: ReposFactory<T>,
-> UsersService for UsersServiceImpl<T, M, F> {
+> UsersService for UsersServiceImpl<T, M, F>
+{
     /// Returns user by ID
     fn get(&self, user_id: UserId) -> ServiceFuture<User> {
         let db_clone = self.db_pool.clone();
-        let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
         let repo_factory = self.repo_factory.clone();
 
@@ -135,7 +131,6 @@ impl<
     fn current(&self) -> ServiceFuture<User> {
         if let Some(id) = self.user_id {
             let db_clone = self.db_pool.clone();
-            let roles_cache = self.roles_cache.clone();
             let current_uid = self.user_id.clone();
             let repo_factory = self.repo_factory.clone();
 
@@ -160,7 +155,6 @@ impl<
     /// Lists users limited by `from` and `count` parameters
     fn list(&self, from: i32, count: i64) -> ServiceFuture<Vec<User>> {
         let db_clone = self.db_pool.clone();
-        let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
         let repo_factory = self.repo_factory.clone();
 
@@ -180,7 +174,6 @@ impl<
     /// Deactivates specific user
     fn deactivate(&self, user_id: UserId) -> ServiceFuture<User> {
         let db_clone = self.db_pool.clone();
-        let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
         let repo_factory = self.repo_factory.clone();
 
@@ -200,7 +193,6 @@ impl<
     /// Deactivates specific user
     fn delete_by_saga_id(&self, saga_id: String) -> ServiceFuture<User> {
         let db_clone = self.db_pool.clone();
-        let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
         let repo_factory = self.repo_factory.clone();
 
@@ -212,7 +204,9 @@ impl<
                 .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
                     let mut users_repo = repo_factory.create_users_repo(&conn, current_uid);
-                    users_repo.delete_by_saga_id(saga_id).map_err(ServiceError::from)
+                    users_repo
+                        .delete_by_saga_id(saga_id)
+                        .map_err(ServiceError::from)
                 })
         }))
     }
@@ -220,7 +214,6 @@ impl<
     /// Creates new user
     fn create(&self, payload: NewIdentity, user_payload: Option<NewUser>) -> ServiceFuture<User> {
         let db_clone = self.db_pool.clone();
-        let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
         let http_clone = self.http_client.clone();
         let notif_config = self.notif_conf.clone();
@@ -433,7 +426,6 @@ impl<
     /// Updates specific user
     fn update(&self, user_id: UserId, payload: UpdateUser) -> ServiceFuture<User> {
         let db_clone = self.db_pool.clone();
-        let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
         let repo_factory = self.repo_factory.clone();
 
@@ -541,7 +533,10 @@ impl<
                                                 ident_repo
                                                     .find_by_email_provider(reset_token.email.clone(), Provider::Email)
                                                     .and_then(move |ident| {
-                                                        debug!("Token check successful, resetting password for identity {:?}", &ident);
+                                                        debug!(
+                                                            "Token check successful, resetting password for identity {:?}",
+                                                            &ident
+                                                        );
                                                         let update = UpdateIdentity {
                                                             password: Some(Self::password_create(new_pass)),
                                                         };
@@ -570,7 +565,10 @@ impl<
     }
 
     fn password_create(clear_password: String) -> String {
-        let salt = rand::thread_rng().gen_ascii_chars().take(10).collect::<String>();
+        let salt = rand::thread_rng()
+            .gen_ascii_chars()
+            .take(10)
+            .collect::<String>();
         let pass = clear_password + &salt;
         let mut hasher = Sha3_256::default();
         hasher.input(pass.as_bytes());

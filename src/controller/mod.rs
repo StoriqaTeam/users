@@ -35,7 +35,6 @@ use config::Config;
 use models;
 use repos::acl::RolesCacheImpl;
 use repos::repo_factory::*;
-use repos::types::DbPool;
 use services::jwt::{JWTService, JWTServiceImpl};
 use services::system::{SystemService, SystemServiceImpl};
 use services::user_roles::{UserRolesService, UserRolesServiceImpl};
@@ -43,10 +42,10 @@ use services::users::{UsersService, UsersServiceImpl};
 
 /// Controller handles route parsing and calling `Service` layer
 pub struct ControllerImpl<T, M, F>
-    where
-        T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
-        M: ManageConnection<Connection = T>,
-        F: ReposFactory<T>,
+where
+    T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
+    M: ManageConnection<Connection = T>,
+    F: ReposFactory<T>,
 {
     pub db_pool: Pool<M>,
     pub cpu_pool: CpuPool,
@@ -61,7 +60,8 @@ impl<
     T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
     M: ManageConnection<Connection = T>,
     F: ReposFactory<T>,
-> ControllerImpl<T, M, F> {
+> ControllerImpl<T, M, F>
+{
     /// Create a new controller based on services
     pub fn new(
         db_pool: Pool<M>,
@@ -71,7 +71,6 @@ impl<
         roles_cache: RolesCacheImpl,
         repo_factory: F,
     ) -> Self {
-
         let route_parser = Arc::new(routes::create_route_parser());
         Self {
             route_parser,
@@ -89,12 +88,15 @@ impl<
     T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
     M: ManageConnection<Connection = T>,
     F: ReposFactory<T>,
-> Controller for ControllerImpl<T, M, F> {
+> Controller for ControllerImpl<T, M, F>
+{
     /// Handle a request and get future response
     fn call(&self, req: Request) -> ControllerFuture {
         let headers = req.headers().clone();
         let auth_header = headers.get::<Authorization<String>>();
-        let user_id = auth_header.map(move |auth| auth.0.clone()).and_then(|id| i32::from_str(&id).ok());
+        let user_id = auth_header
+            .map(move |auth| auth.0.clone())
+            .and_then(|id| i32::from_str(&id).ok());
 
         let cached_roles = self.roles_cache.clone();
         let system_service = SystemServiceImpl::new();
@@ -112,7 +114,7 @@ impl<
             self.cpu_pool.clone(),
             self.client_handle.clone(),
             self.config.clone(),
-            Arc::new(Box::new(self.repo_factory.clone())),
+            self.repo_factory.clone(),
         );
         let user_roles_service = UserRolesServiceImpl::new(
             self.db_pool.clone(),
@@ -143,12 +145,15 @@ impl<
             // GET /users
             (&Get, Some(Route::Users)) => {
                 if let (Some(from), Some(count)) = parse_query!(req.query().unwrap_or_default(), "from" => i32, "count" => i64) {
-                    debug!("Received request to get {} users starting from {}", count, from);
+                    debug!(
+                        "Received request to get {} users starting from {}",
+                        count, from
+                    );
                     serialize_future(users_service.list(from, count))
                 } else {
-                    Box::new(future::err(ControllerError::UnprocessableEntity(format_err!(
-                        "Error parsing request from gateway body"
-                    ))))
+                    Box::new(future::err(ControllerError::UnprocessableEntity(
+                        format_err!("Error parsing request from gateway body"),
+                    )))
                 }
             }
 
@@ -174,7 +179,9 @@ impl<
                                     saga_id: payload.identity.saga_id,
                                 };
 
-                                users_service.create(checked_new_ident, payload.user).map_err(ControllerError::from)
+                                users_service
+                                    .create(checked_new_ident, payload.user)
+                                    .map_err(ControllerError::from)
                             })
                     }),
             ),
@@ -194,7 +201,11 @@ impl<
                             .inspect(|_| {
                                 debug!("Validation success");
                             })
-                            .and_then(move |_| users_service.update(user_id, update_user).map_err(ControllerError::from))
+                            .and_then(move |_| {
+                                users_service
+                                    .update(user_id, update_user)
+                                    .map_err(ControllerError::from)
+                            })
                     }),
             ),
 
@@ -215,7 +226,10 @@ impl<
                 parse_body::<models::identity::NewEmailIdentity>(req.body())
                     .map_err(|e| ControllerError::UnprocessableEntity(e.into()))
                     .and_then(move |new_ident| {
-                        debug!("Received request to authenticate with email: {:?}", &new_ident);
+                        debug!(
+                            "Received request to authenticate with email: {:?}",
+                            &new_ident
+                        );
                         new_ident
                             .validate()
                             .map_err(|e| ControllerError::Validate(e))
@@ -229,7 +243,9 @@ impl<
                                     password: new_ident.password,
                                 };
 
-                                jwt_service.create_token_email(checked_new_ident).map_err(ControllerError::from)
+                                jwt_service
+                                    .create_token_email(checked_new_ident)
+                                    .map_err(ControllerError::from)
                             })
                     }),
             ),
@@ -239,18 +255,32 @@ impl<
                 parse_body::<models::jwt::ProviderOauth>(req.body())
                     .map_err(|e| ControllerError::UnprocessableEntity(e.into()))
                     .inspect(|payload| {
-                        debug!("Received request to authenticate with Google token: {:?}", &payload);
+                        debug!(
+                            "Received request to authenticate with Google token: {:?}",
+                            &payload
+                        );
                     })
-                    .and_then(move |oauth| jwt_service.create_token_google(oauth).map_err(ControllerError::from)),
+                    .and_then(move |oauth| {
+                        jwt_service
+                            .create_token_google(oauth)
+                            .map_err(ControllerError::from)
+                    }),
             ),
             // POST /jwt/facebook
             (&Post, Some(Route::JWTFacebook)) => serialize_future(
                 parse_body::<models::jwt::ProviderOauth>(req.body())
                     .map_err(|e| ControllerError::UnprocessableEntity(e.into()))
                     .inspect(|payload| {
-                        debug!("Received request to authenticate with Facebook token: {:?}", &payload);
+                        debug!(
+                            "Received request to authenticate with Facebook token: {:?}",
+                            &payload
+                        );
                     })
-                    .and_then(move |oauth| jwt_service.create_token_facebook(oauth).map_err(ControllerError::from)),
+                    .and_then(move |oauth| {
+                        jwt_service
+                            .create_token_facebook(oauth)
+                            .map_err(ControllerError::from)
+                    }),
             ),
 
             // GET /user_roles/<user_id>
@@ -266,7 +296,11 @@ impl<
                     .inspect(|payload| {
                         debug!("Received request to create role: {:?}", payload);
                     })
-                    .and_then(move |new_role| user_roles_service.create(new_role).map_err(ControllerError::from)),
+                    .and_then(move |new_role| {
+                        user_roles_service
+                            .create(new_role)
+                            .map_err(ControllerError::from)
+                    }),
             ),
 
             // DELETE /user_roles/<user_role_id>
@@ -276,19 +310,34 @@ impl<
                     .inspect(|payload| {
                         debug!("Received request to remove role: {:?}", payload);
                     })
-                    .and_then(move |old_role| user_roles_service.delete(old_role).map_err(ControllerError::from)),
+                    .and_then(move |old_role| {
+                        user_roles_service
+                            .delete(old_role)
+                            .map_err(ControllerError::from)
+                    }),
             ),
 
             // POST /roles/default/<user_id>
             (&Post, Some(Route::DefaultRole(user_id))) => {
                 debug!("Received request to add default role for user {}", user_id);
-                serialize_future(user_roles_service.create_default(user_id.0).map_err(ControllerError::from))
+                serialize_future(
+                    user_roles_service
+                        .create_default(user_id.0)
+                        .map_err(ControllerError::from),
+                )
             }
 
             // DELETE /roles/default/<user_id>
             (&Delete, Some(Route::DefaultRole(user_id))) => {
-                debug!("Received request to delete default role for user {}", user_id);
-                serialize_future(user_roles_service.delete_default(user_id.0).map_err(ControllerError::from))
+                debug!(
+                    "Received request to delete default role for user {}",
+                    user_id
+                );
+                serialize_future(
+                    user_roles_service
+                        .delete_default(user_id.0)
+                        .map_err(ControllerError::from),
+                )
             }
 
             // POST /users/password_reset/request
@@ -303,7 +352,11 @@ impl<
                             .validate()
                             .map_err(|e| ControllerError::Validate(e))
                             .into_future()
-                            .and_then(move |_| users_service.password_reset_request(reset_req.email).map_err(ControllerError::from))
+                            .and_then(move |_| {
+                                users_service
+                                    .password_reset_request(reset_req.email)
+                                    .map_err(ControllerError::from)
+                            })
                     }),
             ),
 
