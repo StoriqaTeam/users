@@ -3,8 +3,10 @@ include!("tests_setup.rs");
 
 #[test]
 fn test_jwt_email() {
-    let (mut core, service) = create_jwt_service();
-    let new_user = create_new_identity(MOCK_EMAIL.to_string(), MOCK_PASSWORD.to_string());
+    let mut core = Core::new().unwrap();
+    let handle = Arc::new(core.handle());
+    let service = create_jwt_service(handle);
+    let new_user = create_new_email_identity(MOCK_EMAIL.to_string(), MOCK_PASSWORD.to_string());
     let work = service.create_token_email(new_user);
     let result = core.run(work).unwrap();
     assert_eq!(
@@ -15,8 +17,10 @@ fn test_jwt_email() {
 
 #[test]
 fn test_jwt_email_not_found() {
-    let (mut core, service) = create_jwt_service();
-    let new_user = create_new_identity("not found email".to_string(), MOCK_PASSWORD.to_string());
+    let mut core = Core::new().unwrap();
+    let handle = Arc::new(core.handle());
+    let service = create_jwt_service(handle);
+    let new_user = create_new_email_identity("not found email".to_string(), MOCK_PASSWORD.to_string());
     let work = service.create_token_email(new_user);
     let result = core.run(work);
     assert_eq!(result.is_err(), true);
@@ -24,8 +28,10 @@ fn test_jwt_email_not_found() {
 
 #[test]
 fn test_jwt_password_incorrect() {
-    let (mut core, service) = create_jwt_service();
-    let new_user = create_new_identity(MOCK_EMAIL.to_string(), "wrong password".to_string());
+    let mut core = Core::new().unwrap();
+    let handle = Arc::new(core.handle());
+    let service = create_jwt_service(handle);
+    let new_user = create_new_email_identity(MOCK_EMAIL.to_string(), "wrong password".to_string());
     let work = service.create_token_email(new_user);
     let result = core.run(work);
     assert_eq!(result.is_err(), true);
@@ -35,7 +41,9 @@ fn test_jwt_password_incorrect() {
 #[test]
 #[ignore]
 fn test_jwt_google() {
-    let (mut core, service) = create_jwt_service();
+    let mut core = Core::new().unwrap();
+    let handle = Arc::new(core.handle());
+    let service = create_jwt_service(handle);
     let oauth = ProviderOauth {
         token: GOOGLE_TOKEN.to_string(),
     };
@@ -48,7 +56,9 @@ fn test_jwt_google() {
 #[test]
 #[ignore]
 fn test_jwt_facebook() {
-    let (mut core, service) = create_jwt_service();
+    let mut core = Core::new().unwrap();
+    let handle = Arc::new(core.handle());
+    let service = create_jwt_service(handle);
     let oauth = ProviderOauth {
         token: FACEBOOK_TOKEN.to_string(),
     };

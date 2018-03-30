@@ -9,6 +9,7 @@ extern crate tokio_core;
 extern crate users_lib;
 extern crate diesel;
 extern crate r2d2;
+extern crate stq_http;
 
 use std::time::SystemTime;
 use std::sync::Arc;
@@ -16,10 +17,11 @@ use std::error::Error;
 use std::fmt;
 
 use base64::encode;
-use futures::Stream;
+use futures::prelude::*;
 use futures_cpupool::CpuPool;
 use sha3::{Digest, Sha3_256};
 use tokio_core::reactor::Core;
+use tokio_core::reactor::Handle;
 
 use r2d2::ManageConnection;
 
@@ -36,8 +38,9 @@ use diesel::deserialize::QueryableByName;
 use diesel::connection::AnsiTransactionManager;
 use diesel::connection::SimpleConnection;
 
+use stq_http::client::Config as HttpConfig;
+
 use users_lib::config::Config;
-use users_lib::stq_http::client::{Client, ClientHandle};
 use users_lib::models::*;
 use users_lib::models::authorization::*;
 use users_lib::repos::repo_factory::ReposFactory;
@@ -48,6 +51,7 @@ use users_lib::repos::reset_token::ResetTokenRepo;
 use users_lib::repos::user_roles::UserRolesRepo;
 use users_lib::services::jwt::{JWTService, JWTServiceImpl};
 use users_lib::services::users::{UsersService, UsersServiceImpl};
+use users_lib::config::Notifications;
 
 #[derive(Default, Copy, Clone)]
 pub struct ReposFactoryMock;
@@ -78,7 +82,7 @@ impl<C: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 
 pub struct UsersRepoMock;
 
 impl UsersRepo for UsersRepoMock {
-    fn find(&self, user_id: i32) -> Result<User, RepoError> {
+    fn find(&mut self, user_id: UserId) -> Result<User, RepoError> {
         let user = create_user(user_id, MOCK_EMAIL.to_string());
         Ok(user)
     }
@@ -87,38 +91,38 @@ impl UsersRepo for UsersRepoMock {
         Ok(email_arg == MOCK_EMAIL.to_string())
     }
 
-    fn find_by_email(&self, email_arg: String) -> Result<User, RepoError> {
-        let user = create_user(1, email_arg);
+    fn find_by_email(&mut self, email_arg: String) -> Result<User, RepoError> {
+        let user = create_user(UserId(1), email_arg);
         Ok(user)
     }
 
-    fn list(&self, from: i32, count: i64) -> Result<Vec<User>, RepoError> {
+    fn list(&mut self, from: i32, count: i64) -> Result<Vec<User>, RepoError> {
         let mut users = vec![];
         for i in from..(from + count as i32) {
-            let user = create_user(i, MOCK_EMAIL.to_string());
+            let user = create_user(UserId(i), MOCK_EMAIL.to_string());
             users.push(user);
         }
         Ok(users)
     }
 
-    fn create(&self, payload: NewUser) -> Result<User, RepoError> {
-        let user = create_user(1, payload.email);
+    fn create(&mut self, payload: NewUser) -> Result<User, RepoError> {
+        let user = create_user(UserId(1), payload.email);
         Ok(user)
     }
 
-    fn update(&self, user_id: i32, _payload: UpdateUser) -> Result<User, RepoError> {
+    fn update(&mut self, user_id: UserId, _payload: UpdateUser) -> Result<User, RepoError> {
         let user = create_user(user_id, MOCK_EMAIL.to_string());
         Ok(user)
     }
 
-    fn deactivate(&self, user_id: i32) -> Result<User, RepoError> {
+    fn deactivate(&mut self, user_id: UserId) -> Result<User, RepoError> {
         let mut user = create_user(user_id, MOCK_EMAIL.to_string());
         user.is_active = false;
         Ok(user)
     }
 
     fn delete_by_saga_id(&mut self, saga_id_arg: String) -> Result<User, RepoError> {
-        let user = create_user(1, payload.email);
+        let user = create_user(UserId(1), MOCK_EMAIL.to_string());
         Ok(user)
     }
 }
@@ -131,35 +135,33 @@ impl IdentitiesRepo for IdentitiesRepoMock {
         Ok(email_arg == MOCK_EMAIL.to_string() && provider_arg == Provider::Email)
     }
 
-    fn create(&self, email: String, password: Option<String>, provider_arg: Provider, user_id: i32, saga_id: String) -> Result<Identity, RepoError> {
-        let ident = create_identity(email, password, user_id, provider_arg, MOCK_SAGA_ID);
+    fn create(&self, email: String, password: Option<String>, provider_arg: Provider, user_id: UserId, saga_id: String) -> Result<Identity, RepoError> {
+        let ident = create_identity(email, password, user_id, provider_arg, MOCK_SAGA_ID.to_string());
         Ok(ident)
     }
 
     fn verify_password(&self, email_arg: String, password_arg: String) -> Result<bool, RepoError> {
-        Box::new(futures::future::ok(
-            email_arg == MOCK_EMAIL.to_string() && password_arg == password_create(MOCK_PASSWORD.to_string()),
-        ))
+        Ok(email_arg == MOCK_EMAIL.to_string() && password_arg == password_create(MOCK_PASSWORD.to_string()))
     }
 
     fn find_by_email_provider(&self, email_arg: String, provider_arg: Provider) -> Result<Identity, RepoError> {
         let ident = create_identity(
             email_arg,
             Some(password_create(MOCK_PASSWORD.to_string())),
-            1,
+            UserId(1),
             provider_arg,
-            MOCK_SAGA_ID
+            MOCK_SAGA_ID.to_string()
         );
         Ok(ident)
     }
 
     fn update(&self, ident: Identity, update: UpdateIdentity) -> Result<Identity, RepoError> {
         let ident = create_identity(
-            email_arg,
+            ident.email,
             update.password,
-            1,
-            provider_arg,
-            MOCK_SAGA_ID
+            UserId(1),
+            ident.provider,
+            ident.saga_id
         );
         Ok(ident)
     }
@@ -256,10 +258,9 @@ impl UserRolesRepo for UserRolesRepoMock {
     }
 }
 
-pub fn new_users_service(
-    users_repo: UsersRepoMock,
-    ident_repo: IdentitiesRepoMock,
+fn create_users_service(
     user_id: Option<i32>,
+    handle: Arc<Handle>,
 ) -> UsersServiceImpl<MockConnection, MockConnectionManager, ReposFactoryMock> {
     let manager = MockConnectionManager::default();
     let db_pool = r2d2::Pool::builder()
@@ -275,25 +276,24 @@ pub fn new_users_service(
     let client = stq_http::client::Client::new(&http_config, &handle);
     let client_handle = client.handle();
 
-    UsersServiceImpl {
-        db_pool: db_pool,
-        cpu_pool: cpu_pool,
-        http_client: client_handle,
-        user_id: user_id,
-        notif_conf: NOTIF_CONFIG_MOCK,
-        repo_factory: MOCK_REPO_FACTORY,
-    }
+    let notif_config = Notifications {
+        url: "url".to_string(),
+        verify_email_path: "verify_email_path".to_string(),
+        reset_password_path: "reset_password_path".to_string(),
+    };
+
+    UsersServiceImpl::new(
+        db_pool,
+        cpu_pool,
+        client_handle,
+        user_id,
+        notif_config,
+        MOCK_REPO_FACTORY,
+    )
 }
 
-fn create_users_service(users_id: Option<i32>) -> UsersServiceImpl<UsersRepoMock, IdentitiesRepoMock, AclImplMock> {
-    new_users_service(MOCK_USERS, MOCK_IDENT, users_id)
-}
-
-pub fn new_jwt_service(
-    users_repo: UsersRepoMock,
-    ident_repo: IdentitiesRepoMock,
-    http_client: ClientHandle,
-    config: Config,
+fn create_jwt_service(
+    handle: Arc<Handle>,
 ) -> JWTServiceImpl<MockConnection, MockConnectionManager, ReposFactoryMock> {
     let manager = MockConnectionManager::default();
     let db_pool = r2d2::Pool::builder()
@@ -309,31 +309,16 @@ pub fn new_jwt_service(
     let client = stq_http::client::Client::new(&http_config, &handle);
     let client_handle = client.handle();
 
-    JWTServiceImpl {
-        db_pool: db_pool,
-        cpu_pool: cpu_pool,
-        http_client: client_handle,
-        saga_addr: "saga_addr",
-        google_config: config.google,
-        facebook_config: config.facebook,
-        jwt_config: config.jwt,
-        repo_factory: MOCK_REPO_FACTORY,
-    }
+    JWTServiceImpl::new(
+        db_pool,
+        cpu_pool,
+        client_handle,
+        config,
+        MOCK_REPO_FACTORY,
+    )
 }
 
-fn create_jwt_service() -> (Core, JWTServiceImpl<MockConnection, MockConnectionManager, ReposFactoryMock>) {
-    let config = Config::new().unwrap();
-    let core = Core::new().expect("Unexpected error creating event loop core");
-    let handle = Arc::new(core.handle());
-    let client = Client::new(&config, &handle);
-    let client_handle = client.handle();
-    let client_stream = client.stream();
-    handle.spawn(client_stream.for_each(|_| Ok(())));
-    let service = new_jwt_service(MOCK_USERS, MOCK_IDENT, client_handle, config);
-    (core, service)
-}
-
-fn create_user(id: i32, email: String) -> User {
+fn create_user(id: UserId, email: String) -> User {
     User {
         id: id,
         email: email,
@@ -356,9 +341,16 @@ fn create_user(id: i32, email: String) -> User {
 fn create_new_identity(email: String, password: String, provider: Provider, saga_id: String) -> NewIdentity {
     NewIdentity {
         email,
-        password,
+        password: Some(password),
         provider,
         saga_id,
+    }
+}
+
+fn create_new_email_identity(email: String, password: String) -> NewEmailIdentity {
+    NewEmailIdentity {
+        email,
+        password,
     }
 }
 
@@ -375,7 +367,7 @@ fn create_update_user(_email: String) -> UpdateUser {
     }
 }
 
-fn create_identity(email: String, password: Option<String>, user_id: i32, provider: Provider, saga_id: String) -> Identity {
+fn create_identity(email: String, password: Option<String>, user_id: UserId, provider: Provider, saga_id: String) -> Identity {
     Identity {
         email,
         password,
