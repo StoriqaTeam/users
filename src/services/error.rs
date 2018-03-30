@@ -49,9 +49,10 @@ impl From<RepoError> for ServiceError {
             RepoError::Connection(e) => ServiceError::Database(RepoError::Connection(e).into()),
             RepoError::InvalidToken => ServiceError::InvalidToken,
             RepoError::Unknown(e) => ServiceError::Database(RepoError::Unknown(e).into()),
-            RepoError::Unauthorized(res, act) => {
-                ServiceError::Unauthorized(format!("Unauthorized access: Resource: {}, Action: {}", res, act))
-            }
+            RepoError::Unauthorized(res, act) => ServiceError::Unauthorized(format!(
+                "Unauthorized access: Resource: {}, Action: {}",
+                res, act
+            )),
         }
     }
 }

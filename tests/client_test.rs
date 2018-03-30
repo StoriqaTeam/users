@@ -1,23 +1,25 @@
 extern crate futures;
 extern crate hyper;
 extern crate serde_json;
+extern crate stq_http;
 extern crate tokio_core;
 extern crate users_lib;
 
-use std::io::{Read, Write};
-use std::net::TcpListener;
-use std::str::from_utf8;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
+use std::net::TcpListener;
+use std::io::{Read, Write};
+use std::str::from_utf8;
 
-use futures::sync::oneshot;
-use futures::{Future, Stream};
 use hyper::Method;
 use tokio_core::reactor::Core;
+use futures::{Future, Stream};
+use futures::sync::oneshot;
 
+use stq_http::client::{Client, Error};
+use stq_http::client::Config as HttpConfig;
 use users_lib::config::Config;
-use users_lib::http::client::{Client, Error};
 
 #[test]
 fn test_request() {
@@ -49,14 +51,22 @@ fn test_request() {
                 };
             }
 
-            let out = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}", message_str.len(), message_str);
+            let out = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}",
+                message_str.len(),
+                message_str
+            );
             inc.write_all(out.as_ref()).unwrap();
             let _ = tx.send(());
         })
         .unwrap();
 
     let config = Config::new().unwrap();
-    let client = Client::new(&config, &handle);
+    let http_config = HttpConfig {
+        http_client_retries: config.client.http_client_retries,
+        http_client_buffer_size: config.client.http_client_buffer_size,
+    };
+    let client = stq_http::client::Client::new(&http_config, &handle);
     let client_handle = client.handle();
     let client_stream = client.stream();
     handle.spawn(client_stream.for_each(|_| Ok(())));

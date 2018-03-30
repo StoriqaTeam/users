@@ -4,6 +4,8 @@ use std::time::SystemTime;
 
 use base64::encode;
 use diesel::Connection;
+use diesel::connection::AnsiTransactionManager;
+use diesel::pg::Pg;
 use futures::Future;
 use futures::IntoFuture;
 use futures::future;
@@ -14,19 +16,14 @@ use rand::Rng;
 use serde_json;
 use sha3::{Digest, Sha3_256};
 use uuid::Uuid;
+use r2d2::{ManageConnection, Pool};
 
-use stq_acl::UnauthorizedACL;
-use stq_acl::SystemACL;
 use stq_http::client::ClientHandle;
 
 use models::{NewIdentity, Provider, UpdateIdentity};
 use models::{NewUser, UpdateUser, User, UserId};
 use models::{ResetMail, ResetToken};
-use repos::acl::{ApplicationAcl, BoxedAcl, RolesCacheImpl};
-use repos::identities::{IdentitiesRepo, IdentitiesRepoImpl};
-use repos::reset_token::{ResetTokenRepo, ResetTokenRepoImpl};
-use repos::types::DbPool;
-use repos::users::{UsersRepo, UsersRepoImpl};
+use repos::repo_factory::ReposFactory;
 
 use config::Notifications;
 
@@ -52,58 +49,66 @@ pub trait UsersService {
     fn verify_email(&self, token_arg: String) -> ServiceFuture<bool>;
     /// Updates specific user
     fn update(&self, user_id: UserId, payload: UpdateUser) -> ServiceFuture<User>;
-    /// Creates hashed password
-    fn password_create(clear_password: String) -> String;
     /// Request password reset
     fn password_reset_request(&self, email_arg: String) -> ServiceFuture<bool>;
     /// Apply password reset
     fn password_reset_apply(&self, email_arg: String, token_arg: String) -> ServiceFuture<bool>;
+    /// Creates hashed password
+    fn password_create(clear_password: String) -> String;
     /// Send email
     fn send_mail(http_client: ClientHandle, notif_config: Notifications, to: String, subject: String, text: String) -> ServiceFuture<bool>;
 }
 
 /// Users services, responsible for User-related CRUD operations
-pub struct UsersServiceImpl {
-    pub db_pool: DbPool,
+pub struct UsersServiceImpl<
+    T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
+    M: ManageConnection<Connection = T>,
+    F: ReposFactory<T>,
+> {
+    pub db_pool: Pool<M>,
     pub cpu_pool: CpuPool,
     pub http_client: ClientHandle,
-    roles_cache: RolesCacheImpl,
     user_id: Option<i32>,
     pub notif_conf: Notifications,
+    pub repo_factory: F,
 }
 
-impl UsersServiceImpl {
+impl<
+    T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
+    M: ManageConnection<Connection = T>,
+    F: ReposFactory<T>,
+> UsersServiceImpl<T, M, F>
+{
     pub fn new(
-        db_pool: DbPool,
+        db_pool: Pool<M>,
         cpu_pool: CpuPool,
         http_client: ClientHandle,
-        roles_cache: RolesCacheImpl,
         user_id: Option<i32>,
         notif_conf: Notifications,
+        repo_factory: F,
     ) -> Self {
         Self {
             db_pool,
             cpu_pool,
             http_client,
-            roles_cache,
             user_id,
             notif_conf,
+            repo_factory,
         }
     }
 }
 
-fn acl_for_id(roles_cache: RolesCacheImpl, user_id: Option<i32>) -> BoxedAcl {
-    user_id.map_or(Box::new(UnauthorizedACL::default()) as BoxedAcl, |id| {
-        (Box::new(ApplicationAcl::new(roles_cache, id)) as BoxedAcl)
-    })
-}
-
-impl UsersService for UsersServiceImpl {
+impl<
+    T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
+    M: ManageConnection<Connection = T>,
+    F: ReposFactory<T>,
+> UsersService for UsersServiceImpl<T, M, F>
+{
     /// Returns user by ID
     fn get(&self, user_id: UserId) -> ServiceFuture<User> {
         let db_clone = self.db_pool.clone();
-        let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
+        let repo_factory = self.repo_factory.clone();
 
         debug!("Getting user {}", user_id);
 
@@ -112,8 +117,7 @@ impl UsersService for UsersServiceImpl {
                 .get()
                 .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
-                    let acl = acl_for_id(roles_cache.clone(), current_uid);
-                    let mut users_repo = UsersRepoImpl::new(&conn, acl);
+                    let mut users_repo = repo_factory.create_users_repo(&conn, current_uid);
                     users_repo.find(user_id).map_err(ServiceError::from)
                 })
         }))
@@ -123,8 +127,8 @@ impl UsersService for UsersServiceImpl {
     fn current(&self) -> ServiceFuture<User> {
         if let Some(id) = self.user_id {
             let db_clone = self.db_pool.clone();
-            let roles_cache = self.roles_cache.clone();
             let current_uid = self.user_id.clone();
+            let repo_factory = self.repo_factory.clone();
 
             debug!("Fetching current user ({})", id);
 
@@ -133,8 +137,7 @@ impl UsersService for UsersServiceImpl {
                     .get()
                     .map_err(|e| ServiceError::Connection(e.into()))
                     .and_then(move |conn| {
-                        let acl = acl_for_id(roles_cache.clone(), current_uid);
-                        let mut users_repo = UsersRepoImpl::new(&conn, acl);
+                        let mut users_repo = repo_factory.create_users_repo(&conn, current_uid);
                         users_repo.find(UserId(id)).map_err(ServiceError::from)
                     })
             }))
@@ -148,8 +151,8 @@ impl UsersService for UsersServiceImpl {
     /// Lists users limited by `from` and `count` parameters
     fn list(&self, from: i32, count: i64) -> ServiceFuture<Vec<User>> {
         let db_clone = self.db_pool.clone();
-        let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
+        let repo_factory = self.repo_factory.clone();
 
         debug!("Fetching {} users starting from {}", count, from);
 
@@ -158,8 +161,7 @@ impl UsersService for UsersServiceImpl {
                 .get()
                 .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
-                    let acl = acl_for_id(roles_cache.clone(), current_uid);
-                    let mut users_repo = UsersRepoImpl::new(&conn, acl);
+                    let mut users_repo = repo_factory.create_users_repo(&conn, current_uid);
                     users_repo.list(from, count).map_err(ServiceError::from)
                 })
         }))
@@ -168,8 +170,8 @@ impl UsersService for UsersServiceImpl {
     /// Deactivates specific user
     fn deactivate(&self, user_id: UserId) -> ServiceFuture<User> {
         let db_clone = self.db_pool.clone();
-        let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
+        let repo_factory = self.repo_factory.clone();
 
         debug!("Deactivating user {}", &user_id);
 
@@ -178,8 +180,7 @@ impl UsersService for UsersServiceImpl {
                 .get()
                 .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
-                    let acl = acl_for_id(roles_cache.clone(), current_uid);
-                    let mut users_repo = UsersRepoImpl::new(&conn, acl);
+                    let mut users_repo = repo_factory.create_users_repo(&conn, current_uid);
                     users_repo.deactivate(user_id).map_err(ServiceError::from)
                 })
         }))
@@ -188,8 +189,8 @@ impl UsersService for UsersServiceImpl {
     /// Deactivates specific user
     fn delete_by_saga_id(&self, saga_id: String) -> ServiceFuture<User> {
         let db_clone = self.db_pool.clone();
-        let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
+        let repo_factory = self.repo_factory.clone();
 
         debug!("Deleting user with saga ID {}", &saga_id);
 
@@ -198,9 +199,10 @@ impl UsersService for UsersServiceImpl {
                 .get()
                 .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
-                    let acl = acl_for_id(roles_cache.clone(), current_uid);
-                    let mut users_repo = UsersRepoImpl::new(&conn, acl);
-                    users_repo.delete_by_saga_id(saga_id).map_err(ServiceError::from)
+                    let mut users_repo = repo_factory.create_users_repo(&conn, current_uid);
+                    users_repo
+                        .delete_by_saga_id(saga_id)
+                        .map_err(ServiceError::from)
                 })
         }))
     }
@@ -208,10 +210,10 @@ impl UsersService for UsersServiceImpl {
     /// Creates new user
     fn create(&self, payload: NewIdentity, user_payload: Option<NewUser>) -> ServiceFuture<User> {
         let db_clone = self.db_pool.clone();
-        let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
         let http_clone = self.http_client.clone();
         let notif_config = self.notif_conf.clone();
+        let repo_factory = self.repo_factory.clone();
 
         debug!(
             "Creating new user with payload: {:?} and user_payload: {:?}",
@@ -225,10 +227,9 @@ impl UsersService for UsersServiceImpl {
                         .get()
                         .map_err(|e| ServiceError::Connection(e.into()))
                         .and_then(move |conn| {
-                            let acl = acl_for_id(roles_cache.clone(), current_uid);
-                            let mut users_repo = UsersRepoImpl::new(&conn, acl);
-                            let ident_repo = IdentitiesRepoImpl::new(&conn);
-                            let reset_repo = ResetTokenRepoImpl::new(&conn);
+                            let mut users_repo = repo_factory.create_users_repo(&conn, current_uid);
+                            let ident_repo = repo_factory.create_identities_repo(&conn);
+                            let reset_repo = repo_factory.create_reset_token_repo(&conn);
 
                             conn.transaction::<(ResetToken, User), ServiceError, _>(move || {
                                 ident_repo
@@ -275,7 +276,7 @@ impl UsersService for UsersServiceImpl {
                                             created_at: SystemTime::now(),
                                         };
 
-                                        reset_repo.delete_by_email(reset_token.email.clone());
+                                        reset_repo.delete_by_email(reset_token.email.clone())?;
 
                                         reset_repo
                                             .create(reset_token)
@@ -295,6 +296,8 @@ impl UsersService for UsersServiceImpl {
                     );
                     let user_clone = user.clone();
 
+                    debug!("Sending email notification to user");
+
                     Self::send_mail(http_clone.clone(), notif_config.clone(), to, subject, text)
                         .map(|_| user)
                         .or_else(|_| future::ok(user_clone))
@@ -307,6 +310,7 @@ impl UsersService for UsersServiceImpl {
         let db_clone = self.db_pool.clone();
         let http_clone = self.http_client.clone();
         let notif_config = self.notif_conf.clone();
+        let repo_factory = self.repo_factory.clone();
 
         Box::new(
             self.cpu_pool
@@ -315,7 +319,7 @@ impl UsersService for UsersServiceImpl {
                         .get()
                         .map_err(|e| ServiceError::Connection(e.into()))
                         .and_then(move |conn| {
-                            let reset_repo = ResetTokenRepoImpl::new(&conn);
+                            let reset_repo = repo_factory.create_reset_token_repo(&conn);
 
                             reset_repo
                                 .delete_by_email(email.clone())
@@ -353,6 +357,7 @@ impl UsersService for UsersServiceImpl {
         let db_clone = self.db_pool.clone();
         let http_clone = self.http_client.clone();
         let notif_config = self.notif_conf.clone();
+        let repo_factory = self.repo_factory.clone();
 
         Box::new(
             self.cpu_pool
@@ -361,8 +366,8 @@ impl UsersService for UsersServiceImpl {
                         .get()
                         .map_err(|e| ServiceError::Connection(e.into()))
                         .and_then(move |conn| {
-                            let mut users_repo = UsersRepoImpl::new(&conn, Box::new(SystemACL::default()));
-                            let reset_repo = ResetTokenRepoImpl::new(&conn);
+                            let mut users_repo = repo_factory.create_users_repo_with_sys_acl(&conn);
+                            let reset_repo = repo_factory.create_reset_token_repo(&conn);
 
                             reset_repo
                                 .find_by_token(token_arg.clone())
@@ -418,8 +423,8 @@ impl UsersService for UsersServiceImpl {
     /// Updates specific user
     fn update(&self, user_id: UserId, payload: UpdateUser) -> ServiceFuture<User> {
         let db_clone = self.db_pool.clone();
-        let roles_cache = self.roles_cache.clone();
         let current_uid = self.user_id.clone();
+        let repo_factory = self.repo_factory.clone();
 
         debug!("Updating user {} with payload: {:?}", &user_id, &payload);
 
@@ -428,8 +433,7 @@ impl UsersService for UsersServiceImpl {
                 .get()
                 .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
-                    let acl = acl_for_id(roles_cache.clone(), current_uid);
-                    let mut users_repo = UsersRepoImpl::new(&conn, acl);
+                    let mut users_repo = repo_factory.create_users_repo(&conn, current_uid);
                     users_repo
                         .find(user_id.clone())
                         .and_then(move |_user| users_repo.update(user_id, payload))
@@ -443,6 +447,7 @@ impl UsersService for UsersServiceImpl {
         let email = email_arg.clone();
         let http_clone = self.http_client.clone();
         let notif_config = self.notif_conf.clone();
+        let repo_factory = self.repo_factory.clone();
 
         debug!("Resetting password for email {}", &email_arg);
 
@@ -453,8 +458,8 @@ impl UsersService for UsersServiceImpl {
                         .get()
                         .map_err(|e| ServiceError::Connection(e.into()))
                         .and_then(move |conn| {
-                            let reset_repo = ResetTokenRepoImpl::new(&conn);
-                            let ident_repo = IdentitiesRepoImpl::new(&conn);
+                            let reset_repo = repo_factory.create_reset_token_repo(&conn);
+                            let ident_repo = repo_factory.create_identities_repo(&conn);
 
                             ident_repo
                                 .find_by_email_provider(email.clone(), Provider::Email)
@@ -492,6 +497,7 @@ impl UsersService for UsersServiceImpl {
         let db_clone = self.db_pool.clone();
         let http_clone = self.http_client.clone();
         let notif_config = self.notif_conf.clone();
+        let repo_factory = self.repo_factory.clone();
 
         debug!("Resetting password for token {}.", &token_arg);
 
@@ -502,8 +508,8 @@ impl UsersService for UsersServiceImpl {
                         .get()
                         .map_err(|e| ServiceError::Connection(e.into()))
                         .and_then(move |conn| {
-                            let reset_repo = ResetTokenRepoImpl::new(&conn);
-                            let ident_repo = IdentitiesRepoImpl::new(&conn);
+                            let reset_repo = repo_factory.create_reset_token_repo(&conn);
+                            let ident_repo = repo_factory.create_identities_repo(&conn);
 
                             reset_repo
                                 .find_by_token(token_arg.clone())
@@ -524,7 +530,10 @@ impl UsersService for UsersServiceImpl {
                                                 ident_repo
                                                     .find_by_email_provider(reset_token.email.clone(), Provider::Email)
                                                     .and_then(move |ident| {
-                                                        debug!("Token check successful, resetting password for identity {:?}", &ident);
+                                                        debug!(
+                                                            "Token check successful, resetting password for identity {:?}",
+                                                            &ident
+                                                        );
                                                         let update = UpdateIdentity {
                                                             password: Some(Self::password_create(new_pass)),
                                                         };
@@ -553,7 +562,10 @@ impl UsersService for UsersServiceImpl {
     }
 
     fn password_create(clear_password: String) -> String {
-        let salt = rand::thread_rng().gen_ascii_chars().take(10).collect::<String>();
+        let salt = rand::thread_rng()
+            .gen_ascii_chars()
+            .take(10)
+            .collect::<String>();
         let pass = clear_password + &salt;
         let mut hasher = Sha3_256::default();
         hasher.input(pass.as_bytes());
