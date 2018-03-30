@@ -300,6 +300,8 @@ impl<
                     );
                     let user_clone = user.clone();
 
+                    debug!("Sending email notification to user");
+
                     Self::send_mail(http_clone.clone(), notif_config.clone(), to, subject, text)
                         .map(|_| user)
                         .or_else(|_| future::ok(user_clone))
