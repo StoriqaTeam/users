@@ -23,7 +23,6 @@ use stq_http::client::ClientHandle;
 use models::{NewIdentity, Provider, UpdateIdentity};
 use models::{NewUser, UpdateUser, User, UserId};
 use models::{ResetMail, ResetToken};
-use repos::acl::RolesCacheImpl;
 use repos::repo_factory::ReposFactory;
 
 use config::Notifications;
@@ -69,7 +68,6 @@ pub struct UsersServiceImpl<
     pub db_pool: Pool<M>,
     pub cpu_pool: CpuPool,
     pub http_client: ClientHandle,
-    roles_cache: RolesCacheImpl,
     user_id: Option<i32>,
     pub notif_conf: Notifications,
     pub repo_factory: F,
@@ -85,7 +83,6 @@ impl<
         db_pool: Pool<M>,
         cpu_pool: CpuPool,
         http_client: ClientHandle,
-        roles_cache: RolesCacheImpl,
         user_id: Option<i32>,
         notif_conf: Notifications,
         repo_factory: F,
@@ -94,7 +91,6 @@ impl<
             db_pool,
             cpu_pool,
             http_client,
-            roles_cache,
             user_id,
             notif_conf,
             repo_factory,
@@ -280,7 +276,7 @@ impl<
                                             created_at: SystemTime::now(),
                                         };
 
-                                        reset_repo.delete_by_email(reset_token.email.clone());
+                                        reset_repo.delete_by_email(reset_token.email.clone())?;
 
                                         reset_repo
                                             .create(reset_token)
@@ -362,7 +358,6 @@ impl<
         let http_clone = self.http_client.clone();
         let notif_config = self.notif_conf.clone();
         let repo_factory = self.repo_factory.clone();
-        let current_uid = self.user_id.clone();
 
         Box::new(
             self.cpu_pool

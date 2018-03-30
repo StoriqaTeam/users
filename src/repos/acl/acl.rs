@@ -4,7 +4,6 @@ use std::rc::Rc;
 
 use models::authorization::*;
 use repos::error::RepoError;
-use repos::types::DbConnection;
 use stq_acl::{Acl, CheckScope};
 
 pub fn check<T>(

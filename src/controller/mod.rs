@@ -104,7 +104,6 @@ impl<
             self.db_pool.clone(),
             self.cpu_pool.clone(),
             self.client_handle.clone(),
-            cached_roles.clone(),
             user_id,
             self.config.notifications.clone(),
             self.repo_factory.clone(),
