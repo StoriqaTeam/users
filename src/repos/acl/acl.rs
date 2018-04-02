@@ -86,7 +86,6 @@ mod tests {
     use std::time::SystemTime;
 
     use stq_acl::{Acl, CheckScope};
-    use serde_json;
 
     use repos::*;
     use models::*;
