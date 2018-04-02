@@ -9,17 +9,17 @@ pub enum RepoError {
     NotFound,
     #[fail(display = "Rollback")]
     Rollback,
-    #[fail(display = "Unauthorized")]
+    #[fail(display = "Unauthorized: {} {}", _0, _1)]
     Unauthorized(Resource, Action),
-    #[fail(display = "Constraint violation")]
+    #[fail(display = "Constraint violation: {}", _0)]
     ContstaintViolation(Error),
-    #[fail(display = "Mismatched type")]
+    #[fail(display = "Mismatched type: {}", _0)]
     MismatchedType(Error),
-    #[fail(display = "Connection")]
+    #[fail(display = "Connection: {}", _0)]
     Connection(Error),
     #[fail(display = "Invalid token")]
     InvalidToken,
-    #[fail(display = "Unknown")]
+    #[fail(display = "Unknown: {}", _0)]
     Unknown(Error),
 }
 

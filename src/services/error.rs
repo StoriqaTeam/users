@@ -19,11 +19,11 @@ pub enum ServiceError {
     Validate(ValidationErrors),
     #[fail(display = "Parse error: {}", _0)]
     Parse(String),
-    #[fail(display = "R2D2 connection error")]
+    #[fail(display = "R2D2 connection error: {}", _0)]
     Connection(Error),
-    #[fail(display = "Diesel transaction error")]
+    #[fail(display = "Diesel transaction error: {}", _0)]
     Transaction(Error),
-    #[fail(display = "Repo error")]
+    #[fail(display = "Repo error: {}", _0)]
     Database(Error),
     #[fail(display = "Http client error: {}", _0)]
     HttpClient(String),
@@ -31,7 +31,7 @@ pub enum ServiceError {
     EmailAlreadyExists(String),
     #[fail(display = "Incorrect email or password")]
     IncorrectCredentials,
-    #[fail(display = "Unauthorized")]
+    #[fail(display = "Unauthorized: {}", _0)]
     Unauthorized(String),
     #[fail(display = "Invalid token")]
     InvalidToken,
