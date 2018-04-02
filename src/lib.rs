@@ -91,7 +91,7 @@ pub fn start_server(config: Config) {
     if env::var("RUST_LOG").is_ok() {
         builder.parse(&env::var("RUST_LOG").unwrap());
     }
-        
+
     // Prepare logger
     builder.init().unwrap();
 
@@ -110,11 +110,13 @@ pub fn start_server(config: Config) {
 
     // Prepare server
     let thread_count = config.server.thread_count.clone();
-    let address = config
-        .server
-        .address
-        .parse()
-        .expect("Address must be set in configuration");
+
+    // Prepare server
+    let address = {
+        format!("{}:{}", config.server.host, config.server.port)
+            .parse()
+            .expect("Could not parse address")
+    };
 
     // Prepare database pool
     let database_url: String = config

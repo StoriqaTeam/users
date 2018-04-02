@@ -12,6 +12,7 @@ info_url = "https://graph.facebook.com/me"
 url = "http://saga:8004"
 
 [server]
-address = "0.0.0.0:8000"
+host = "0.0.0.0"
+port = "8000"
 database = "postgresql://users:users@users-pg-postgresql/users"
 thread_count = 20

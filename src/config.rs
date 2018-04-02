@@ -18,7 +18,8 @@ pub struct Config {
 /// Common server settings
 #[derive(Debug, Deserialize, Clone)]
 pub struct Server {
-    pub address: String,
+    pub host: String,
+    pub port: String,
     pub database: String,
     pub thread_count: usize,
 }
