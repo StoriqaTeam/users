@@ -276,7 +276,7 @@ impl<
                                             created_at: SystemTime::now(),
                                         };
 
-                                        reset_repo.delete_by_email(reset_token.email.clone())?;
+                                        let _res = reset_repo.delete_by_email(reset_token.email.clone());
 
                                         reset_repo
                                             .create(reset_token)
