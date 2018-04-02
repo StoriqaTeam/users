@@ -17,7 +17,7 @@ use tokio_core::reactor::Core;
 use futures::{Future, Stream};
 use futures::sync::oneshot;
 
-use stq_http::client::{Client, Error};
+use stq_http::client::Error;
 use stq_http::client::Config as HttpConfig;
 use users_lib::config::Config;
 
