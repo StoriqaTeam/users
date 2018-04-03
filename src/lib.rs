@@ -55,6 +55,7 @@ pub mod types;
 use std::process;
 use std::sync::Arc;
 use std::env;
+use std::io::Write;
 
 use chrono::prelude::*;
 use diesel::pg::PgConnection;
@@ -64,8 +65,8 @@ use futures_cpupool::CpuPool;
 use hyper::server::Http;
 use r2d2_diesel::ConnectionManager;
 use tokio_core::reactor::Core;
-use env_logger::LogBuilder;
-use log::{LogRecord, LogLevelFilter};
+use env_logger::Builder as LogBuilder;
+use log::LevelFilter as LogLevelFilter;
 
 use stq_http::client::Config as HttpConfig;
 use stq_http::controller::Application;
@@ -76,24 +77,20 @@ use repos::repo_factory::ReposFactoryImpl;
 
 /// Starts new web service from provided `Config`
 pub fn start_server(config: Config) {
-    let formatter = |record: &LogRecord| {
-    let now = Utc::now();
-        format!("{} - {} - {}",
-            now.to_rfc3339(),
-            record.level(),
-            record.args()
-        )
-    };
-
     let mut builder = LogBuilder::new();
-    builder.format(formatter).filter(None, LogLevelFilter::Info);
+    builder
+        .format(|formatter, record| {
+            let now = Utc::now();
+            writeln!(formatter, "{} - {} - {}", now.to_rfc3339(), record.level(), record.args())
+        })
+        .filter(None, LogLevelFilter::Info);
 
     if env::var("RUST_LOG").is_ok() {
         builder.parse(&env::var("RUST_LOG").unwrap());
     }
 
     // Prepare logger
-    builder.init().unwrap();
+    builder.init();
 
     // Prepare reactor
     let mut core = Core::new().expect("Unexpected error creating event loop core");
