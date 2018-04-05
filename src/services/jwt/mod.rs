@@ -19,6 +19,7 @@ use serde;
 use serde_json;
 use sha3::{Digest, Sha3_256};
 use stq_http::client::ClientHandle;
+use uuid::Uuid;
 
 use self::profile::{Email, FacebookProfile, GoogleProfile, IntoUser};
 use config::{Config, JWT as JWTConfig, OAuth};
@@ -217,7 +218,7 @@ where
                 email: new_user.email,
                 password: None,
                 provider,
-                saga_id: "".to_string(),
+                saga_id: Uuid::new_v4().to_string(),
             },
         }).map_err(ServiceError::from)?;
 

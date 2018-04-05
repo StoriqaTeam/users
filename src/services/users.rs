@@ -220,6 +220,8 @@ impl<
             &payload, &user_payload
         );
 
+        let user_absent = user_payload.is_none();
+
         Box::new(
             self.cpu_pool
                 .spawn_fn(move || {
@@ -286,21 +288,25 @@ impl<
                             })
                         })
                 })
-                .and_then(move |(token, user)| {
-                    let to = token.email.clone();
-                    let subject = "Email verification".to_string();
-                    let text = format!(
-                        "{}/{}",
-                        notif_config.verify_email_path.clone(),
-                        token.token.clone()
-                    );
-                    let user_clone = user.clone();
+                .and_then(move |(token, user)| -> Box<Future<Item = User, Error = ServiceError>> {
+                    let user_clone: User = user.clone();
+                    if user_absent {
+                        let to = token.email.clone();
+                        let subject = "Email verification".to_string();
+                        let text = format!(
+                            "{}/{}",
+                            notif_config.verify_email_path.clone(),
+                            token.token.clone()
+                        );
 
-                    debug!("Sending email notification to user");
+                        debug!("Sending email notification to user");
 
-                    Self::send_mail(http_clone.clone(), notif_config.clone(), to, subject, text)
-                        .map(|_| user)
-                        .or_else(|_| future::ok(user_clone))
+                        Box::new(Self::send_mail(http_clone.clone(), notif_config.clone(), to, subject, text)
+                            .map(|_| user)
+                            .or_else(|_| future::ok(user_clone)))
+                    } else {
+                        Box::new(future::ok(user_clone))
+                    }
                 }),
         )
     }
