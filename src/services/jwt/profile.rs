@@ -29,7 +29,7 @@ impl From<GoogleProfile> for NewUser {
             gender: Gender::Undefined,
             birthdate: None,
             last_login_at: SystemTime::now(),
-            saga_id: "".to_string(),
+            saga_id: Uuid::new_v4().to_string(),
         }
     }
 }
