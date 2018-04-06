@@ -63,6 +63,7 @@ use futures::future;
 use futures::{Future, Stream};
 use futures_cpupool::CpuPool;
 use hyper::server::Http;
+use hyper::header::AccessControlAllowOrigin;
 use r2d2_diesel::ConnectionManager;
 use tokio_core::reactor::Core;
 use env_logger::Builder as LogBuilder;
@@ -145,7 +146,7 @@ pub fn start_server(config: Config) {
             ));
 
             // Prepare application
-            let app = Application { controller };
+            let app = Application { controller, acao: AccessControlAllowOrigin::Any };
 
             Ok(app)
         })

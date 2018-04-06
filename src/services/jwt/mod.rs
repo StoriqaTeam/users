@@ -400,7 +400,13 @@ impl<
             info_url, oauth.token
         );
         let jwt_secret_key = self.jwt_config.secret_key.clone();
-        <JWTServiceImpl<T, M, F> as ProfileService<T, FacebookProfile>>::create_token(self, Provider::Facebook, jwt_secret_key, url, None)
+        <JWTServiceImpl<T, M, F> as ProfileService<T, FacebookProfile>>::create_token(
+            self,
+            Provider::Facebook,
+            jwt_secret_key,
+            url,
+            None,
+        )
     }
 
     fn password_verify(db_hash: String, clear_password: String) -> Result<bool, ServiceError> {
