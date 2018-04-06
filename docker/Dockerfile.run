@@ -3,10 +3,9 @@ FROM debian:stable-slim
 RUN mkdir -p /app/config
 RUN mkdir -p /app/migrations
 RUN mkdir -p /usr/local/cargo/bin/
-WORKDIR /app
 
 RUN apt-get update
-RUN apt-get install -y wget gnupg2
+RUN apt-get install -y wget gnupg2 ca-certificates
 RUN wget -q https://www.postgresql.org/media/keys/ACCC4CF8.asc -O - | apt-key add -
 RUN sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ stretch-pgdg main" >> /etc/apt/sources.list.d/pgdg.list'
 RUN apt-get update
@@ -17,6 +16,12 @@ RUN apt-get purge -y wget
 RUN apt-get autoremove -y
 RUN apt-get clean -y
 RUN rm -rf /var/lib/apt/lists/
+
+# Running as user "app"
+RUN adduser --disabled-password --gecos "" --home /app --no-create-home -u 5000 app
+RUN chown -R app: /app
+USER app
+WORKDIR /app
 
 COPY users /app
 COPY diesel /usr/local/cargo/bin/diesel
