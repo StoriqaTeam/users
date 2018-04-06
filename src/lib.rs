@@ -135,17 +135,17 @@ pub fn start_server(config: Config) {
 
     let serve = Http::new()
         .serve_addr_handle(&address, &handle, move || {
-            let controller = Box::new(controller::ControllerImpl::new(
+            let controller = controller::ControllerImpl::new(
                 db_pool.clone(),
                 cpu_pool.clone(),
                 client_handle.clone(),
                 config.clone(),
                 roles_cache.clone(),
                 repo_factory.clone(),
-            ));
+            );
 
             // Prepare application
-            let app = Application { controller };
+            let app = Application::new(controller);
 
             Ok(app)
         })
