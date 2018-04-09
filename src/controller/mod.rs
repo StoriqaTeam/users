@@ -265,6 +265,7 @@ impl<
                             .map_err(ControllerError::from)
                     }),
             ),
+
             // POST /jwt/facebook
             (&Post, Some(Route::JWTFacebook)) => serialize_future(
                 parse_body::<models::jwt::ProviderOauth>(req.body())
@@ -280,6 +281,13 @@ impl<
                             .create_token_facebook(oauth)
                             .map_err(ControllerError::from)
                     }),
+            ),
+
+            // POST /jwt/renew
+            (&Post, Some(Route::JWTRenew)) => serialize_future(
+                jwt_service
+                    .renew_token(user_id.clone())
+                    .map_err(ControllerError::from)
             ),
 
             // GET /user_roles/<user_id>

@@ -5,6 +5,7 @@ use std::str;
 use std::sync::Arc;
 
 use base64::decode;
+use chrono::Utc;
 use diesel::Connection;
 use diesel::connection::AnsiTransactionManager;
 use diesel::pg::Pg;
@@ -36,6 +37,8 @@ pub trait JWTService {
     fn create_token_google(self, oauth: ProviderOauth) -> ServiceFuture<JWT>;
     /// Creates new JWT token by facebook
     fn create_token_facebook(self, oauth: ProviderOauth) -> ServiceFuture<JWT>;
+    /// Renew valid token
+    fn renew_token(self, user_id: Option<i32>) -> ServiceFuture<JWT>;
     /// Verifies password
     fn password_verify(db_hash: String, clear_password: String) -> Result<bool, ServiceError>;
 }
@@ -98,8 +101,9 @@ trait ProfileService<T: Connection<Backend = Pg, TransactionManager = AnsiTransa
     fn profile_status(&self, profile: P, provider: Provider) -> ServiceFuture<ProfileStatus>;
 
     fn create_jwt(&self, id: i32, status: UserStatus, secret: String) -> ServiceFuture<JWT> {
-        debug!("Creating token for user {}", id);
-        let tokenpayload = JWTPayload::new(id);
+        let now = Utc::now().timestamp();
+        debug!("Creating token for user {}, at {}", id, now);
+        let tokenpayload = JWTPayload::new(id, now);
         Box::new(
             encode(&Header::default(), &tokenpayload, secret.as_ref())
                 .map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}.", tokenpayload)))
@@ -360,7 +364,8 @@ impl<
                                 }
                             })
                             .and_then(move |id| {
-                                let tokenpayload = JWTPayload::new(id);
+                                let now = Utc::now().timestamp();
+                                let tokenpayload = JWTPayload::new(id, now);
                                 encode(&Header::default(), &tokenpayload, jwt_secret_key.as_ref())
                                     .map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}", tokenpayload)))
                                     .and_then(|t| {
@@ -407,6 +412,29 @@ impl<
             url,
             None,
         )
+    }
+
+    fn renew_token(self, user_id: Option<i32>) -> ServiceFuture<JWT> {
+        match user_id {
+            Some(id) => {
+                let jwt_secret_key = self.jwt_config.secret_key.clone();
+                let now = Utc::now().timestamp();
+                let tokenpayload = JWTPayload::new(id, now);
+                Box::new(encode(&Header::default(), &tokenpayload, jwt_secret_key.as_ref())
+                    .map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}", tokenpayload)))
+                    .and_then(|t| {
+                        Ok(JWT {
+                            token: t,
+                            status: UserStatus::Exists,
+                        })
+                    }).into_future())
+            },
+            _ => {
+                Box::new(
+                    Err(ServiceError::InvalidToken).into_future()
+                )
+            }
+        }
     }
 
     fn password_verify(db_hash: String, clear_password: String) -> Result<bool, ServiceError> {
