@@ -2,7 +2,10 @@ pipeline:
   test:
     image: rust:1.25-stretch
     environment:
+      - PGPASSWORD=a1a1a1a1
       - RUN_MODE=k8s
+      - DATABASE_HOST=db-postgresql
+      - DATABASE_URL=postgresql://users:users@db-postgresql/users
     commands:
       - rustup component add rustfmt-preview
       - cargo fmt --all -- --write-mode=diff
@@ -89,4 +92,11 @@ pipeline:
       event: push
       branch: [ master, release ]
       status:  [ failure, success ]
+services:
+  db-postgresql:
+    image: postgres:10-alpine
+    environment:
+      - POSTGRES_PASSWORD=a1a1a1a1
+    when:
+      event: pull_request
 
