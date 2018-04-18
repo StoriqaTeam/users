@@ -135,7 +135,7 @@ pub fn start_server(config: Config) {
 
     let repo_factory = ReposFactoryImpl::new(roles_cache.clone());
 
-    println!("Reading private key file {}", &config.jwt.secret_key_path);
+    debug!("Reading private key file {}", &config.jwt.secret_key_path);
     let mut f = File::open(config.jwt.secret_key_path.clone()).unwrap();
     let mut jwt_private_key: Vec<u8> = Vec::new();
     f.read_to_end(&mut jwt_private_key).unwrap();
