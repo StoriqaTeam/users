@@ -408,6 +408,7 @@ pub mod tests {
             client_handle,
             config,
             MOCK_REPO_FACTORY,
+            vec!(0),
         )
     }
 

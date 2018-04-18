@@ -35,7 +35,7 @@ pub struct Client {
 /// Json Web Token seettings
 #[derive(Debug, Deserialize, Clone)]
 pub struct JWT {
-    pub secret_key: String,
+    pub secret_key_path: String,
     pub check_email: bool,
 }
 

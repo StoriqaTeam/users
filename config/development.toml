@@ -1,5 +1,5 @@
 [jwt]
-secret_key = "jwt secret key"
+secret_key_path = "config/keys/private_key.der"
 check_email = false
 
 [google]

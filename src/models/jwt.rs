@@ -24,10 +24,14 @@ pub struct ProviderOauth {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct JWTPayload {
     pub user_id: i32,
+    pub exp: i64,
 }
 
 impl JWTPayload {
-    pub fn new(id: i32) -> Self {
-        Self { user_id: id }
+    pub fn new(id: i32, exp_arg: i64) -> Self {
+        Self {
+            user_id: id,
+            exp: exp_arg,
+        }
     }
 }
