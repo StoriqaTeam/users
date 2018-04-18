@@ -54,6 +54,7 @@ where
     pub client_handle: ClientHandle,
     pub roles_cache: RolesCacheImpl,
     pub repo_factory: F,
+    pub jwt_private_key: Vec<u8>,
 }
 
 impl<
@@ -70,6 +71,7 @@ impl<
         config: Config,
         roles_cache: RolesCacheImpl,
         repo_factory: F,
+        jwt_private_key: Vec<u8>,
     ) -> Self {
         let route_parser = Arc::new(routes::create_route_parser());
         Self {
@@ -80,6 +82,7 @@ impl<
             config,
             roles_cache,
             repo_factory,
+            jwt_private_key,
         }
     }
 }
@@ -114,6 +117,7 @@ impl<
             self.client_handle.clone(),
             self.config.clone(),
             self.repo_factory.clone(),
+            self.jwt_private_key.clone(),
         );
         let user_roles_service = UserRolesServiceImpl::new(
             self.db_pool.clone(),

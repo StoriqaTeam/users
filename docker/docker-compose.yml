@@ -10,7 +10,7 @@ services:
     command: ["sh", "-c", "/utils/wait_for_it.sh users-pg:5432 ; diesel migration run ; cargo run"]
     volumes:
       - ..:/app
-      - users_cargo_cache:/usr/local/cargo
+      - stq_cargo_cache:/usr/local/cargo
     environment:
       - DATABASE_URL=postgresql://users:users@users-pg/users
     expose:
@@ -32,7 +32,7 @@ services:
       - 5432
 
 volumes:
-  users_cargo_cache:
+  stq_cargo_cache:
   stq-users-postgres-data:
 
 networks:

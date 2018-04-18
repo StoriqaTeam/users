@@ -56,6 +56,8 @@ use std::process;
 use std::sync::Arc;
 use std::env;
 use std::io::Write;
+use std::io::prelude::*;
+use std::fs::File;
 
 use chrono::prelude::*;
 use diesel::pg::PgConnection;
@@ -133,6 +135,11 @@ pub fn start_server(config: Config) {
 
     let repo_factory = ReposFactoryImpl::new(roles_cache.clone());
 
+    println!("Reading private key file {}", &config.jwt.secret_key_path);
+    let mut f = File::open(config.jwt.secret_key_path.clone()).unwrap();
+    let mut jwt_private_key: Vec<u8> = Vec::new();
+    f.read_to_end(&mut jwt_private_key).unwrap();
+
     let serve = Http::new()
         .serve_addr_handle(&address, &handle, move || {
             let controller = controller::ControllerImpl::new(
@@ -142,6 +149,7 @@ pub fn start_server(config: Config) {
                 config.clone(),
                 roles_cache.clone(),
                 repo_factory.clone(),
+                jwt_private_key.clone(),
             );
 
             // Prepare application

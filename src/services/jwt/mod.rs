@@ -15,7 +15,7 @@ use futures::{Future, IntoFuture};
 use futures_cpupool::CpuPool;
 use hyper::header::{Authorization, Bearer};
 use hyper::{Headers, Method};
-use jsonwebtoken::{encode, Header};
+use jsonwebtoken::{encode, Header, Algorithm};
 use serde;
 use serde_json;
 use sha3::{Digest, Sha3_256};
@@ -58,6 +58,7 @@ pub struct JWTServiceImpl<
     pub facebook_config: OAuth,
     pub jwt_config: JWTConfig,
     pub repo_factory: F,
+    pub jwt_private_key: Vec<u8>,
 }
 
 impl<
@@ -66,7 +67,14 @@ impl<
     F: ReposFactory<T>,
 > JWTServiceImpl<T, M, F>
 {
-    pub fn new(db_pool: Pool<M>, cpu_pool: CpuPool, http_client: ClientHandle, config: Config, repo_factory: F) -> Self {
+    pub fn new(
+        db_pool: Pool<M>,
+        cpu_pool: CpuPool,
+        http_client: ClientHandle,
+        config: Config,
+        repo_factory: F,
+        jwt_private_key: Vec<u8>,
+    ) -> Self {
         Self {
             db_pool,
             cpu_pool,
@@ -76,6 +84,7 @@ impl<
             facebook_config: config.facebook,
             jwt_config: config.jwt,
             repo_factory,
+            jwt_private_key,
         }
     }
 }
@@ -94,18 +103,18 @@ pub enum ProfileStatus {
 
 trait ProfileService<T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static, P: Email>
      {
-    fn create_token(self, provider: Provider, secret: String, info_url: String, headers: Option<Headers>) -> ServiceFuture<JWT>;
+    fn create_token(self, provider: Provider, secret: Vec<u8>, info_url: String, headers: Option<Headers>) -> ServiceFuture<JWT>;
 
     fn get_profile(&self, url: String, headers: Option<Headers>) -> ServiceFuture<P>;
 
     fn profile_status(&self, profile: P, provider: Provider) -> ServiceFuture<ProfileStatus>;
 
-    fn create_jwt(&self, id: i32, status: UserStatus, secret: String) -> ServiceFuture<JWT> {
+    fn create_jwt(&self, id: i32, status: UserStatus, secret: Vec<u8>) -> ServiceFuture<JWT> {
         let now = Utc::now().timestamp();
         debug!("Creating token for user {}, at {}", id, now);
         let tokenpayload = JWTPayload::new(id, now);
         Box::new(
-            encode(&Header::default(), &tokenpayload, secret.as_ref())
+            encode(&Header::new(Algorithm::RS256), &tokenpayload, secret.as_ref())
                 .map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}.", tokenpayload)))
                 .into_future()
                 .inspect(move |token| {
@@ -137,7 +146,7 @@ where
     fn create_token(
         self,
         provider: Provider,
-        secret: String,
+        secret: Vec<u8>,
         info_url: String,
         headers: Option<Headers>,
     ) -> Box<Future<Item = JWT, Error = ServiceError>> {
@@ -313,7 +322,7 @@ impl<
     /// Creates new JWT token by email
     fn create_token_email(&self, payload: NewEmailIdentity) -> ServiceFuture<JWT> {
         let r2d2_clone = self.db_pool.clone();
-        let jwt_secret_key = self.jwt_config.secret_key.clone();
+        let jwt_private_key = self.jwt_private_key.clone();
         let repo_factory = self.repo_factory.clone();
 
         Box::new(self.cpu_pool.spawn_fn(move || {
@@ -366,7 +375,7 @@ impl<
                             .and_then(move |id| {
                                 let now = Utc::now().timestamp();
                                 let tokenpayload = JWTPayload::new(id, now);
-                                encode(&Header::default(), &tokenpayload, jwt_secret_key.as_ref())
+                                encode(&Header::new(Algorithm::RS256), &tokenpayload, jwt_private_key.as_ref())
                                     .map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}", tokenpayload)))
                                     .and_then(|t| {
                                         Ok(JWT {
@@ -386,11 +395,11 @@ impl<
         let url = self.google_config.info_url.clone();
         let mut headers = Headers::new();
         headers.set(Authorization(Bearer { token: oauth.token }));
-        let jwt_secret_key = self.jwt_config.secret_key.clone();
+        let jwt_private_key = self.jwt_private_key.clone();
         <JWTServiceImpl<T, M, F> as ProfileService<T, GoogleProfile>>::create_token(
             self,
             Provider::Google,
-            jwt_secret_key,
+            jwt_private_key,
             url,
             Some(headers),
         )
@@ -404,11 +413,11 @@ impl<
             "{}?fields=first_name,last_name,gender,email,name&access_token={}",
             info_url, oauth.token
         );
-        let jwt_secret_key = self.jwt_config.secret_key.clone();
+        let jwt_private_key = self.jwt_private_key.clone();
         <JWTServiceImpl<T, M, F> as ProfileService<T, FacebookProfile>>::create_token(
             self,
             Provider::Facebook,
-            jwt_secret_key,
+            jwt_private_key,
             url,
             None,
         )
@@ -417,10 +426,10 @@ impl<
     fn renew_token(self, user_id: Option<i32>) -> ServiceFuture<JWT> {
         match user_id {
             Some(id) => {
-                let jwt_secret_key = self.jwt_config.secret_key.clone();
+                let jwt_private_key = self.jwt_private_key.clone();
                 let now = Utc::now().timestamp();
                 let tokenpayload = JWTPayload::new(id, now);
-                Box::new(encode(&Header::default(), &tokenpayload, jwt_secret_key.as_ref())
+                Box::new(encode(&Header::new(Algorithm::RS256), &tokenpayload, jwt_private_key.as_ref())
                     .map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}", tokenpayload)))
                     .and_then(|t| {
                         Ok(JWT {
