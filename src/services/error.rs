@@ -81,7 +81,7 @@ impl From<ServiceError> for ControllerError {
             ServiceError::NotFound => ControllerError::NotFound,
             ServiceError::Rollback => ControllerError::BadRequest(ServiceError::Rollback.into()),
             ServiceError::Validate(valid_err) => ControllerError::Validate(valid_err),
-            ServiceError::Unauthorized(msg) => ControllerError::BadRequest(ServiceError::Unauthorized(msg).into()),
+            ServiceError::Unauthorized(msg) => ControllerError::Forbidden(ServiceError::Unauthorized(msg).into()),
             ServiceError::Parse(msg) => ControllerError::UnprocessableEntity(ServiceError::Parse(msg).into()),
             ServiceError::Database(msg) => ControllerError::InternalServerError(ServiceError::Database(msg).into()),
             ServiceError::HttpClient(msg) => ControllerError::InternalServerError(ServiceError::HttpClient(msg).into()),
