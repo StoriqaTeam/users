@@ -96,21 +96,23 @@ impl<C: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 
 #[cfg(test)]
 pub mod tests {
     extern crate base64;
+    extern crate diesel;
     extern crate futures;
     extern crate futures_cpupool;
     extern crate hyper;
+    extern crate r2d2;
     extern crate rand;
     extern crate serde_json;
     extern crate sha3;
-    extern crate tokio_core;
-    extern crate diesel;
-    extern crate r2d2;
     extern crate stq_http;
+    extern crate tokio_core;
 
     use std::time::SystemTime;
     use std::sync::Arc;
     use std::error::Error;
     use std::fmt;
+    use std::io::prelude::*;
+    use std::fs::File;
 
     use base64::encode;
     use futures_cpupool::CpuPool;
@@ -228,8 +230,21 @@ pub mod tests {
             Ok(email_arg == MOCK_EMAIL.to_string() && provider_arg == Provider::Email)
         }
 
-        fn create(&self, email: String, password: Option<String>, provider_arg: Provider, user_id: UserId, _saga_id: String) -> Result<Identity, RepoError> {
-            let ident = create_identity(email, password, user_id, provider_arg, MOCK_SAGA_ID.to_string());
+        fn create(
+            &self,
+            email: String,
+            password: Option<String>,
+            provider_arg: Provider,
+            user_id: UserId,
+            _saga_id: String,
+        ) -> Result<Identity, RepoError> {
+            let ident = create_identity(
+                email,
+                password,
+                user_id,
+                provider_arg,
+                MOCK_SAGA_ID.to_string(),
+            );
             Ok(ident)
         }
 
@@ -243,7 +258,7 @@ pub mod tests {
                 Some(password_create(MOCK_PASSWORD.to_string())),
                 UserId(1),
                 provider_arg,
-                MOCK_SAGA_ID.to_string()
+                MOCK_SAGA_ID.to_string(),
             );
             Ok(ident)
         }
@@ -254,7 +269,7 @@ pub mod tests {
                 update.password,
                 UserId(1),
                 ident.provider,
-                ident.saga_id
+                ident.saga_id,
             );
             Ok(ident)
         }
@@ -266,50 +281,35 @@ pub mod tests {
     impl ResetTokenRepo for ResetTokenRepoMock {
         /// Create token for user
         fn create(&self, _reset_token_arg: ResetToken) -> Result<ResetToken, RepoError> {
-            let token = create_reset_token(
-                MOCK_TOKEN.to_string(),
-                MOCK_EMAIL.to_string()
-            );
+            let token = create_reset_token(MOCK_TOKEN.to_string(), MOCK_EMAIL.to_string());
 
             Ok(token)
         }
 
         /// Find by token
         fn find_by_token(&self, _token_arg: String) -> Result<ResetToken, RepoError> {
-            let token = create_reset_token(
-                MOCK_TOKEN.to_string(),
-                MOCK_EMAIL.to_string()
-            );
+            let token = create_reset_token(MOCK_TOKEN.to_string(), MOCK_EMAIL.to_string());
 
             Ok(token)
         }
 
         /// Find by email
         fn find_by_email(&self, _email_arg: String) -> Result<ResetToken, RepoError> {
-            let token = create_reset_token(
-                MOCK_TOKEN.to_string(),
-                MOCK_EMAIL.to_string()
-            );
+            let token = create_reset_token(MOCK_TOKEN.to_string(), MOCK_EMAIL.to_string());
 
             Ok(token)
         }
 
         /// Delete by token
         fn delete_by_token(&self, _token_arg: String) -> Result<ResetToken, RepoError> {
-            let token = create_reset_token(
-                MOCK_TOKEN.to_string(),
-                MOCK_EMAIL.to_string()
-            );
+            let token = create_reset_token(MOCK_TOKEN.to_string(), MOCK_EMAIL.to_string());
 
             Ok(token)
         }
 
         /// Delete by email
         fn delete_by_email(&self, _email_arg: String) -> Result<ResetToken, RepoError> {
-            let token = create_reset_token(
-                MOCK_TOKEN.to_string(),
-                MOCK_EMAIL.to_string()
-            );
+            let token = create_reset_token(MOCK_TOKEN.to_string(), MOCK_EMAIL.to_string());
 
             Ok(token)
         }
@@ -385,9 +385,7 @@ pub mod tests {
         )
     }
 
-    pub fn create_jwt_service(
-        handle: Arc<Handle>,
-    ) -> JWTServiceImpl<MockConnection, MockConnectionManager, ReposFactoryMock> {
+    pub fn create_jwt_service(handle: Arc<Handle>) -> JWTServiceImpl<MockConnection, MockConnectionManager, ReposFactoryMock> {
         let manager = MockConnectionManager::default();
         let db_pool = r2d2::Pool::builder()
             .build(manager)
@@ -402,13 +400,18 @@ pub mod tests {
         let client = stq_http::client::Client::new(&http_config, &handle);
         let client_handle = client.handle();
 
+        debug!("Reading private key file {}", &config.jwt.secret_key_path);
+        let mut f = File::open(config.jwt.secret_key_path.clone()).unwrap();
+        let mut jwt_private_key: Vec<u8> = Vec::new();
+        f.read_to_end(&mut jwt_private_key).unwrap();
+
         JWTServiceImpl::new(
             db_pool,
             cpu_pool,
             client_handle,
             config,
             MOCK_REPO_FACTORY,
-            vec!(0),
+            jwt_private_key.clone(),
         )
     }
 
@@ -442,10 +445,7 @@ pub mod tests {
     }
 
     pub fn create_new_email_identity(email: String, password: String) -> NewEmailIdentity {
-        NewEmailIdentity {
-            email,
-            password,
-        }
+        NewEmailIdentity { email, password }
     }
 
     pub fn create_update_user(_email: String) -> UpdateUser {
@@ -467,7 +467,7 @@ pub mod tests {
             password,
             user_id,
             provider,
-            saga_id
+            saga_id,
         }
     }
 
@@ -507,26 +507,26 @@ pub mod tests {
         }
 
         fn query_by_index<T, U>(&self, _source: T) -> QueryResult<Vec<U>>
-            where
-                T: AsQuery,
-                T::Query: QueryFragment<Pg> + QueryId,
-                Pg: HasSqlType<T::SqlType>,
-                U: Queryable<T::SqlType, Pg>,
+        where
+            T: AsQuery,
+            T::Query: QueryFragment<Pg> + QueryId,
+            Pg: HasSqlType<T::SqlType>,
+            U: Queryable<T::SqlType, Pg>,
         {
             unimplemented!()
         }
 
         fn query_by_name<T, U>(&self, _source: &T) -> QueryResult<Vec<U>>
-            where
-                T: QueryFragment<Pg> + QueryId,
-                U: QueryableByName<Pg>,
+        where
+            T: QueryFragment<Pg> + QueryId,
+            U: QueryableByName<Pg>,
         {
             unimplemented!()
         }
 
         fn execute_returning_count<T>(&self, _source: &T) -> QueryResult<usize>
-            where
-                T: QueryFragment<Pg> + QueryId,
+        where
+            T: QueryFragment<Pg> + QueryId,
         {
             unimplemented!()
         }

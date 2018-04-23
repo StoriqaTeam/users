@@ -9,6 +9,8 @@ pub mod utils;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use chrono::Utc;
+
 use diesel::Connection;
 use diesel::connection::AnsiTransactionManager;
 use diesel::pg::Pg;
@@ -246,8 +248,10 @@ impl<
                                     password: new_ident.password,
                                 };
 
+                                let now = Utc::now().timestamp();
+
                                 jwt_service
-                                    .create_token_email(checked_new_ident)
+                                    .create_token_email(checked_new_ident, now)
                                     .map_err(ControllerError::from)
                             })
                     }),
@@ -264,8 +268,10 @@ impl<
                         );
                     })
                     .and_then(move |oauth| {
+                        let now = Utc::now().timestamp();
+
                         jwt_service
-                            .create_token_google(oauth)
+                            .create_token_google(oauth, now)
                             .map_err(ControllerError::from)
                     }),
             ),
@@ -281,18 +287,22 @@ impl<
                         );
                     })
                     .and_then(move |oauth| {
+                        let now = Utc::now().timestamp();
+
                         jwt_service
-                            .create_token_facebook(oauth)
+                            .create_token_facebook(oauth, now)
                             .map_err(ControllerError::from)
                     }),
             ),
 
             // POST /jwt/renew
-            (&Post, Some(Route::JWTRenew)) => serialize_future(
+            (&Post, Some(Route::JWTRenew)) => serialize_future({
+                let now = Utc::now().timestamp();
+
                 jwt_service
-                    .renew_token(user_id.clone())
+                    .renew_token(user_id.clone(), now)
                     .map_err(ControllerError::from)
-            ),
+            }),
 
             // GET /user_roles/<user_id>
             (&Get, Some(Route::UserRole(user_id))) => {
