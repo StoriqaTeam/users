@@ -222,7 +222,7 @@ where
                 })
                 .and_then(|val| match val["email"].is_null() {
                     true => Err(ServiceError::Validate(
-                        validation_errors!({"email": ["email" => "Email not found"]}),
+                        validation_errors!({"email": ["email" => "Email required but not provided"]}),
                     )),
                     false => serde_json::from_value::<P>(val).map_err(ServiceError::from),
                 }),
