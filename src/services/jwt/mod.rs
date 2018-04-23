@@ -150,7 +150,7 @@ where
         secret: Vec<u8>,
         info_url: String,
         headers: Option<Headers>,
-        exp: i64
+        exp: i64,
     ) -> Box<Future<Item = JWT, Error = ServiceError>> {
         let service = Arc::new(self);
         let db_pool = service.db_pool.clone();
@@ -412,7 +412,7 @@ impl<
             jwt_private_key,
             url,
             Some(headers),
-            exp
+            exp,
         )
     }
 
@@ -425,7 +425,14 @@ impl<
             info_url, oauth.token
         );
         let jwt_private_key = self.jwt_private_key.clone();
-        <JWTServiceImpl<T, M, F> as ProfileService<T, FacebookProfile>>::create_token(self, Provider::Facebook, jwt_private_key, url, None, exp)
+        <JWTServiceImpl<T, M, F> as ProfileService<T, FacebookProfile>>::create_token(
+            self,
+            Provider::Facebook,
+            jwt_private_key,
+            url,
+            None,
+            exp,
+        )
     }
 
     fn renew_token(self, user_id: Option<i32>, exp: i64) -> ServiceFuture<JWT> {
