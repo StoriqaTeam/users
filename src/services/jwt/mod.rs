@@ -15,7 +15,7 @@ use futures::{Future, IntoFuture};
 use futures_cpupool::CpuPool;
 use hyper::header::{Authorization, Bearer};
 use hyper::{Headers, Method};
-use jsonwebtoken::{encode, Header, Algorithm};
+use jsonwebtoken::{encode, Algorithm, Header};
 use serde;
 use serde_json;
 use sha3::{Digest, Sha3_256};
@@ -120,8 +120,11 @@ trait ProfileService<T: Connection<Backend = Pg, TransactionManager = AnsiTransa
         debug!("Creating token for user {}, at {}", id, now);
         let tokenpayload = JWTPayload::new(id, now);
         Box::new(
-            encode(&Header::new(Algorithm::RS256), &tokenpayload, secret.as_ref())
-                .map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}.", tokenpayload)))
+            encode(
+                &Header::new(Algorithm::RS256),
+                &tokenpayload,
+                secret.as_ref(),
+            ).map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}.", tokenpayload)))
                 .into_future()
                 .inspect(move |token| {
                     debug!("Token {} created successfully for id {}", token, id);
@@ -217,15 +220,11 @@ where
                         e.to_string()
                     ))
                 })
-                .and_then(|val| {
-                    match val["email"].is_null() {
-                        true => Err(ServiceError::Validate(
-                            validation_errors!({"email": ["email" => "Email not found"]}),
-                        )),
-                        false =>
-                            serde_json::from_value::<P>(val)
-                                .map_err(ServiceError::from)
-                    }
+                .and_then(|val| match val["email"].is_null() {
+                    true => Err(ServiceError::Validate(
+                        validation_errors!({"email": ["email" => "Email not found"]}),
+                    )),
+                    false => serde_json::from_value::<P>(val).map_err(ServiceError::from),
                 }),
         )
     }
@@ -385,8 +384,11 @@ impl<
                             .and_then(move |id| {
                                 let now = Utc::now().timestamp();
                                 let tokenpayload = JWTPayload::new(id, now);
-                                encode(&Header::new(Algorithm::RS256), &tokenpayload, jwt_private_key.as_ref())
-                                    .map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}", tokenpayload)))
+                                encode(
+                                    &Header::new(Algorithm::RS256),
+                                    &tokenpayload,
+                                    jwt_private_key.as_ref(),
+                                ).map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}", tokenpayload)))
                                     .and_then(|t| {
                                         Ok(JWT {
                                             token: t,
@@ -424,13 +426,7 @@ impl<
             info_url, oauth.token
         );
         let jwt_private_key = self.jwt_private_key.clone();
-        <JWTServiceImpl<T, M, F> as ProfileService<T, FacebookProfile>>::create_token(
-            self,
-            Provider::Facebook,
-            jwt_private_key,
-            url,
-            None,
-        )
+        <JWTServiceImpl<T, M, F> as ProfileService<T, FacebookProfile>>::create_token(self, Provider::Facebook, jwt_private_key, url, None)
     }
 
     fn renew_token(self, user_id: Option<i32>) -> ServiceFuture<JWT> {
@@ -439,20 +435,22 @@ impl<
                 let jwt_private_key = self.jwt_private_key.clone();
                 let now = Utc::now().timestamp();
                 let tokenpayload = JWTPayload::new(id, now);
-                Box::new(encode(&Header::new(Algorithm::RS256), &tokenpayload, jwt_private_key.as_ref())
-                    .map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}", tokenpayload)))
-                    .and_then(|t| {
-                        Ok(JWT {
-                            token: t,
-                            status: UserStatus::Exists,
-                        })
-                    }).into_future())
-            },
-            _ => {
                 Box::new(
-                    Err(ServiceError::InvalidToken).into_future()
+                    encode(
+                        &Header::new(Algorithm::RS256),
+                        &tokenpayload,
+                        jwt_private_key.as_ref(),
+                    ).map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}", tokenpayload)))
+                        .and_then(|t| {
+                            Ok(JWT {
+                                token: t,
+                                status: UserStatus::Exists,
+                            })
+                        })
+                        .into_future(),
                 )
             }
+            _ => Box::new(Err(ServiceError::InvalidToken).into_future()),
         }
     }
 

@@ -288,26 +288,30 @@ impl<
                             })
                         })
                 })
-                .and_then(move |(token, user)| -> Box<Future<Item = User, Error = ServiceError>> {
-                    let user_clone: User = user.clone();
-                    if user_absent {
-                        let to = token.email.clone();
-                        let subject = "Email verification".to_string();
-                        let text = format!(
-                            "{}/{}",
-                            notif_config.verify_email_path.clone(),
-                            token.token.clone()
-                        );
+                .and_then(
+                    move |(token, user)| -> Box<Future<Item = User, Error = ServiceError>> {
+                        let user_clone: User = user.clone();
+                        if user_absent {
+                            let to = token.email.clone();
+                            let subject = "Email verification".to_string();
+                            let text = format!(
+                                "{}/{}",
+                                notif_config.verify_email_path.clone(),
+                                token.token.clone()
+                            );
 
-                        debug!("Sending email notification to user");
+                            debug!("Sending email notification to user");
 
-                        Box::new(Self::send_mail(http_clone.clone(), notif_config.clone(), to, subject, text)
-                            .map(|_| user)
-                            .or_else(|_| future::ok(user_clone)))
-                    } else {
-                        Box::new(future::ok(user_clone))
-                    }
-                }),
+                            Box::new(
+                                Self::send_mail(http_clone.clone(), notif_config.clone(), to, subject, text)
+                                    .map(|_| user)
+                                    .or_else(|_| future::ok(user_clone)),
+                            )
+                        } else {
+                            Box::new(future::ok(user_clone))
+                        }
+                    },
+                ),
         )
     }
 
@@ -653,7 +657,12 @@ pub mod tests {
         let mut core = Core::new().unwrap();
         let handle = Arc::new(core.handle());
         let service = create_users_service(Some(1), handle);
-        let new_ident = create_new_identity(MOCK_EMAIL.to_string(), MOCK_PASSWORD.to_string(), Provider::Email, MOCK_SAGA_ID.to_string());
+        let new_ident = create_new_identity(
+            MOCK_EMAIL.to_string(),
+            MOCK_PASSWORD.to_string(),
+            Provider::Email,
+            MOCK_SAGA_ID.to_string(),
+        );
         let work = service.create(new_ident, None);
         let result = core.run(work);
         assert_eq!(result.is_err(), true);
@@ -664,7 +673,12 @@ pub mod tests {
         let mut core = Core::new().unwrap();
         let handle = Arc::new(core.handle());
         let service = create_users_service(Some(1), handle);
-        let new_ident = create_new_identity("new_user@mail.com".to_string(), MOCK_PASSWORD.to_string(), Provider::Email, MOCK_SAGA_ID.to_string());
+        let new_ident = create_new_identity(
+            "new_user@mail.com".to_string(),
+            MOCK_PASSWORD.to_string(),
+            Provider::Email,
+            MOCK_SAGA_ID.to_string(),
+        );
         let work = service.create(new_ident, None);
         let result = core.run(work).unwrap();
         assert_eq!(result.email, "new_user@mail.com".to_string());

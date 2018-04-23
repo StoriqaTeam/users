@@ -291,7 +291,7 @@ impl<
             (&Post, Some(Route::JWTRenew)) => serialize_future(
                 jwt_service
                     .renew_token(user_id.clone())
-                    .map_err(ControllerError::from)
+                    .map_err(ControllerError::from),
             ),
 
             // GET /user_roles/<user_id>
