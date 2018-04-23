@@ -109,6 +109,12 @@ trait ProfileService<T: Connection<Backend = Pg, TransactionManager = AnsiTransa
 
     fn profile_status(&self, profile: P, provider: Provider) -> ServiceFuture<ProfileStatus>;
 
+    fn create_profile(&self, profile: P, provider: Provider) -> Result<i32, ServiceError>;
+
+    fn update_profile(&self, conn: &T, profile: P) -> Result<i32, ServiceError>;
+
+    fn get_id(&self, profile: P, provider: Provider) -> ServiceFuture<i32>;
+
     fn create_jwt(&self, id: i32, status: UserStatus, secret: Vec<u8>) -> ServiceFuture<JWT> {
         let now = Utc::now().timestamp();
         debug!("Creating token for user {}, at {}", id, now);
@@ -123,12 +129,6 @@ trait ProfileService<T: Connection<Backend = Pg, TransactionManager = AnsiTransa
                 .and_then(move |token| future::ok(JWT { token, status })),
         )
     }
-
-    fn create_profile(&self, profile: P, provider: Provider) -> Result<i32, ServiceError>;
-
-    fn update_profile(&self, conn: &T, profile: P) -> Result<i32, ServiceError>;
-
-    fn get_id(&self, profile: P, provider: Provider) -> ServiceFuture<i32>;
 }
 
 impl<
@@ -210,14 +210,54 @@ where
     fn get_profile(&self, url: String, headers: Option<Headers>) -> ServiceFuture<P> {
         Box::new(
             self.http_client
-                .request::<P>(Method::Get, url, None, headers)
+                .request::<serde_json::Value>(Method::Get, url, None, headers)
                 .map_err(|e| {
                     ServiceError::HttpClient(format!(
                         "Failed to receive user info from provider. {}",
                         e.to_string()
                     ))
+                })
+                .and_then(|val| {
+                    match val["email"].is_null() {
+                        true => Err(ServiceError::Validate(
+                            validation_errors!({"email": ["email" => "Email not found"]}),
+                        )),
+                        false =>
+                            serde_json::from_value::<P>(val)
+                                .map_err(ServiceError::from)
+                    }
                 }),
         )
+    }
+
+    fn profile_status(&self, profile: P, provider: Provider) -> ServiceFuture<ProfileStatus> {
+        Box::new({
+            let db_pool = self.db_pool.clone();
+            let repo_factory = self.repo_factory.clone();
+            self.cpu_pool.spawn_fn(move || {
+                db_pool
+                    .get()
+                    .map_err(|e| ServiceError::Connection(e.into()))
+                    .and_then(move |conn| {
+                        let users_repo = repo_factory.create_users_repo_with_sys_acl(&conn);
+                        let ident_repo = repo_factory.create_identities_repo(&conn);
+                        conn.transaction(move || {
+                            users_repo
+                                .email_exists(profile.get_email())
+                                .and_then(|user_exists| match user_exists {
+                                    false => Ok(ProfileStatus::NewUser),
+                                    true => ident_repo
+                                        .email_provider_exists(profile.get_email(), provider)
+                                        .map(|identity_exists| match identity_exists {
+                                            false => ProfileStatus::NewIdentity,
+                                            true => ProfileStatus::ExistingProfile,
+                                        }),
+                                })
+                                .map_err(ServiceError::from)
+                        })
+                    })
+            })
+        })
     }
 
     fn create_profile(&self, profile_arg: P, provider: Provider) -> Result<i32, ServiceError> {
@@ -260,36 +300,6 @@ where
                         .map(|u| u.id.0)
                 }
             })
-    }
-
-    fn profile_status(&self, profile: P, provider: Provider) -> ServiceFuture<ProfileStatus> {
-        Box::new({
-            let db_pool = self.db_pool.clone();
-            let repo_factory = self.repo_factory.clone();
-            self.cpu_pool.spawn_fn(move || {
-                db_pool
-                    .get()
-                    .map_err(|e| ServiceError::Connection(e.into()))
-                    .and_then(move |conn| {
-                        let users_repo = repo_factory.create_users_repo_with_sys_acl(&conn);
-                        let ident_repo = repo_factory.create_identities_repo(&conn);
-                        conn.transaction(move || {
-                            users_repo
-                                .email_exists(profile.get_email())
-                                .and_then(|user_exists| match user_exists {
-                                    false => Ok(ProfileStatus::NewUser),
-                                    true => ident_repo
-                                        .email_provider_exists(profile.get_email(), provider)
-                                        .map(|identity_exists| match identity_exists {
-                                            false => ProfileStatus::NewIdentity,
-                                            true => ProfileStatus::ExistingProfile,
-                                        }),
-                                })
-                                .map_err(ServiceError::from)
-                        })
-                    })
-            })
-        })
     }
 
     fn get_id(&self, profile: P, provider: Provider) -> ServiceFuture<i32> {
