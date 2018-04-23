@@ -111,6 +111,8 @@ pub mod tests {
     use std::sync::Arc;
     use std::error::Error;
     use std::fmt;
+    use std::io::prelude::*;
+    use std::fs::File;
 
     use base64::encode;
     use futures_cpupool::CpuPool;
@@ -398,13 +400,18 @@ pub mod tests {
         let client = stq_http::client::Client::new(&http_config, &handle);
         let client_handle = client.handle();
 
+        debug!("Reading private key file {}", &config.jwt.secret_key_path);
+        let mut f = File::open(config.jwt.secret_key_path.clone()).unwrap();
+        let mut jwt_private_key: Vec<u8> = Vec::new();
+        f.read_to_end(&mut jwt_private_key).unwrap();
+
         JWTServiceImpl::new(
             db_pool,
             cpu_pool,
             client_handle,
             config,
             MOCK_REPO_FACTORY,
-            vec![0],
+            jwt_private_key.clone(),
         )
     }
 

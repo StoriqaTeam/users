@@ -5,7 +5,6 @@ use std::str;
 use std::sync::Arc;
 
 use base64::decode;
-use chrono::Utc;
 use diesel::Connection;
 use diesel::connection::AnsiTransactionManager;
 use diesel::pg::Pg;
@@ -32,13 +31,13 @@ use repos::repo_factory::ReposFactory;
 /// JWT services, responsible for JsonWebToken operations
 pub trait JWTService {
     /// Creates new JWT token by email
-    fn create_token_email(&self, payload: NewEmailIdentity) -> ServiceFuture<JWT>;
+    fn create_token_email(&self, payload: NewEmailIdentity, exp: i64) -> ServiceFuture<JWT>;
     /// Creates new JWT token by google
-    fn create_token_google(self, oauth: ProviderOauth) -> ServiceFuture<JWT>;
+    fn create_token_google(self, oauth: ProviderOauth, exp: i64) -> ServiceFuture<JWT>;
     /// Creates new JWT token by facebook
-    fn create_token_facebook(self, oauth: ProviderOauth) -> ServiceFuture<JWT>;
+    fn create_token_facebook(self, oauth: ProviderOauth, exp: i64) -> ServiceFuture<JWT>;
     /// Renew valid token
-    fn renew_token(self, user_id: Option<i32>) -> ServiceFuture<JWT>;
+    fn renew_token(self, user_id: Option<i32>, exp: i64) -> ServiceFuture<JWT>;
     /// Verifies password
     fn password_verify(db_hash: String, clear_password: String) -> Result<bool, ServiceError>;
 }
@@ -103,7 +102,7 @@ pub enum ProfileStatus {
 
 trait ProfileService<T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static, P: Email>
      {
-    fn create_token(self, provider: Provider, secret: Vec<u8>, info_url: String, headers: Option<Headers>) -> ServiceFuture<JWT>;
+    fn create_token(self, provider: Provider, secret: Vec<u8>, info_url: String, headers: Option<Headers>, exp: i64) -> ServiceFuture<JWT>;
 
     fn get_profile(&self, url: String, headers: Option<Headers>) -> ServiceFuture<P>;
 
@@ -115,10 +114,9 @@ trait ProfileService<T: Connection<Backend = Pg, TransactionManager = AnsiTransa
 
     fn get_id(&self, profile: P, provider: Provider) -> ServiceFuture<i32>;
 
-    fn create_jwt(&self, id: i32, status: UserStatus, secret: Vec<u8>) -> ServiceFuture<JWT> {
-        let now = Utc::now().timestamp();
-        debug!("Creating token for user {}, at {}", id, now);
-        let tokenpayload = JWTPayload::new(id, now);
+    fn create_jwt(&self, id: i32, exp: i64, status: UserStatus, secret: Vec<u8>) -> ServiceFuture<JWT> {
+        debug!("Creating token for user {}, at {}", id, exp);
+        let tokenpayload = JWTPayload::new(id, exp);
         Box::new(
             encode(
                 &Header::new(Algorithm::RS256),
@@ -152,6 +150,7 @@ where
         secret: Vec<u8>,
         info_url: String,
         headers: Option<Headers>,
+        exp: i64
     ) -> Box<Future<Item = JWT, Error = ServiceError>> {
         let service = Arc::new(self);
         let db_pool = service.db_pool.clone();
@@ -204,7 +203,7 @@ where
             })
             .and_then({
                 let s = service.clone();
-                move |(id, status)| s.create_jwt(id, status, secret)
+                move |(id, status)| s.create_jwt(id, exp, status, secret)
             });
 
         Box::new(future)
@@ -329,7 +328,7 @@ impl<
 > JWTService for JWTServiceImpl<T, M, F>
 {
     /// Creates new JWT token by email
-    fn create_token_email(&self, payload: NewEmailIdentity) -> ServiceFuture<JWT> {
+    fn create_token_email(&self, payload: NewEmailIdentity, exp: i64) -> ServiceFuture<JWT> {
         let r2d2_clone = self.db_pool.clone();
         let jwt_private_key = self.jwt_private_key.clone();
         let repo_factory = self.repo_factory.clone();
@@ -382,8 +381,7 @@ impl<
                                 }
                             })
                             .and_then(move |id| {
-                                let now = Utc::now().timestamp();
-                                let tokenpayload = JWTPayload::new(id, now);
+                                let tokenpayload = JWTPayload::new(id, exp);
                                 encode(
                                     &Header::new(Algorithm::RS256),
                                     &tokenpayload,
@@ -403,7 +401,7 @@ impl<
 
     /// https://developers.google.com/identity/protocols/OpenIDConnect#validatinganidtoken
     /// Creates new JWT token by google
-    fn create_token_google(self, oauth: ProviderOauth) -> ServiceFuture<JWT> {
+    fn create_token_google(self, oauth: ProviderOauth, exp: i64) -> ServiceFuture<JWT> {
         let url = self.google_config.info_url.clone();
         let mut headers = Headers::new();
         headers.set(Authorization(Bearer { token: oauth.token }));
@@ -414,27 +412,27 @@ impl<
             jwt_private_key,
             url,
             Some(headers),
+            exp
         )
     }
 
     /// https://developers.facebook.com/docs/facebook-login/manually-build-a-login-flow
     /// Creates new JWT token by facebook
-    fn create_token_facebook(self, oauth: ProviderOauth) -> ServiceFuture<JWT> {
+    fn create_token_facebook(self, oauth: ProviderOauth, exp: i64) -> ServiceFuture<JWT> {
         let info_url = self.facebook_config.info_url.clone();
         let url = format!(
             "{}?fields=first_name,last_name,gender,email,name&access_token={}",
             info_url, oauth.token
         );
         let jwt_private_key = self.jwt_private_key.clone();
-        <JWTServiceImpl<T, M, F> as ProfileService<T, FacebookProfile>>::create_token(self, Provider::Facebook, jwt_private_key, url, None)
+        <JWTServiceImpl<T, M, F> as ProfileService<T, FacebookProfile>>::create_token(self, Provider::Facebook, jwt_private_key, url, None, exp)
     }
 
-    fn renew_token(self, user_id: Option<i32>) -> ServiceFuture<JWT> {
+    fn renew_token(self, user_id: Option<i32>, exp: i64) -> ServiceFuture<JWT> {
         match user_id {
             Some(id) => {
                 let jwt_private_key = self.jwt_private_key.clone();
-                let now = Utc::now().timestamp();
-                let tokenpayload = JWTPayload::new(id, now);
+                let tokenpayload = JWTPayload::new(id, exp);
                 Box::new(
                     encode(
                         &Header::new(Algorithm::RS256),
@@ -489,11 +487,27 @@ pub mod tests {
         let handle = Arc::new(core.handle());
         let service = create_jwt_service(handle);
         let new_user = create_new_email_identity(MOCK_EMAIL.to_string(), MOCK_PASSWORD.to_string());
-        let work = service.create_token_email(new_user);
+        let exp = 1;
+        let work = service.create_token_email(new_user, exp);
         let result = core.run(work).unwrap();
         assert_eq!(
             result.token,
-            "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoxfQ.u29q4XLsMSDxPJngHHQV4THkbx-Tn9g7HjcLPEKMT1U"
+            "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjF9.QsUg6-nT7CJHePAHvIsHlOxchFnc0o6NXWVfTWmrrAowBYMAOXsOfkh8VEMqL8H5IwFBBZDr9OleYYX_GbgTn6qS6v_eV4bEPlauxuBCm-R7GkuHvzPwxFOviI9p0kZ0QFj-hz-yRbnobihoYZieCAa_nk0EJjy2jZR5njq9T5eQXk5rsknWvTmSiVtnEOvkTuuSyz6YCPPSQZfBHZtLAc7py6R1YtpyX5MR64tVlQXuZlulb-CpupJeYUNiuIcZ5v6UDLl_3vRYP9ovrYEjSs7Af19_7Jt2COMFrcwEB8-TDYSU_mH13y7Ou2GTizxQeWJcskkpN-EWjS2eRSU4fA"
+        );
+    }
+
+    #[test]
+    fn test_jwt_renew() {
+        let mut core = Core::new().unwrap();
+        let handle = Arc::new(core.handle());
+        let service = create_jwt_service(handle);
+        let user_id = 1;
+        let exp = 1;
+        let work = service.renew_token(Some(user_id), exp);
+        let result = core.run(work).unwrap();
+        assert_eq!(
+            result.token,
+            "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjF9.QsUg6-nT7CJHePAHvIsHlOxchFnc0o6NXWVfTWmrrAowBYMAOXsOfkh8VEMqL8H5IwFBBZDr9OleYYX_GbgTn6qS6v_eV4bEPlauxuBCm-R7GkuHvzPwxFOviI9p0kZ0QFj-hz-yRbnobihoYZieCAa_nk0EJjy2jZR5njq9T5eQXk5rsknWvTmSiVtnEOvkTuuSyz6YCPPSQZfBHZtLAc7py6R1YtpyX5MR64tVlQXuZlulb-CpupJeYUNiuIcZ5v6UDLl_3vRYP9ovrYEjSs7Af19_7Jt2COMFrcwEB8-TDYSU_mH13y7Ou2GTizxQeWJcskkpN-EWjS2eRSU4fA"
         );
     }
 
@@ -503,7 +517,8 @@ pub mod tests {
         let handle = Arc::new(core.handle());
         let service = create_jwt_service(handle);
         let new_user = create_new_email_identity("not found email".to_string(), MOCK_PASSWORD.to_string());
-        let work = service.create_token_email(new_user);
+        let exp = 1;
+        let work = service.create_token_email(new_user, exp);
         let result = core.run(work);
         assert_eq!(result.is_err(), true);
     }
@@ -514,7 +529,8 @@ pub mod tests {
         let handle = Arc::new(core.handle());
         let service = create_jwt_service(handle);
         let new_user = create_new_email_identity(MOCK_EMAIL.to_string(), "wrong password".to_string());
-        let work = service.create_token_email(new_user);
+        let exp = 1;
+        let work = service.create_token_email(new_user, exp);
         let result = core.run(work);
         assert_eq!(result.is_err(), true);
     }
@@ -529,7 +545,8 @@ pub mod tests {
         let oauth = ProviderOauth {
             token: GOOGLE_TOKEN.to_string(),
         };
-        let work = service.create_token_google(oauth);
+        let exp = 1;
+        let work = service.create_token_google(oauth, exp);
         let result = core.run(work).unwrap();
         assert_eq!(result.token, "token");
     }
@@ -544,7 +561,8 @@ pub mod tests {
         let oauth = ProviderOauth {
             token: FACEBOOK_TOKEN.to_string(),
         };
-        let work = service.create_token_facebook(oauth);
+        let exp = 1;
+        let work = service.create_token_facebook(oauth, exp);
         let result = core.run(work).unwrap();
         assert_eq!(result.token, "token");
     }
