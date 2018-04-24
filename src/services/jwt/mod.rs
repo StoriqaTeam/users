@@ -339,6 +339,7 @@ impl<
                 .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
                     let ident_repo = repo_factory.create_identities_repo(&conn);
+                    let mut users_repo = repo_factory.create_users_repo_with_sys_acl(&conn);
 
                     conn.transaction::<JWT, ServiceError, _>(move || {
                         ident_repo
@@ -353,28 +354,41 @@ impl<
                                     )),
                                     // email exists, checking password
                                     true => {
-                                        let new_ident_clone = new_ident.clone();
-                                        ident_repo
-                                            .find_by_email_provider(new_ident.email.clone(), Provider::Email)
+                                        users_repo
+                                            .find_by_email(new_ident.email.clone())
                                             .map_err(ServiceError::from)
-                                            .and_then(move |identity| {
-                                                Self::password_verify(
-                                                    identity.password.unwrap().clone(),
-                                                    new_ident.password.clone(),
-                                                )
-                                            })
-                                            .map(move |verified| (verified, new_ident_clone))
-                                            .and_then(move |(verified, new_ident)| -> Result<i32, ServiceError> {
-                                                match verified {
-                                                    //password not verified
+                                            .map(|user| (new_ident, user))
+                                            .and_then(move |(new_ident, user)| {
+                                                match user.email_verified {
+                                                    true => {
+                                                        let new_ident_clone = new_ident.clone();
+                                                        ident_repo
+                                                            .find_by_email_provider(new_ident.email.clone(), Provider::Email)
+                                                            .map_err(ServiceError::from)
+                                                            .and_then(move |identity| {
+                                                                Self::password_verify(
+                                                                    identity.password.unwrap().clone(),
+                                                                    new_ident.password.clone(),
+                                                                )
+                                                            })
+                                                            .map(move |verified| (verified, new_ident_clone))
+                                                            .and_then(move |(verified, new_ident)| -> Result<i32, ServiceError> {
+                                                                match verified {
+                                                                    //password not verified
+                                                                    false => Err(ServiceError::Validate(
+                                                                        validation_errors!({"password": ["password" => "Wrong password"]}),
+                                                                    )),
+                                                                    //password verified
+                                                                    true => ident_repo
+                                                                        .find_by_email_provider(new_ident.email, Provider::Email)
+                                                                        .map_err(ServiceError::from)
+                                                                        .map(|ident| ident.user_id.0),
+                                                                }
+                                                            })
+                                                    }
                                                     false => Err(ServiceError::Validate(
-                                                        validation_errors!({"password": ["password" => "Wrong password"]}),
+                                                        validation_errors!({"email": ["email" => "Email not verified"]}),
                                                     )),
-                                                    //password verified
-                                                    true => ident_repo
-                                                        .find_by_email_provider(new_ident.email, Provider::Email)
-                                                        .map_err(ServiceError::from)
-                                                        .map(|ident| ident.user_id.0),
                                                 }
                                             })
                                     }

@@ -55,6 +55,8 @@ pub trait UsersService {
     fn password_reset_apply(&self, email_arg: String, token_arg: String) -> ServiceFuture<bool>;
     /// Creates hashed password
     fn password_create(clear_password: String) -> String;
+    /// Creates reset token
+    fn reset_token_create() -> String;
     /// Send email
     fn send_mail(http_client: ClientHandle, notif_config: Notifications, to: String, subject: String, text: String) -> ServiceFuture<bool>;
 }
@@ -271,7 +273,7 @@ impl<
                                             .map(|ident| (ident, user))
                                     })
                                     .and_then(move |(ident, user)| {
-                                        let new_token = Uuid::new_v4().to_string();
+                                        let new_token = Self::reset_token_create();
                                         let reset_token = ResetToken {
                                             token: new_token,
                                             email: ident.email.clone(),
@@ -335,7 +337,7 @@ impl<
                                 .delete_by_email(email.clone())
                                 .map_err(|_e| ServiceError::Unknown("Cannot create reset token".to_string()))
                                 .and_then(|_token| {
-                                    let new_token = Uuid::new_v4().to_string();
+                                    let new_token = Self::reset_token_create();
                                     let reset_token = ResetToken {
                                         token: new_token,
                                         email: email.clone(),
@@ -476,7 +478,7 @@ impl<
                                 .map_err(|_e| ServiceError::InvalidToken)
                                 .and_then(|ident| {
                                     debug!("Found identity {:?}, generating reset token.", &ident);
-                                    let new_token = Uuid::new_v4().to_string();
+                                    let new_token = Self::reset_token_create();
                                     let reset_token = ResetToken {
                                         token: new_token,
                                         email: ident.email.clone(),
@@ -582,6 +584,11 @@ impl<
         let out = hasher.result();
         let computed_hash = encode(&out[..]);
         computed_hash + "." + &salt
+    }
+
+    fn reset_token_create() -> String {
+        let new_token = Uuid::new_v4().to_string();
+        encode(&new_token)
     }
 
     fn send_mail(http_client: ClientHandle, notif_config: Notifications, to: String, subject: String, text: String) -> ServiceFuture<bool> {
