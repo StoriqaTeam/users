@@ -385,10 +385,10 @@ impl<
                                                                         .map(|ident| ident.user_id.0),
                                                                 }
                                                             })
-                                                    },
+                                                    }
                                                     false => Err(ServiceError::Validate(
                                                         validation_errors!({"email": ["email" => "Email not verified"]}),
-                                                    ))
+                                                    )),
                                                 }
                                             })
                                     }
