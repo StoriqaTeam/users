@@ -142,7 +142,7 @@ impl<
                     })
             }))
         } else {
-            Box::new(future::err(ServiceError::Unknown(format!(
+            Box::new(future::err(ServiceError::Unauthorized(format!(
                 "There is no user id in request header."
             ))))
         }
