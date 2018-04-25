@@ -1,0 +1,1 @@
+UPDATE users SET email_verified = false WHERE email = 'admin@storiqa.com';
