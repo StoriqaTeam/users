@@ -333,21 +333,20 @@ impl<
                         .and_then(move |conn| {
                             let reset_repo = repo_factory.create_reset_token_repo(&conn);
 
-                            reset_repo
-                                .delete_by_email(email.clone())
-                                .map_err(|_e| ServiceError::Unknown("Cannot create reset token".to_string()))
-                                .and_then(|_token| {
-                                    let new_token = Self::reset_token_create();
-                                    let reset_token = ResetToken {
-                                        token: new_token,
-                                        email: email.clone(),
-                                        created_at: SystemTime::now(),
-                                    };
+                            let _res = reset_repo
+                                .delete_by_email(email.clone());
+                            
+                            let new_token = Self::reset_token_create();
+                            let reset_token = ResetToken {
+                                token: new_token,
+                                email: email.clone(),
+                                created_at: SystemTime::now(),
+                            };
 
-                                    reset_repo
-                                        .create(reset_token)
-                                        .map_err(|_e| ServiceError::Unknown("Cannot create reset token".to_string()))
-                                })
+                            reset_repo
+                                .create(reset_token)
+                                .map_err(|_e| ServiceError::Unknown("Cannot create reset token".to_string()))
+                                
                         })
                 })
                 .and_then(move |token| {
