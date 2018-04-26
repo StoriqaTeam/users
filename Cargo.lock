@@ -955,11 +955,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "stq_acl"
 version = "0.1.0"
-dependencies = [
- "diesel 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "r2d2 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "r2d2-diesel 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
 
 [[package]]
 name = "stq_http"
