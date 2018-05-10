@@ -48,17 +48,12 @@ pipeline:
     dockerfile: docker/Dockerfile.run
     when:
       event: [ push, tag ]
-  cleanup:
-    image: rust:1.25-stretch
-    commands:
-    - cargo clean
-    - rm diesel || true
   deploy2nightly:
     image: jackthestripper/drone_k8s_rollout:20180510
     namespace: default
     kind: deployment
     object: users
-    img_name: storiqateam/stq-users
+    img_names: storiqateam/stq-users
     img_tags: ${DRONE_BRANCH//\//_}${DRONE_BUILD_NUMBER}
     img_cnts: users
     user: admin
@@ -73,7 +68,7 @@ pipeline:
     namespace: default
     kind: deployment
     object: users
-    img_name: storiqateam/stq-users
+    img_names: storiqateam/stq-users
     img_tags: ${DRONE_BRANCH//\//_}${DRONE_BUILD_NUMBER}
     img_cnts: users
     user: admin
@@ -88,7 +83,7 @@ pipeline:
     namespace: default
     kind: deployment
     object: users
-    img_name: storiqateam/stq-users
+    img_names: storiqateam/stq-users
     img_tags: ${DRONE_BRANCH//\//_}${DRONE_BUILD_NUMBER}
     img_cnts: users
     user: admin
