@@ -419,7 +419,7 @@ pub mod tests {
         User {
             id: id,
             email: email,
-            email_verified: false,
+            email_verified: true,
             phone: None,
             phone_verified: false,
             is_active: true,
