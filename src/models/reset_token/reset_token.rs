@@ -3,10 +3,13 @@ use std::time::SystemTime;
 
 use validator::Validate;
 
+use super::TokenType;
+
 table! {
     reset_tokens (token) {
         token -> VarChar,
         email -> VarChar,
+        token_type -> VarChar,
         created_at -> Timestamp,
     }
 }
@@ -16,6 +19,7 @@ table! {
 pub struct ResetToken {
     pub token: String,
     pub email: String,
+    pub token_type: TokenType,
     pub created_at: SystemTime,
 }
 

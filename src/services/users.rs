@@ -22,7 +22,7 @@ use stq_http::client::ClientHandle;
 
 use models::{NewIdentity, Provider, UpdateIdentity};
 use models::{NewUser, UpdateUser, User, UserId};
-use models::{ResetMail, ResetToken};
+use models::{ResetMail, ResetToken, TokenType};
 use repos::repo_factory::ReposFactory;
 
 use config::Notifications;
@@ -277,10 +277,11 @@ impl<
                                         let reset_token = ResetToken {
                                             token: new_token,
                                             email: ident.email.clone(),
+                                            token_type: TokenType::EmailVerify,
                                             created_at: SystemTime::now(),
                                         };
 
-                                        let _res = reset_repo.delete_by_email(reset_token.email.clone());
+                                        let _res = reset_repo.delete_by_email(reset_token.email.clone(), TokenType::EmailVerify);
 
                                         reset_repo
                                             .create(reset_token)
@@ -333,12 +334,13 @@ impl<
                         .and_then(move |conn| {
                             let reset_repo = repo_factory.create_reset_token_repo(&conn);
 
-                            let _res = reset_repo.delete_by_email(email.clone());
+                            let _res = reset_repo.delete_by_email(email.clone(), TokenType::EmailVerify);
 
                             let new_token = Self::reset_token_create();
                             let reset_token = ResetToken {
                                 token: new_token,
                                 email: email.clone(),
+                                token_type: TokenType::EmailVerify,
                                 created_at: SystemTime::now(),
                             };
 
@@ -379,11 +381,11 @@ impl<
                             let reset_repo = repo_factory.create_reset_token_repo(&conn);
 
                             reset_repo
-                                .find_by_token(token_arg.clone())
+                                .find_by_token(token_arg.clone(), TokenType::EmailVerify)
                                 .map_err(|_e| ServiceError::InvalidToken)
                                 .and_then(|reset_token| {
                                     reset_repo
-                                        .delete_by_token(reset_token.token.clone())
+                                        .delete_by_token(reset_token.token.clone(), TokenType::EmailVerify)
                                         .map_err(|_e| {
                                             println!("Unable to delete token");
                                             ServiceError::Unknown("".to_string())
@@ -475,10 +477,16 @@ impl<
                                 .map_err(|_e| ServiceError::InvalidToken)
                                 .and_then(|ident| {
                                     debug!("Found identity {:?}, generating reset token.", &ident);
+
+                                    debug!("Removing previous tokens for {} if any", &ident.email);
+                                    let _res = reset_repo.delete_by_email(ident.email.clone(), TokenType::PasswordReset);
+
+                                    debug!("Generating new token for {}", &ident.email);
                                     let new_token = Self::reset_token_create();
                                     let reset_token = ResetToken {
                                         token: new_token,
                                         email: ident.email.clone(),
+                                        token_type: TokenType::PasswordReset,
                                         created_at: SystemTime::now(),
                                     };
 
@@ -521,11 +529,11 @@ impl<
                             let ident_repo = repo_factory.create_identities_repo(&conn);
 
                             reset_repo
-                                .find_by_token(token_arg.clone())
+                                .find_by_token(token_arg.clone(), TokenType::PasswordReset)
                                 .map_err(|_e| ServiceError::InvalidToken)
                                 .and_then(|reset_token| {
                                     reset_repo
-                                        .delete_by_token(reset_token.token.clone())
+                                        .delete_by_token(reset_token.token.clone(), TokenType::PasswordReset)
                                         .map_err(|_e| {
                                             println!("Unable to delete token");
                                             ServiceError::Unknown("".to_string())
