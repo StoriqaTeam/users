@@ -1,5 +1,5 @@
 [jwt]
-secret_key = "jwt secret key"
+secret_key_path = "config/keys/private_key.der"
 check_email = false
 
 [google]
@@ -11,8 +11,7 @@ info_url = "https://graph.facebook.com/me"
 [saga_addr]
 url = "http://saga:8004"
 
-[server]
-host = "0.0.0.0"
-port = "8000"
-database = "postgresql://users:users@users-pg-postgresql/users"
-thread_count = 20
+[notifications]
+url = "http://notifications:8005"
+verify_email_path = "https://localhost/verify_email"
+reset_password_path = "https://localhost/password_reset"

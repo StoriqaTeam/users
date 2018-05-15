@@ -287,28 +287,28 @@ pub mod tests {
         }
 
         /// Find by token
-        fn find_by_token(&self, _token_arg: String) -> Result<ResetToken, RepoError> {
+        fn find_by_token(&self, _token_arg: String, _token_type_arg: TokenType) -> Result<ResetToken, RepoError> {
             let token = create_reset_token(MOCK_TOKEN.to_string(), MOCK_EMAIL.to_string());
 
             Ok(token)
         }
 
         /// Find by email
-        fn find_by_email(&self, _email_arg: String) -> Result<ResetToken, RepoError> {
+        fn find_by_email(&self, _email_arg: String, _token_type_arg: TokenType) -> Result<ResetToken, RepoError> {
             let token = create_reset_token(MOCK_TOKEN.to_string(), MOCK_EMAIL.to_string());
 
             Ok(token)
         }
 
         /// Delete by token
-        fn delete_by_token(&self, _token_arg: String) -> Result<ResetToken, RepoError> {
+        fn delete_by_token(&self, _token_arg: String, _token_type_arg: TokenType) -> Result<ResetToken, RepoError> {
             let token = create_reset_token(MOCK_TOKEN.to_string(), MOCK_EMAIL.to_string());
 
             Ok(token)
         }
 
         /// Delete by email
-        fn delete_by_email(&self, _email_arg: String) -> Result<ResetToken, RepoError> {
+        fn delete_by_email(&self, _email_arg: String, _token_type_arg: TokenType) -> Result<ResetToken, RepoError> {
             let token = create_reset_token(MOCK_TOKEN.to_string(), MOCK_EMAIL.to_string());
 
             Ok(token)
@@ -419,7 +419,7 @@ pub mod tests {
         User {
             id: id,
             email: email,
-            email_verified: false,
+            email_verified: true,
             phone: None,
             phone_verified: false,
             is_active: true,
@@ -475,6 +475,7 @@ pub mod tests {
         ResetToken {
             token,
             email,
+            token_type: TokenType::EmailVerify,
             created_at: SystemTime::now(),
         }
     }
