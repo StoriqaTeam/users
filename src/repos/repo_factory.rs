@@ -2,13 +2,14 @@ use diesel::connection::AnsiTransactionManager;
 use diesel::pg::Pg;
 use diesel::Connection;
 
-use repos::*;
 use models::*;
-use stq_acl::{Acl, SystemACL, UnauthorizedACL};
 use repos::error::RepoError;
+use repos::*;
+use stq_acl::{Acl, SystemACL, UnauthorizedACL};
 
-pub trait ReposFactory<C: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static>
-    : Clone + Send + Sync + 'static {
+pub trait ReposFactory<C: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static>:
+    Clone + Send + Sync + 'static
+{
     fn create_users_repo<'a>(&self, db_conn: &'a C, user_id: Option<i32>) -> Box<UsersRepo + 'a>;
     fn create_users_repo_with_sys_acl<'a>(&self, db_conn: &'a C) -> Box<UsersRepo + 'a>;
     fn create_identities_repo<'a>(&self, db_conn: &'a C) -> Box<IdentitiesRepo + 'a>;
@@ -93,7 +94,7 @@ impl<C: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 
         )) as Box<UserRolesRepo>
     }
 
-    fn create_users_delivery_address_repo<'a>(&self, db_conn: &'a C, user_id: Option<i32>) -> Box<UserDeliveryAddresssRepo + 'a>{
+    fn create_users_delivery_address_repo<'a>(&self, db_conn: &'a C, user_id: Option<i32>) -> Box<UserDeliveryAddresssRepo + 'a> {
         let acl = self.get_acl(db_conn, user_id);
         Box::new(UserDeliveryAddresssRepoImpl::new(db_conn, acl)) as Box<UserDeliveryAddresssRepo>
     }
@@ -113,12 +114,12 @@ pub mod tests {
     extern crate stq_http;
     extern crate tokio_core;
 
-    use std::time::SystemTime;
-    use std::sync::Arc;
     use std::error::Error;
     use std::fmt;
-    use std::io::prelude::*;
     use std::fs::File;
+    use std::io::prelude::*;
+    use std::sync::Arc;
+    use std::time::SystemTime;
 
     use base64::encode;
     use futures_cpupool::CpuPool;
@@ -127,33 +128,33 @@ pub mod tests {
 
     use r2d2::ManageConnection;
 
+    use diesel::connection::AnsiTransactionManager;
+    use diesel::connection::SimpleConnection;
+    use diesel::deserialize::QueryableByName;
+    use diesel::pg::Pg;
+    use diesel::query_builder::AsQuery;
+    use diesel::query_builder::QueryFragment;
+    use diesel::query_builder::QueryId;
+    use diesel::sql_types::HasSqlType;
     use diesel::Connection;
     use diesel::ConnectionResult;
     use diesel::QueryResult;
-    use diesel::query_builder::AsQuery;
-    use diesel::query_builder::QueryFragment;
-    use diesel::pg::Pg;
-    use diesel::query_builder::QueryId;
-    use diesel::sql_types::HasSqlType;
     use diesel::Queryable;
-    use diesel::deserialize::QueryableByName;
-    use diesel::connection::AnsiTransactionManager;
-    use diesel::connection::SimpleConnection;
 
     use stq_http::client::Config as HttpConfig;
 
     use config::Config;
+    use config::Notifications;
     use models::*;
-    use repos::repo_factory::ReposFactory;
     use repos::error::RepoError;
-    use repos::users::UsersRepo;
     use repos::identities::IdentitiesRepo;
+    use repos::repo_factory::ReposFactory;
     use repos::reset_token::ResetTokenRepo;
-    use repos::user_roles::UserRolesRepo;
     use repos::user_delivery_address::*;
+    use repos::user_roles::UserRolesRepo;
+    use repos::users::UsersRepo;
     use services::jwt::JWTServiceImpl;
     use services::users::UsersServiceImpl;
-    use config::Notifications;
 
     #[derive(Default, Copy, Clone)]
     pub struct ReposFactoryMock;
@@ -178,8 +179,8 @@ pub mod tests {
         fn create_user_roles_repo<'a>(&self, _db_conn: &'a C) -> Box<UserRolesRepo + 'a> {
             Box::new(UserRolesRepoMock::default()) as Box<UserRolesRepo>
         }
-     
-        fn create_users_delivery_address_repo<'a>(&self, _db_conn: &'a C, _user_id: Option<i32>) -> Box<UserDeliveryAddresssRepo + 'a>{
+
+        fn create_users_delivery_address_repo<'a>(&self, _db_conn: &'a C, _user_id: Option<i32>) -> Box<UserDeliveryAddresssRepo + 'a> {
             Box::new(UserDeliveryAddresssRepoMock::default()) as Box<UserDeliveryAddresssRepo>
         }
     }
@@ -249,13 +250,7 @@ pub mod tests {
             user_id: UserId,
             _saga_id: String,
         ) -> Result<Identity, RepoError> {
-            let ident = create_identity(
-                email,
-                password,
-                user_id,
-                provider_arg,
-                MOCK_SAGA_ID.to_string(),
-            );
+            let ident = create_identity(email, password, user_id, provider_arg, MOCK_SAGA_ID.to_string());
             Ok(ident)
         }
 
@@ -275,13 +270,7 @@ pub mod tests {
         }
 
         fn update(&self, ident: Identity, update: UpdateIdentity) -> Result<Identity, RepoError> {
-            let ident = create_identity(
-                ident.email,
-                update.password,
-                UserId(1),
-                ident.provider,
-                ident.saga_id,
-            );
+            let ident = create_identity(ident.email, update.password, UserId(1), ident.provider, ident.saga_id);
             Ok(ident)
         }
     }
@@ -361,19 +350,17 @@ pub mod tests {
             })
         }
     }
-    
+
     #[derive(Clone, Default)]
     pub struct UserDeliveryAddresssRepoMock;
 
     impl UserDeliveryAddresssRepo for UserDeliveryAddresssRepoMock {
         /// Returns list of user_delivery_address for a specific user
         fn list_for_user(&self, user_id: i32) -> Result<Vec<UserDeliveryAddress>, RepoError> {
-            Ok(vec![
-                UserDeliveryAddress {
-                    user_id,
-                    .. Default::default()
-                }
-            ])
+            Ok(vec![UserDeliveryAddress {
+                user_id,
+                ..Default::default()
+            }])
         }
 
         /// Create a new user delivery address
@@ -389,26 +376,19 @@ pub mod tests {
                 route: payload.route,
                 street_number: payload.street_number,
                 is_priority: payload.is_priority,
-                .. Default::default()
+                ..Default::default()
             })
         }
-        
+
         /// Update a user delivery address
-        fn update(&self, id: i32, _payload: UpdateUserDeliveryAddress) -> Result<UserDeliveryAddress, RepoError>{
-            Ok(UserDeliveryAddress {
-                id,
-                .. Default::default()
-            })
+        fn update(&self, id: i32, _payload: UpdateUserDeliveryAddress) -> Result<UserDeliveryAddress, RepoError> {
+            Ok(UserDeliveryAddress { id, ..Default::default() })
         }
 
         /// Delete user delivery address
-        fn delete(&self, id: i32) -> Result<UserDeliveryAddress, RepoError>{
-            Ok(UserDeliveryAddress {
-                id,
-                .. Default::default()
-            })
+        fn delete(&self, id: i32) -> Result<UserDeliveryAddress, RepoError> {
+            Ok(UserDeliveryAddress { id, ..Default::default() })
         }
-
     }
 
     pub fn create_users_service(
@@ -416,9 +396,7 @@ pub mod tests {
         handle: Arc<Handle>,
     ) -> UsersServiceImpl<MockConnection, MockConnectionManager, ReposFactoryMock> {
         let manager = MockConnectionManager::default();
-        let db_pool = r2d2::Pool::builder()
-            .build(manager)
-            .expect("Failed to create connection pool");
+        let db_pool = r2d2::Pool::builder().build(manager).expect("Failed to create connection pool");
         let cpu_pool = CpuPool::new(1);
 
         let config = Config::new().unwrap();
@@ -435,21 +413,12 @@ pub mod tests {
             reset_password_path: "reset_password_path".to_string(),
         };
 
-        UsersServiceImpl::new(
-            db_pool,
-            cpu_pool,
-            client_handle,
-            user_id,
-            notif_config,
-            MOCK_REPO_FACTORY,
-        )
+        UsersServiceImpl::new(db_pool, cpu_pool, client_handle, user_id, notif_config, MOCK_REPO_FACTORY)
     }
 
     pub fn create_jwt_service(handle: Arc<Handle>) -> JWTServiceImpl<MockConnection, MockConnectionManager, ReposFactoryMock> {
         let manager = MockConnectionManager::default();
-        let db_pool = r2d2::Pool::builder()
-            .build(manager)
-            .expect("Failed to create connection pool");
+        let db_pool = r2d2::Pool::builder().build(manager).expect("Failed to create connection pool");
         let cpu_pool = CpuPool::new(1);
 
         let config = Config::new().unwrap();
@@ -465,14 +434,7 @@ pub mod tests {
         let mut jwt_private_key: Vec<u8> = Vec::new();
         f.read_to_end(&mut jwt_private_key).unwrap();
 
-        JWTServiceImpl::new(
-            db_pool,
-            cpu_pool,
-            client_handle,
-            config,
-            MOCK_REPO_FACTORY,
-            jwt_private_key.clone(),
-        )
+        JWTServiceImpl::new(db_pool, cpu_pool, client_handle, config, MOCK_REPO_FACTORY, jwt_private_key.clone())
     }
 
     pub fn create_user(id: UserId, email: String) -> User {

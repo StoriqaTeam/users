@@ -85,14 +85,10 @@ pub fn create_route_parser() -> RouteParser<Route> {
     });
 
     // /users/password_reset/request/:email route
-    router.add_route(r"^/users/password_reset/request$", || {
-        Route::PasswordResetRequest
-    });
+    router.add_route(r"^/users/password_reset/request$", || Route::PasswordResetRequest);
 
     // /users/password_reset/apply/:token route
-    router.add_route(r"^/users/password_reset/apply$", || {
-        Route::PasswordResetApply
-    });
+    router.add_route(r"^/users/password_reset/apply$", || Route::PasswordResetApply);
 
     router.add_route_with_params(r"^/email_verify/resend/(.+)$", |params| {
         params

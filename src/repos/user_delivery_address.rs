@@ -15,8 +15,8 @@ use stq_acl::*;
 use super::acl;
 use super::error::RepoError as Error;
 use super::types::RepoResult;
-use models::user_delivery_address::user_delivery_address::dsl::*;
 use models::authorization::*;
+use models::user_delivery_address::user_delivery_address::dsl::*;
 use models::{NewUserDeliveryAddress, UpdateUserDeliveryAddress, UserDeliveryAddress};
 
 /// UserDeliveryAddresss repository for handling UserDeliveryAddresss
@@ -26,13 +26,12 @@ pub trait UserDeliveryAddresssRepo {
 
     /// Create a new user delivery address
     fn create(&self, payload: NewUserDeliveryAddress) -> RepoResult<UserDeliveryAddress>;
-    
+
     /// Update a user delivery address
     fn update(&self, id: i32, payload: UpdateUserDeliveryAddress) -> RepoResult<UserDeliveryAddress>;
 
     /// Delete user delivery address
     fn delete(&self, id: i32) -> RepoResult<UserDeliveryAddress>;
-
 }
 
 /// Implementation of UserDeliveryAddresss trait
@@ -47,7 +46,9 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
     }
 }
 
-impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static> UserDeliveryAddresssRepo for UserDeliveryAddresssRepoImpl<'a, T> {
+impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static> UserDeliveryAddresssRepo
+    for UserDeliveryAddresssRepoImpl<'a, T>
+{
     fn list_for_user(&self, user_id_value: i32) -> RepoResult<Vec<UserDeliveryAddress>> {
         let query = user_delivery_address.filter(user_id.eq(user_id_value));
         query
@@ -55,13 +56,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
             .map_err(Error::from)
             .and_then(|addresses: Vec<UserDeliveryAddress>| {
                 for addres in addresses.iter() {
-                    acl::check(
-                        &*self.acl,
-                        &Resource::UserDeliveryAddresses,
-                        &Action::Read,
-                        self,
-                        Some(&addres),
-                    )?;
+                    acl::check(&*self.acl, &Resource::UserDeliveryAddresses, &Action::Read, self, Some(&addres))?;
                 }
                 Ok(addresses)
             })
@@ -69,18 +64,10 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 
     fn create(&self, payload: NewUserDeliveryAddress) -> RepoResult<UserDeliveryAddress> {
         let query = diesel::insert_into(user_delivery_address).values(&payload);
-        query.get_result(self.db_conn)
-            .map_err(Error::from)
-            .and_then(|addres| {
-                acl::check(
-                    &*self.acl,
-                    &Resource::UserDeliveryAddresses,
-                    &Action::Write,
-                    self,
-                    Some(&addres),
-                )?;
-                Ok(addres)
-            })
+        query.get_result(self.db_conn).map_err(Error::from).and_then(|addres| {
+            acl::check(&*self.acl, &Resource::UserDeliveryAddresses, &Action::Write, self, Some(&addres))?;
+            Ok(addres)
+        })
     }
 
     fn update(&self, id_arg: i32, payload: UpdateUserDeliveryAddress) -> RepoResult<UserDeliveryAddress> {
@@ -90,21 +77,13 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
             .get_result(self.db_conn)
             .map_err(Error::from)
             .and_then(|addres: UserDeliveryAddress| {
-                acl::check(
-                    &*self.acl,
-                    &Resource::UserDeliveryAddresses,
-                    &Action::Write,
-                    self,
-                    Some(&addres),
-                )
+                acl::check(&*self.acl, &Resource::UserDeliveryAddresses, &Action::Write, self, Some(&addres))
             })
             .and_then(|_| {
                 let filter = user_delivery_address.filter(id.eq(id_arg));
 
                 let query = diesel::update(filter).set(&payload);
-                query
-                    .get_result::<UserDeliveryAddress>(self.db_conn)
-                    .map_err(Error::from)
+                query.get_result::<UserDeliveryAddress>(self.db_conn).map_err(Error::from)
             })
     }
 
@@ -116,20 +95,12 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
             .get_result(self.db_conn)
             .map_err(Error::from)
             .and_then(|addres: UserDeliveryAddress| {
-                acl::check(
-                    &*self.acl,
-                    &Resource::UserDeliveryAddresses,
-                    &Action::Write,
-                    self,
-                    Some(&addres),
-                )
+                acl::check(&*self.acl, &Resource::UserDeliveryAddresses, &Action::Write, self, Some(&addres))
             })
             .and_then(|_| {
                 let filtered = user_delivery_address.filter(id.eq(id_arg));
                 let query = diesel::delete(filtered);
-                query
-                    .get_result(self.db_conn)
-                    .map_err(Error::from)
+                query.get_result(self.db_conn).map_err(Error::from)
             })
     }
 }
