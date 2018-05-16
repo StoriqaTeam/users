@@ -52,23 +52,23 @@ pub mod repos;
 pub mod services;
 pub mod types;
 
+use std::env;
+use std::fs::File;
+use std::io::prelude::*;
+use std::io::Write;
 use std::process;
 use std::sync::Arc;
-use std::env;
-use std::io::Write;
-use std::io::prelude::*;
-use std::fs::File;
 
 use chrono::prelude::*;
 use diesel::pg::PgConnection;
+use env_logger::Builder as LogBuilder;
 use futures::future;
 use futures::{Future, Stream};
 use futures_cpupool::CpuPool;
 use hyper::server::Http;
+use log::LevelFilter as LogLevelFilter;
 use r2d2_diesel::ConnectionManager;
 use tokio_core::reactor::Core;
-use env_logger::Builder as LogBuilder;
-use log::LevelFilter as LogLevelFilter;
 
 use stq_http::client::Config as HttpConfig;
 use stq_http::controller::Application;
@@ -83,13 +83,7 @@ pub fn start_server(config: Config) {
     builder
         .format(|formatter, record| {
             let now = Utc::now();
-            writeln!(
-                formatter,
-                "{} - {} - {}",
-                now.to_rfc3339(),
-                record.level(),
-                record.args()
-            )
+            writeln!(formatter, "{} - {} - {}", now.to_rfc3339(), record.level(), record.args())
         })
         .filter(None, LogLevelFilter::Info);
 
@@ -124,15 +118,9 @@ pub fn start_server(config: Config) {
     };
 
     // Prepare database pool
-    let database_url: String = config
-        .server
-        .database
-        .parse()
-        .expect("Database URL must be set in configuration");
+    let database_url: String = config.server.database.parse().expect("Database URL must be set in configuration");
     let manager = ConnectionManager::<PgConnection>::new(database_url);
-    let db_pool = r2d2::Pool::builder()
-        .build(manager)
-        .expect("Failed to create connection pool");
+    let db_pool = r2d2::Pool::builder().build(manager).expect("Failed to create connection pool");
 
     // Prepare CPU pool
     let cpu_pool = CpuPool::new(thread_count);
@@ -172,10 +160,7 @@ pub fn start_server(config: Config) {
     handle.spawn(
         serve
             .for_each(move |conn| {
-                handle_arc2.spawn(
-                    conn.map(|_| ())
-                        .map_err(|why| error!("Server Error: {:?}", why)),
-                );
+                handle_arc2.spawn(conn.map(|_| ()).map_err(|why| error!("Server Error: {:?}", why)));
                 Ok(())
             })
             .map_err(|_| ()),

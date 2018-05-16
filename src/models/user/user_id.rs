@@ -26,9 +26,8 @@ impl FromStr for UserId {
 }
 
 mod diesel_impl {
-    use diesel::Queryable;
-    use diesel::expression::AsExpression;
     use diesel::expression::bound::Bound;
+    use diesel::expression::AsExpression;
     use diesel::pg::Pg;
     use diesel::row::Row;
     use diesel::serialize::Output;
@@ -36,6 +35,7 @@ mod diesel_impl {
     use diesel::types::FromSql;
     use diesel::types::FromSqlRow;
     use diesel::types::{IsNull, ToSql};
+    use diesel::Queryable;
     use std::error::Error;
     use std::io::Write;
 
