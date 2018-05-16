@@ -16,6 +16,4 @@ CREATE TABLE user_delivery_address (
     updated_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
 
-CREATE UNIQUE INDEX user_delivery_address_id_idx ON user_delivery_address (id);
-
 SELECT diesel_manage_updated_at('user_delivery_address');
