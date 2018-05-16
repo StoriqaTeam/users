@@ -14,6 +14,7 @@ pub trait ReposFactory<C: Connection<Backend = Pg, TransactionManager = AnsiTran
     fn create_identities_repo<'a>(&self, db_conn: &'a C) -> Box<IdentitiesRepo + 'a>;
     fn create_reset_token_repo<'a>(&self, db_conn: &'a C) -> Box<ResetTokenRepo + 'a>;
     fn create_user_roles_repo<'a>(&self, db_conn: &'a C) -> Box<UserRolesRepo + 'a>;
+    fn create_users_delivery_address_repo<'a>(&self, db_conn: &'a C, user_id: Option<i32>) -> Box<UserDeliveryAddresssRepo + 'a>;
 }
 
 #[derive(Clone)]
@@ -91,6 +92,11 @@ impl<C: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 
             Box::new(SystemACL::default()) as Box<Acl<Resource, Action, Scope, RepoError, UserRole>>,
         )) as Box<UserRolesRepo>
     }
+
+    fn create_users_delivery_address_repo<'a>(&self, db_conn: &'a C, user_id: Option<i32>) -> Box<UserDeliveryAddresssRepo + 'a>{
+        let acl = self.get_acl(db_conn, user_id);
+        Box::new(UserDeliveryAddresssRepoImpl::new(db_conn, acl)) as Box<UserDeliveryAddresssRepo>
+    }
 }
 
 #[cfg(test)]
@@ -144,6 +150,7 @@ pub mod tests {
     use repos::identities::IdentitiesRepo;
     use repos::reset_token::ResetTokenRepo;
     use repos::user_roles::UserRolesRepo;
+    use repos::user_delivery_address::*;
     use services::jwt::JWTServiceImpl;
     use services::users::UsersServiceImpl;
     use config::Notifications;
@@ -170,6 +177,10 @@ pub mod tests {
 
         fn create_user_roles_repo<'a>(&self, _db_conn: &'a C) -> Box<UserRolesRepo + 'a> {
             Box::new(UserRolesRepoMock::default()) as Box<UserRolesRepo>
+        }
+     
+        fn create_users_delivery_address_repo<'a>(&self, _db_conn: &'a C, _user_id: Option<i32>) -> Box<UserDeliveryAddresssRepo + 'a>{
+            Box::new(UserDeliveryAddresssRepoMock::default()) as Box<UserDeliveryAddresssRepo>
         }
     }
 
@@ -349,6 +360,55 @@ pub mod tests {
                 role: Role::User,
             })
         }
+    }
+    
+    #[derive(Clone, Default)]
+    pub struct UserDeliveryAddresssRepoMock;
+
+    impl UserDeliveryAddresssRepo for UserDeliveryAddresssRepoMock {
+        /// Returns list of user_delivery_address for a specific user
+        fn list_for_user(&self, user_id: i32) -> Result<Vec<UserDeliveryAddress>, RepoError> {
+            Ok(vec![
+                UserDeliveryAddress {
+                    user_id,
+                    .. Default::default()
+                }
+            ])
+        }
+
+        /// Create a new user delivery address
+        fn create(&self, payload: NewUserDeliveryAddress) -> Result<UserDeliveryAddress, RepoError> {
+            Ok(UserDeliveryAddress {
+                user_id: payload.user_id,
+                administrative_area_level_1: payload.administrative_area_level_1,
+                administrative_area_level_2: payload.administrative_area_level_2,
+                country: payload.country,
+                locality: payload.locality,
+                political: payload.political,
+                postal_code: payload.postal_code,
+                route: payload.route,
+                street_number: payload.street_number,
+                is_priority: payload.is_priority,
+                .. Default::default()
+            })
+        }
+        
+        /// Update a user delivery address
+        fn update(&self, id: i32, _payload: UpdateUserDeliveryAddress) -> Result<UserDeliveryAddress, RepoError>{
+            Ok(UserDeliveryAddress {
+                id,
+                .. Default::default()
+            })
+        }
+
+        /// Delete user delivery address
+        fn delete(&self, id: i32) -> Result<UserDeliveryAddress, RepoError>{
+            Ok(UserDeliveryAddress {
+                id,
+                .. Default::default()
+            })
+        }
+
     }
 
     pub fn create_users_service(

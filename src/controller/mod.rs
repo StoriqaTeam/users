@@ -41,6 +41,7 @@ use services::jwt::{JWTService, JWTServiceImpl};
 use services::system::{SystemService, SystemServiceImpl};
 use services::user_roles::{UserRolesService, UserRolesServiceImpl};
 use services::users::{UsersService, UsersServiceImpl};
+use services::user_delivery_address::{UserDeliveryAddressService, UserDeliveryAddressServiceImpl};
 
 /// Controller handles route parsing and calling `Service` layer
 pub struct ControllerImpl<T, M, F>
@@ -125,6 +126,12 @@ impl<
             self.db_pool.clone(),
             self.cpu_pool.clone(),
             cached_roles,
+            self.repo_factory.clone(),
+        );
+        let user_delivery_address_service = UserDeliveryAddressServiceImpl::new(
+            self.db_pool.clone(),
+            self.cpu_pool.clone(),
+            user_id,
             self.repo_factory.clone(),
         );
 
@@ -415,8 +422,54 @@ impl<
                     .map_err(ControllerError::from),
             ),
 
+            // GET /users/delivery_addresses/<user_id>
+            (&Get, Some(Route::UserDeliveryAddress(user_id))) => {
+                debug!("Received request to get addresses for user {}", user_id);
+                serialize_future(user_delivery_address_service.get_addresses(user_id))
+            }
+
+            // POST /users/delivery_addresses
+            (&Post, Some(Route::UserDeliveryAddresses)) => serialize_future(
+                parse_body::<models::NewUserDeliveryAddress>(req.body())
+                    .map_err(|_| ControllerError::UnprocessableEntity(format_err!("Error parsing request from gateway body")))
+                    .inspect(|payload| {
+                        debug!("Received request to create delivery address: {:?}", payload);
+                    })
+                    .and_then(move |new_address| {
+                        user_delivery_address_service
+                            .create(new_address)
+                            .map_err(ControllerError::from)
+                    }),
+            ),
+            
+            // PUT /users/delivery_addresses/<id>
+            (&Put, Some(Route::UserDeliveryAddress(id))) => serialize_future(
+                parse_body::<models::UpdateUserDeliveryAddress>(req.body())
+                    .map_err(|_| ControllerError::UnprocessableEntity(format_err!("Error parsing request from gateway body")))
+                    .inspect(|payload| {
+                        debug!("Received request to update delivery address: {:?}", payload);
+                    })
+                    .and_then(move |new_address| {
+                        user_delivery_address_service
+                            .update(id, new_address)
+                            .map_err(ControllerError::from)
+                    }),
+            ),
+
+            // DELETE /users/delivery_addresses/<id>
+            (&Delete, Some(Route::UserDeliveryAddress(id))) => {
+                debug!("Received request to delete user delivery address with id {}", id);
+                serialize_future(user_delivery_address_service.delete(id))
+            },
+
             // Fallback
-            _ => Box::new(future::err(ControllerError::NotFound)),
+            _ => {
+                error!(
+                    "User with id = '{:?}' requests non existing endpoint in users microservice!",
+                    user_id
+                );
+                Box::new(future::err(ControllerError::NotFound))
+            }
         }
     }
 }

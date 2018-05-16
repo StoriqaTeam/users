@@ -5,6 +5,7 @@ use std::fmt;
 pub enum Resource {
     Users,
     UserRoles,
+    UserDeliveryAddresses,
 }
 
 impl fmt::Display for Resource {
@@ -12,6 +13,7 @@ impl fmt::Display for Resource {
         match *self {
             Resource::Users => write!(f, "users"),
             Resource::UserRoles => write!(f, "user roles"),
+            Resource::UserDeliveryAddresses => write!(f, "user delivery addresses"),
         }
     }
 }

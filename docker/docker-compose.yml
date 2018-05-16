@@ -13,6 +13,7 @@ services:
       - stq_cargo_cache:/usr/local/cargo
     environment:
       - DATABASE_URL=postgresql://users:users@users-pg/users
+      - "RUST_LOG=users=debug"
     expose:
       - 8000
     stdin_open: true
