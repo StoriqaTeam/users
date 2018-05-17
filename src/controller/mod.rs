@@ -378,7 +378,7 @@ impl<
                     .and_then(move |change_req| {
                         change_req
                             .validate()
-                            .map_err(ControllerError::from)
+                            .map_err(|e| ControllerError::Validate(e))
                             .into_future()
                             .and_then(move |_| {
                                 users_service
@@ -398,7 +398,7 @@ impl<
                     .and_then(move |reset_req| {
                         reset_req
                             .validate()
-                            .map_err(ControllerError::from)
+                            .map_err(|e| ControllerError::Validate(e))
                             .into_future()
                             .and_then(move |_| {
                                 users_service
@@ -418,7 +418,7 @@ impl<
                     .and_then(move |reset_apply| {
                         reset_apply
                             .validate()
-                            .map_err(ControllerError::from)
+                            .map_err(|e| ControllerError::Validate(e))
                             .into_future()
                             .and_then(move |_| {
                                 users_service
