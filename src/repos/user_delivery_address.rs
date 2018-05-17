@@ -50,7 +50,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
     for UserDeliveryAddresssRepoImpl<'a, T>
 {
     fn list_for_user(&self, user_id_value: i32) -> RepoResult<Vec<UserDeliveryAddress>> {
-        let query = user_delivery_address.filter(user_id.eq(user_id_value));
+        let query = user_delivery_address.filter(user_id.eq(user_id_value)).order(id.desc());
         query
             .get_results::<UserDeliveryAddress>(self.db_conn)
             .map_err(Error::from)
