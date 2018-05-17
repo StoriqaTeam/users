@@ -1,4 +1,4 @@
-use base64::{encode, decode};
+use base64::{decode, encode};
 use rand;
 use rand::Rng;
 use sha3::{Digest, Sha3_256};
@@ -6,7 +6,10 @@ use sha3::{Digest, Sha3_256};
 use services::error::ServiceError;
 
 pub fn password_create(clear_password: String) -> String {
-    let salt = rand::thread_rng().gen_ascii_chars().take(10).collect::<String>();
+    let salt = rand::thread_rng()
+        .gen_ascii_chars()
+        .take(10)
+        .collect::<String>();
     let pass = clear_password + &salt;
     let mut hasher = Sha3_256::default();
     hasher.input(pass.as_bytes());

@@ -36,10 +36,10 @@ pub struct UserDeliveryAddressServiceImpl<
 }
 
 impl<
-        T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
-        M: ManageConnection<Connection = T>,
-        F: ReposFactory<T>,
-    > UserDeliveryAddressServiceImpl<T, M, F>
+    T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
+    M: ManageConnection<Connection = T>,
+    F: ReposFactory<T>,
+> UserDeliveryAddressServiceImpl<T, M, F>
 {
     pub fn new(db_pool: Pool<M>, cpu_pool: CpuPool, user_id: Option<i32>, repo_factory: F) -> Self {
         Self {
@@ -52,10 +52,10 @@ impl<
 }
 
 impl<
-        T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
-        M: ManageConnection<Connection = T>,
-        F: ReposFactory<T>,
-    > UserDeliveryAddressService for UserDeliveryAddressServiceImpl<T, M, F>
+    T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
+    M: ManageConnection<Connection = T>,
+    F: ReposFactory<T>,
+> UserDeliveryAddressService for UserDeliveryAddressServiceImpl<T, M, F>
 {
     /// Returns list of user_delivery_address
     fn get_addresses(&self, user_id: i32) -> ServiceFuture<Vec<UserDeliveryAddress>> {
@@ -64,10 +64,15 @@ impl<
         let curent_user_id = self.user_id.clone();
 
         Box::new(self.cpu_pool.spawn_fn(move || {
-            db_pool.get().map_err(|e| ServiceError::Connection(e.into())).and_then(move |conn| {
-                let users_delivery_address_repo = repo_factory.create_users_delivery_address_repo(&*conn, curent_user_id);
-                users_delivery_address_repo.list_for_user(user_id).map_err(ServiceError::from)
-            })
+            db_pool
+                .get()
+                .map_err(|e| ServiceError::Connection(e.into()))
+                .and_then(move |conn| {
+                    let users_delivery_address_repo = repo_factory.create_users_delivery_address_repo(&*conn, curent_user_id);
+                    users_delivery_address_repo
+                        .list_for_user(user_id)
+                        .map_err(ServiceError::from)
+                })
         }))
     }
 
@@ -78,10 +83,15 @@ impl<
         let user_id = self.user_id.clone();
 
         Box::new(self.cpu_pool.spawn_fn(move || {
-            db_pool.get().map_err(|e| ServiceError::Connection(e.into())).and_then(move |conn| {
-                let users_delivery_address_repo = repo_factory.create_users_delivery_address_repo(&*conn, user_id);
-                users_delivery_address_repo.delete(id).map_err(ServiceError::from)
-            })
+            db_pool
+                .get()
+                .map_err(|e| ServiceError::Connection(e.into()))
+                .and_then(move |conn| {
+                    let users_delivery_address_repo = repo_factory.create_users_delivery_address_repo(&*conn, user_id);
+                    users_delivery_address_repo
+                        .delete(id)
+                        .map_err(ServiceError::from)
+                })
         }))
     }
 
@@ -92,10 +102,15 @@ impl<
         let user_id = self.user_id.clone();
 
         Box::new(self.cpu_pool.spawn_fn(move || {
-            db_pool.get().map_err(|e| ServiceError::Connection(e.into())).and_then(move |conn| {
-                let users_delivery_address_repo = repo_factory.create_users_delivery_address_repo(&*conn, user_id);
-                users_delivery_address_repo.create(payload).map_err(ServiceError::from)
-            })
+            db_pool
+                .get()
+                .map_err(|e| ServiceError::Connection(e.into()))
+                .and_then(move |conn| {
+                    let users_delivery_address_repo = repo_factory.create_users_delivery_address_repo(&*conn, user_id);
+                    users_delivery_address_repo
+                        .create(payload)
+                        .map_err(ServiceError::from)
+                })
         }))
     }
 
@@ -106,10 +121,15 @@ impl<
         let user_id = self.user_id.clone();
 
         Box::new(self.cpu_pool.spawn_fn(move || {
-            db_pool.get().map_err(|e| ServiceError::Connection(e.into())).and_then(move |conn| {
-                let users_delivery_address_repo = repo_factory.create_users_delivery_address_repo(&*conn, user_id);
-                users_delivery_address_repo.update(id, payload).map_err(ServiceError::from)
-            })
+            db_pool
+                .get()
+                .map_err(|e| ServiceError::Connection(e.into()))
+                .and_then(move |conn| {
+                    let users_delivery_address_repo = repo_factory.create_users_delivery_address_repo(&*conn, user_id);
+                    users_delivery_address_repo
+                        .update(id, payload)
+                        .map_err(ServiceError::from)
+                })
         }))
     }
 }

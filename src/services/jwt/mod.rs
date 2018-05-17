@@ -20,7 +20,7 @@ use uuid::Uuid;
 
 use self::profile::{Email, FacebookProfile, GoogleProfile, IntoUser};
 use super::util::password_verify;
-use config::{Config, OAuth, JWT as JWTConfig};
+use config::{Config, JWT as JWTConfig, OAuth};
 use models::{self, JWTPayload, NewEmailIdentity, NewIdentity, NewUser, Provider, ProviderOauth, User, UserStatus, JWT};
 use repos::repo_factory::ReposFactory;
 use services::error::ServiceError;
@@ -57,10 +57,10 @@ pub struct JWTServiceImpl<
 }
 
 impl<
-        T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
-        M: ManageConnection<Connection = T>,
-        F: ReposFactory<T>,
-    > JWTServiceImpl<T, M, F>
+    T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
+    M: ManageConnection<Connection = T>,
+    F: ReposFactory<T>,
+> JWTServiceImpl<T, M, F>
 {
     pub fn new(
         db_pool: Pool<M>,
@@ -96,7 +96,8 @@ pub enum ProfileStatus {
 
 /// Profile service trait, presents standard scheme for receiving profile information from providers
 
-trait ProfileService<T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static, P: Email> {
+trait ProfileService<T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static, P: Email>
+     {
     fn create_token(self, provider: Provider, secret: Vec<u8>, info_url: String, headers: Option<Headers>, exp: i64) -> ServiceFuture<JWT>;
 
     fn get_profile(&self, url: String, headers: Option<Headers>) -> ServiceFuture<P>;
@@ -113,8 +114,11 @@ trait ProfileService<T: Connection<Backend = Pg, TransactionManager = AnsiTransa
         debug!("Creating token for user {}, at {}", id, exp);
         let tokenpayload = JWTPayload::new(id, exp);
         Box::new(
-            encode(&Header::new(Algorithm::RS256), &tokenpayload, secret.as_ref())
-                .map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}.", tokenpayload)))
+            encode(
+                &Header::new(Algorithm::RS256),
+                &tokenpayload,
+                secret.as_ref(),
+            ).map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}.", tokenpayload)))
                 .into_future()
                 .inspect(move |token| {
                     debug!("Token {} created successfully for id {}", token, id);
@@ -125,11 +129,11 @@ trait ProfileService<T: Connection<Backend = Pg, TransactionManager = AnsiTransa
 }
 
 impl<
-        P,
-        T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
-        M: ManageConnection<Connection = T> + 'static,
-        F: ReposFactory<T> + 'static,
-    > ProfileService<T, P> for JWTServiceImpl<T, M, F>
+    P,
+    T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
+    M: ManageConnection<Connection = T> + 'static,
+    F: ReposFactory<T> + 'static,
+> ProfileService<T, P> for JWTServiceImpl<T, M, F>
 where
     P: Email + Clone + Send + 'static,
     NewUser: From<P>,
@@ -154,7 +158,8 @@ where
                 let s = service.clone();
                 move |profile| {
                     let profile_clone = profile.clone();
-                    s.profile_status(profile, provider).map(|status| (status, profile_clone))
+                    s.profile_status(profile, provider)
+                        .map(|status| (status, profile_clone))
                 }
             })
             .and_then({
@@ -204,7 +209,12 @@ where
         Box::new(
             self.http_client
                 .request::<serde_json::Value>(Method::Get, url, None, headers)
-                .map_err(|e| ServiceError::HttpClient(format!("Failed to receive user info from provider. {}", e.to_string())))
+                .map_err(|e| {
+                    ServiceError::HttpClient(format!(
+                        "Failed to receive user info from provider. {}",
+                        e.to_string()
+                    ))
+                })
                 .and_then(|val| match val["email"].is_null() {
                     true => Err(ServiceError::Validate(
                         validation_errors!({"email": ["email" => "Email required but not provided"]}),
@@ -219,24 +229,27 @@ where
             let db_pool = self.db_pool.clone();
             let repo_factory = self.repo_factory.clone();
             self.cpu_pool.spawn_fn(move || {
-                db_pool.get().map_err(|e| ServiceError::Connection(e.into())).and_then(move |conn| {
-                    let users_repo = repo_factory.create_users_repo_with_sys_acl(&conn);
-                    let ident_repo = repo_factory.create_identities_repo(&conn);
-                    conn.transaction(move || {
-                        users_repo
-                            .email_exists(profile.get_email())
-                            .and_then(|user_exists| match user_exists {
-                                false => Ok(ProfileStatus::NewUser),
-                                true => ident_repo
-                                    .email_provider_exists(profile.get_email(), provider)
-                                    .map(|identity_exists| match identity_exists {
-                                        false => ProfileStatus::NewIdentity,
-                                        true => ProfileStatus::ExistingProfile,
-                                    }),
-                            })
-                            .map_err(ServiceError::from)
+                db_pool
+                    .get()
+                    .map_err(|e| ServiceError::Connection(e.into()))
+                    .and_then(move |conn| {
+                        let users_repo = repo_factory.create_users_repo_with_sys_acl(&conn);
+                        let ident_repo = repo_factory.create_identities_repo(&conn);
+                        conn.transaction(move || {
+                            users_repo
+                                .email_exists(profile.get_email())
+                                .and_then(|user_exists| match user_exists {
+                                    false => Ok(ProfileStatus::NewUser),
+                                    true => ident_repo
+                                        .email_provider_exists(profile.get_email(), provider)
+                                        .map(|identity_exists| match identity_exists {
+                                            false => ProfileStatus::NewIdentity,
+                                            true => ProfileStatus::ExistingProfile,
+                                        }),
+                                })
+                                .map_err(ServiceError::from)
+                        })
                     })
-                })
             })
         })
     }
@@ -256,7 +269,9 @@ where
             },
         }).map_err(ServiceError::from)?;
 
-        let created_user = self.http_client.request::<User>(Method::Post, url, Some(body), None).wait()?;
+        let created_user = self.http_client
+            .request::<User>(Method::Post, url, Some(body), None)
+            .wait()?;
 
         Ok(created_user.id.0)
     }
@@ -273,7 +288,10 @@ where
                 if update_user.is_empty() {
                     Ok(user.id.0)
                 } else {
-                    users_repo.update(user.id, update_user).map_err(ServiceError::from).map(|u| u.id.0)
+                    users_repo
+                        .update(user.id, update_user)
+                        .map_err(ServiceError::from)
+                        .map(|u| u.id.0)
                 }
             })
     }
@@ -283,24 +301,27 @@ where
             let db_pool = self.db_pool.clone();
             let repo_factory = self.repo_factory.clone();
             self.cpu_pool.spawn_fn(move || {
-                db_pool.get().map_err(|e| ServiceError::Connection(e.into())).and_then(move |conn| {
-                    let ident_repo = repo_factory.create_identities_repo(&conn);
+                db_pool
+                    .get()
+                    .map_err(|e| ServiceError::Connection(e.into()))
+                    .and_then(move |conn| {
+                        let ident_repo = repo_factory.create_identities_repo(&conn);
 
-                    ident_repo
-                        .find_by_email_provider(profile.get_email(), provider)
-                        .map_err(ServiceError::from)
-                        .map(|ident| ident.user_id.0)
-                })
+                        ident_repo
+                            .find_by_email_provider(profile.get_email(), provider)
+                            .map_err(ServiceError::from)
+                            .map(|ident| ident.user_id.0)
+                    })
             })
         })
     }
 }
 
 impl<
-        T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
-        M: ManageConnection<Connection = T>,
-        F: ReposFactory<T>,
-    > JWTService for JWTServiceImpl<T, M, F>
+    T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
+    M: ManageConnection<Connection = T>,
+    F: ReposFactory<T>,
+> JWTService for JWTServiceImpl<T, M, F>
 {
     /// Creates new JWT token by email
     fn create_token_email(&self, payload: NewEmailIdentity, exp: i64) -> ServiceFuture<JWT> {
@@ -371,8 +392,11 @@ impl<
                             })
                             .and_then(move |id| {
                                 let tokenpayload = JWTPayload::new(id, exp);
-                                encode(&Header::new(Algorithm::RS256), &tokenpayload, jwt_private_key.as_ref())
-                                    .map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}", tokenpayload)))
+                                encode(
+                                    &Header::new(Algorithm::RS256),
+                                    &tokenpayload,
+                                    jwt_private_key.as_ref(),
+                                ).map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}", tokenpayload)))
                                     .and_then(|t| {
                                         Ok(JWT {
                                             token: t,
@@ -427,8 +451,11 @@ impl<
                 let jwt_private_key = self.jwt_private_key.clone();
                 let tokenpayload = JWTPayload::new(id, exp);
                 Box::new(
-                    encode(&Header::new(Algorithm::RS256), &tokenpayload, jwt_private_key.as_ref())
-                        .map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}", tokenpayload)))
+                    encode(
+                        &Header::new(Algorithm::RS256),
+                        &tokenpayload,
+                        jwt_private_key.as_ref(),
+                    ).map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}", tokenpayload)))
                         .and_then(|t| {
                             Ok(JWT {
                                 token: t,
