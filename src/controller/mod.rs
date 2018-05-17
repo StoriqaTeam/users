@@ -456,10 +456,16 @@ impl<
                         debug!("Received request to create delivery address: {:?}", payload);
                     })
                     .and_then(move |new_address| {
-                        user_delivery_address_service
-                            .create(new_address)
-                            .map_err(ControllerError::from)
-                    }),
+                        new_address
+                            .validate()
+                            .map_err(ControllerError::Validate)
+                            .into_future()
+                            .and_then(move |_| {
+                                user_delivery_address_service
+                                    .create(new_address)
+                                    .map_err(ControllerError::from)
+                            })
+                    })
             ),
 
             // PUT /users/delivery_addresses/<id>
@@ -470,10 +476,17 @@ impl<
                         debug!("Received request to update delivery address: {:?}", payload);
                     })
                     .and_then(move |new_address| {
-                        user_delivery_address_service
-                            .update(id, new_address)
-                            .map_err(ControllerError::from)
-                    }),
+
+                        new_address
+                            .validate()
+                            .map_err(ControllerError::Validate)
+                            .into_future()
+                            .and_then(move |_| {
+                                user_delivery_address_service
+                                    .update(id, new_address)
+                                    .map_err(ControllerError::from)
+                            })
+                    })
             ),
 
             // DELETE /users/delivery_addresses/<id>
