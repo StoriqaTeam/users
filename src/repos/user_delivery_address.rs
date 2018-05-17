@@ -85,6 +85,21 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                 )?;
                 Ok(addres)
             })
+            .and_then(|new_address| {
+                if new_address.is_priority {
+                    // set all other addresses priority to false
+                    let filter = user_delivery_address.filter(
+                        user_id
+                            .eq(new_address.user_id)
+                            .and(id.ne(new_address.id)),
+                    );
+                    let query = diesel::update(filter).set(is_priority.eq(false));
+                    query
+                        .get_result::<UserDeliveryAddress>(self.db_conn)
+                        .map_err(Error::from)?;
+                }
+                Ok(new_address)
+            })
     }
 
     fn update(&self, id_arg: i32, payload: UpdateUserDeliveryAddress) -> RepoResult<UserDeliveryAddress> {
