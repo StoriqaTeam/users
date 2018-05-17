@@ -17,6 +17,7 @@ pub enum Route {
     UserRoles,
     UserRole(i32),
     DefaultRole(UserId),
+    PasswordChange,
     PasswordResetRequest,
     PasswordResetApply,
     EmailVerifyResend(String),
@@ -83,6 +84,12 @@ pub fn create_route_parser() -> RouteParser<Route> {
             .and_then(|string_id| string_id.parse::<UserId>().ok())
             .map(|user_id| Route::DefaultRole(user_id))
     });
+
+    // /users/password_change route
+    router.add_route(r"^/users/password_change$", || Route::PasswordChange);
+
+    // /users/password_reset/request/:email route
+    router.add_route(r"^/users/password_reset/request$", || Route::PasswordResetRequest);
 
     // /users/password_reset/request/:email route
     router.add_route(r"^/users/password_reset/request$", || Route::PasswordResetRequest);

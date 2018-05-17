@@ -38,6 +38,9 @@ pub trait IdentitiesRepo {
     /// Verifies password
     fn verify_password(&self, email_arg: String, password_arg: String) -> Result<bool, RepoError>;
 
+    /// Find specific user by user_id
+    fn find_by_id_provider(&self, user_id_arg: UserId, provider_arg: Provider) -> Result<Identity, RepoError>;
+
     /// Find specific user by email
     fn find_by_email_provider(&self, email_arg: String, provider_arg: Provider) -> Result<Identity, RepoError>;
 
@@ -92,6 +95,13 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 
         let ident_query = diesel::insert_into(identities).values(&identity_arg);
         ident_query.get_result::<Identity>(self.db_conn).map_err(RepoError::from)
+    }
+
+    /// Find specific user by user_id
+    fn find_by_id_provider(&self, user_id_arg: UserId, provider_arg: Provider) -> Result<Identity, RepoError> {
+        let query = identities.filter(user_id.eq(user_id_arg)).filter(provider.eq(provider_arg));
+
+        query.first::<Identity>(self.db_conn).map_err(RepoError::from)
     }
 
     /// Find specific user by email

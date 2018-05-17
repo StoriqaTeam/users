@@ -269,6 +269,17 @@ pub mod tests {
             Ok(ident)
         }
 
+        fn find_by_id_provider(&self, user_id: UserId, provider_arg: Provider) -> Result<Identity, RepoError> {
+            let ident = create_identity(
+                MOCK_EMAIL.to_string(),
+                Some(password_create(MOCK_PASSWORD.to_string())),
+                UserId(user_id.0),
+                provider_arg,
+                MOCK_SAGA_ID.to_string(),
+            );
+            Ok(ident)
+        }
+
         fn update(&self, ident: Identity, update: UpdateIdentity) -> Result<Identity, RepoError> {
             let ident = create_identity(ident.email, update.password, UserId(1), ident.provider, ident.saga_id);
             Ok(ident)

@@ -1,10 +1,8 @@
 //! Json Web Token Services, presents creating jwt from google, facebook and email + password
 pub mod profile;
 
-use std::str;
 use std::sync::Arc;
 
-use base64::decode;
 use diesel::connection::AnsiTransactionManager;
 use diesel::pg::Pg;
 use diesel::Connection;
@@ -17,11 +15,11 @@ use jsonwebtoken::{encode, Algorithm, Header};
 use r2d2::{ManageConnection, Pool};
 use serde;
 use serde_json;
-use sha3::{Digest, Sha3_256};
 use stq_http::client::ClientHandle;
 use uuid::Uuid;
 
 use self::profile::{Email, FacebookProfile, GoogleProfile, IntoUser};
+use super::util::password_verify;
 use config::{Config, OAuth, JWT as JWTConfig};
 use models::{self, JWTPayload, NewEmailIdentity, NewIdentity, NewUser, Provider, ProviderOauth, User, UserStatus, JWT};
 use repos::repo_factory::ReposFactory;
@@ -38,8 +36,6 @@ pub trait JWTService {
     fn create_token_facebook(self, oauth: ProviderOauth, exp: i64) -> ServiceFuture<JWT>;
     /// Renew valid token
     fn renew_token(self, user_id: Option<i32>, exp: i64) -> ServiceFuture<JWT>;
-    /// Verifies password
-    fn password_verify(db_hash: String, clear_password: String) -> Result<bool, ServiceError>;
 }
 
 /// JWT services, responsible for JsonWebToken operations
@@ -345,7 +341,7 @@ impl<
                                                             .find_by_email_provider(new_ident.email.clone(), Provider::Email)
                                                             .map_err(ServiceError::from)
                                                             .and_then(move |identity| {
-                                                                Self::password_verify(
+                                                                password_verify(
                                                                     identity.password.unwrap().clone(),
                                                                     new_ident.password.clone(),
                                                                 )
@@ -443,24 +439,6 @@ impl<
                 )
             }
             _ => Box::new(Err(ServiceError::InvalidToken).into_future()),
-        }
-    }
-
-    fn password_verify(db_hash: String, clear_password: String) -> Result<bool, ServiceError> {
-        let v: Vec<&str> = db_hash.split('.').collect();
-        if v.len() != 2 {
-            Err(ServiceError::Validate(
-                validation_errors!({"password": ["password" => "Password in db has wrong format"]}),
-            ))
-        } else {
-            let salt = v[1];
-            let pass = clear_password + salt;
-            let mut hasher = Sha3_256::default();
-            hasher.input(pass.as_bytes());
-            let out = hasher.result();
-            let computed_hash = decode(v[0])
-                .map_err(|_| ServiceError::Validate(validation_errors!({"password": ["password" => "Password in db has wrong format"]})))?;
-            Ok(computed_hash == &out[..])
         }
     }
 }

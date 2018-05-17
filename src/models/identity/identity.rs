@@ -17,7 +17,7 @@ table! {
 }
 
 /// Payload for creating identity for users
-#[derive(Debug, Serialize, Deserialize, Validate, Insertable, Queryable)]
+#[derive(Debug, Serialize, Deserialize, Validate, Insertable, Queryable, Clone)]
 #[table_name = "identities"]
 pub struct Identity {
     pub user_id: UserId,
@@ -46,6 +46,13 @@ pub struct NewEmailIdentity {
     pub email: String,
     #[validate(length(min = "8", max = "30", message = "Password should be between 8 and 30 symbols"))]
     pub password: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Validate)]
+pub struct ChangeIdentityPassword {
+    pub old_password: String,
+    #[validate(length(min = "8", max = "30", message = "Password should be between 8 and 30 symbols"))]
+    pub new_password: String,
 }
 
 /// Payload for updating identity password

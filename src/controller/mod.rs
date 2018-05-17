@@ -315,6 +315,22 @@ impl<
                 serialize_future(user_roles_service.delete_default(user_id.0).map_err(ControllerError::from))
             }
 
+            // POST /users/password_change
+            (&Post, Some(Route::PasswordChange)) => serialize_future(
+                parse_body::<models::ChangeIdentityPassword>(req.body())
+                    .map_err(|_| ControllerError::UnprocessableEntity(format_err!("Error parsing request from gateway body")))
+                    .inspect(|payload| {
+                        debug!("Received request to start password reset: {:?}", payload);
+                    })
+                    .and_then(move |change_req| {
+                        change_req
+                            .validate()
+                            .map_err(|e| ControllerError::Validate(e))
+                            .into_future()
+                            .and_then(move |_| users_service.change_password(change_req).map_err(ControllerError::from))
+                    }),
+            ),
+
             // POST /users/password_reset/request
             (&Post, Some(Route::PasswordResetRequest)) => serialize_future(
                 parse_body::<models::ResetRequest>(req.body())
