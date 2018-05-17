@@ -51,7 +51,12 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
         query
             .get_results::<UserRole>(self.db_conn)
             .map_err(|e| Error::from(e))
-            .and_then(|user_roles_arg| Ok(user_roles_arg.into_iter().map(|user_role| user_role.role).collect::<Vec<Role>>()))
+            .and_then(|user_roles_arg| {
+                Ok(user_roles_arg
+                    .into_iter()
+                    .map(|user_role| user_role.role)
+                    .collect::<Vec<Role>>())
+            })
     }
 
     fn create(&self, payload: NewUserRole) -> RepoResult<UserRole> {
@@ -60,7 +65,9 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
     }
 
     fn delete(&self, payload: OldUserRole) -> RepoResult<UserRole> {
-        let filtered = user_roles.filter(user_id.eq(payload.user_id)).filter(role.eq(payload.role));
+        let filtered = user_roles
+            .filter(user_id.eq(payload.user_id))
+            .filter(role.eq(payload.role));
         let query = diesel::delete(filtered);
         query.get_result(self.db_conn).map_err(Error::from)
     }

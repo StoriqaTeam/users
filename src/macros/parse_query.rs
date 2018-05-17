@@ -74,12 +74,18 @@ mod tests {
 
     #[test]
     fn params_2() {
-        assert_eq!(parse_query!("from=12&to=22", "from" => i32, "to" => i64), (Some(12), Some(22)));
+        assert_eq!(
+            parse_query!("from=12&to=22", "from" => i32, "to" => i64),
+            (Some(12), Some(22))
+        );
         assert_eq!(
             parse_query!("from=12&to=abc", "from" => i32, "to" => String),
             (Some(12), Some("abc".to_string()))
         );
-        assert_eq!(parse_query!("from=12&to=true", "from" => bool, "to" => bool), (None, Some(true)));
+        assert_eq!(
+            parse_query!("from=12&to=true", "from" => bool, "to" => bool),
+            (None, Some(true))
+        );
     }
 
     #[test]
@@ -102,7 +108,13 @@ mod tests {
     fn params_5() {
         assert_eq!(
             parse_query!("from=12&to=22&published=true&name=Alex&price=3.25", "from" => i32, "to" => i64, "published" => bool, "name" => String, "price" => f32),
-            (Some(12), Some(22), Some(true), Some("Alex".to_string()), Some(3.25))
+            (
+                Some(12),
+                Some(22),
+                Some(true),
+                Some("Alex".to_string()),
+                Some(3.25)
+            )
         );
     }
 }

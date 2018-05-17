@@ -13,13 +13,14 @@ pub fn check<T>(
     scope_checker: &CheckScope<Scope, T>,
     obj: Option<&T>,
 ) -> Result<(), RepoError> {
-    acl.allows(resource, action, scope_checker, obj).and_then(|allowed| {
-        if allowed {
-            Ok(())
-        } else {
-            Err(RepoError::Unauthorized(*resource, *action))
-        }
-    })
+    acl.allows(resource, action, scope_checker, obj)
+        .and_then(|allowed| {
+            if allowed {
+                Ok(())
+            } else {
+                Err(RepoError::Unauthorized(*resource, *action))
+            }
+        })
 }
 
 /// ApplicationAcl contains main logic for manipulation with recources
@@ -151,9 +152,21 @@ mod tests {
         let s = ScopeChecker::default();
         let resource = create_user();
 
-        assert_eq!(acl.allows(&Resource::Users, &Action::All, &s, Some(&resource)).unwrap(), true);
-        assert_eq!(acl.allows(&Resource::Users, &Action::Read, &s, Some(&resource)).unwrap(), true);
-        assert_eq!(acl.allows(&Resource::Users, &Action::Write, &s, Some(&resource)).unwrap(), true);
+        assert_eq!(
+            acl.allows(&Resource::Users, &Action::All, &s, Some(&resource))
+                .unwrap(),
+            true
+        );
+        assert_eq!(
+            acl.allows(&Resource::Users, &Action::Read, &s, Some(&resource))
+                .unwrap(),
+            true
+        );
+        assert_eq!(
+            acl.allows(&Resource::Users, &Action::Write, &s, Some(&resource))
+                .unwrap(),
+            true
+        );
     }
 
     #[test]
@@ -162,9 +175,21 @@ mod tests {
         let s = ScopeChecker::default();
         let resource = create_user();
 
-        assert_eq!(acl.allows(&Resource::Users, &Action::All, &s, Some(&resource)).unwrap(), false);
-        assert_eq!(acl.allows(&Resource::Users, &Action::Read, &s, Some(&resource)).unwrap(), true);
-        assert_eq!(acl.allows(&Resource::Users, &Action::Write, &s, Some(&resource)).unwrap(), false);
+        assert_eq!(
+            acl.allows(&Resource::Users, &Action::All, &s, Some(&resource))
+                .unwrap(),
+            false
+        );
+        assert_eq!(
+            acl.allows(&Resource::Users, &Action::Read, &s, Some(&resource))
+                .unwrap(),
+            true
+        );
+        assert_eq!(
+            acl.allows(&Resource::Users, &Action::Write, &s, Some(&resource))
+                .unwrap(),
+            false
+        );
     }
 
     #[test]
@@ -178,9 +203,21 @@ mod tests {
             role: Role::User,
         };
 
-        assert_eq!(acl.allows(&Resource::UserRoles, &Action::All, &s, Some(&resource)).unwrap(), true);
-        assert_eq!(acl.allows(&Resource::UserRoles, &Action::Read, &s, Some(&resource)).unwrap(), true);
-        assert_eq!(acl.allows(&Resource::UserRoles, &Action::Write, &s, Some(&resource)).unwrap(), true);
+        assert_eq!(
+            acl.allows(&Resource::UserRoles, &Action::All, &s, Some(&resource))
+                .unwrap(),
+            true
+        );
+        assert_eq!(
+            acl.allows(&Resource::UserRoles, &Action::Read, &s, Some(&resource))
+                .unwrap(),
+            true
+        );
+        assert_eq!(
+            acl.allows(&Resource::UserRoles, &Action::Write, &s, Some(&resource))
+                .unwrap(),
+            true
+        );
     }
 
     #[test]
@@ -194,10 +231,19 @@ mod tests {
             role: Role::User,
         };
 
-        assert_eq!(acl.allows(&Resource::UserRoles, &Action::All, &s, Some(&resource)).unwrap(), false);
-        assert_eq!(acl.allows(&Resource::UserRoles, &Action::Read, &s, Some(&resource)).unwrap(), false);
         assert_eq!(
-            acl.allows(&Resource::UserRoles, &Action::Write, &s, Some(&resource)).unwrap(),
+            acl.allows(&Resource::UserRoles, &Action::All, &s, Some(&resource))
+                .unwrap(),
+            false
+        );
+        assert_eq!(
+            acl.allows(&Resource::UserRoles, &Action::Read, &s, Some(&resource))
+                .unwrap(),
+            false
+        );
+        assert_eq!(
+            acl.allows(&Resource::UserRoles, &Action::Write, &s, Some(&resource))
+                .unwrap(),
             false
         );
     }
