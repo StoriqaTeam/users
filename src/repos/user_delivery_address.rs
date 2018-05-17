@@ -50,7 +50,9 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
     for UserDeliveryAddresssRepoImpl<'a, T>
 {
     fn list_for_user(&self, user_id_value: i32) -> RepoResult<Vec<UserDeliveryAddress>> {
-        let query = user_delivery_address.filter(user_id.eq(user_id_value)).order(id.desc());
+        let query = user_delivery_address
+            .filter(user_id.eq(user_id_value))
+            .order(id.desc());
         query
             .get_results::<UserDeliveryAddress>(self.db_conn)
             .map_err(Error::from)
@@ -112,9 +114,15 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                 if let Some(is_priority_arg) = payload.is_priority {
                     if is_priority_arg {
                         // set all other addresses priority to false
-                        let filter = user_delivery_address.filter(user_id.eq(updated_address.user_id).and(id.ne(updated_address.id)));
+                        let filter = user_delivery_address.filter(
+                            user_id
+                                .eq(updated_address.user_id)
+                                .and(id.ne(updated_address.id)),
+                        );
                         let query = diesel::update(filter).set(is_priority.eq(false));
-                        query.get_result::<UserDeliveryAddress>(self.db_conn).map_err(Error::from)?;
+                        query
+                            .get_result::<UserDeliveryAddress>(self.db_conn)
+                            .map_err(Error::from)?;
                     }
                 }
                 Ok(updated_address)

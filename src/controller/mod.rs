@@ -465,7 +465,7 @@ impl<
                                     .create(new_address)
                                     .map_err(ControllerError::from)
                             })
-                    })
+                    }),
             ),
 
             // PUT /users/delivery_addresses/<id>
@@ -476,7 +476,6 @@ impl<
                         debug!("Received request to update delivery address: {:?}", payload);
                     })
                     .and_then(move |new_address| {
-
                         new_address
                             .validate()
                             .map_err(ControllerError::Validate)
@@ -486,7 +485,7 @@ impl<
                                     .update(id, new_address)
                                     .map_err(ControllerError::from)
                             })
-                    })
+                    }),
             ),
 
             // DELETE /users/delivery_addresses/<id>
