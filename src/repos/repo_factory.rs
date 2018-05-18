@@ -497,6 +497,7 @@ pub mod tests {
             last_name: None,
             middle_name: None,
             gender: Gender::Male,
+            avatar: None,
             birthdate: None,
             last_login_at: SystemTime::now(),
             created_at: SystemTime::now(),
@@ -526,6 +527,7 @@ pub mod tests {
             middle_name: None,
             gender: None,
             birthdate: None,
+            avatar: None,
             is_active: None,
             email_verified: None,
         }

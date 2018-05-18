@@ -39,6 +39,7 @@ table! {
         middle_name -> Nullable<VarChar>,
         gender -> Nullable<VarChar>,
         birthdate -> Nullable<Date>,
+        avatar -> Nullable<VarChar>,
         last_login_at -> Timestamp,
         created_at -> Timestamp,
         updated_at -> Timestamp,
@@ -59,6 +60,7 @@ pub struct User {
     pub middle_name: Option<String>,
     pub gender: Gender,
     pub birthdate: Option<NaiveDate>,
+    pub avatar: Option<String>,
     pub last_login_at: SystemTime,
     pub created_at: SystemTime,
     pub updated_at: SystemTime,
@@ -99,6 +101,7 @@ pub struct UpdateUser {
     pub middle_name: Option<String>,
     pub gender: Option<Gender>,
     pub birthdate: Option<NaiveDate>,
+    pub avatar: Option<String>,
     pub is_active: Option<bool>,
     pub email_verified: Option<bool>,
 }
