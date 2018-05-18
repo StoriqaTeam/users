@@ -94,9 +94,9 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                             .and(id.ne(new_address.id)),
                     );
                     let query = diesel::update(filter).set(is_priority.eq(false));
-                    query
+                    let _ = query
                         .get_result::<UserDeliveryAddress>(self.db_conn)
-                        .map_err(Error::from)?;
+                        .map_err(Error::from);
                 }
                 Ok(new_address)
             })
@@ -135,9 +135,9 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                                 .and(id.ne(updated_address.id)),
                         );
                         let query = diesel::update(filter).set(is_priority.eq(false));
-                        query
+                        let _ = query
                             .get_result::<UserDeliveryAddress>(self.db_conn)
-                            .map_err(Error::from)?;
+                            .map_err(Error::from);
                     }
                 }
                 Ok(updated_address)
