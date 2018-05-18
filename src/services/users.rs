@@ -400,6 +400,7 @@ impl<
                                                             middle_name: None,
                                                             gender: None,
                                                             birthdate: None,
+                                                            avatar: None,
                                                             is_active: None,
                                                             email_verified: Some(true),
                                                         };

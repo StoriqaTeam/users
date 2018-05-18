@@ -105,6 +105,7 @@ mod tests {
             last_name: None,
             middle_name: None,
             gender: Gender::Male,
+            avatar: None,
             birthdate: None,
             last_login_at: SystemTime::now(),
             created_at: SystemTime::now(),
