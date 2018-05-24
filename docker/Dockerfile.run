@@ -19,6 +19,7 @@ COPY target/release/users /app
 COPY diesel /usr/local/cargo/bin/diesel
 COPY config /app/config
 COPY migrations /app/migrations
+COPY Cargo.toml /app/Cargo.toml
 
 # Running as user "app"
 RUN adduser --disabled-password --gecos "" --home /app --no-create-home -u 5000 app \
