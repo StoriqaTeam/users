@@ -6,9 +6,9 @@ use diesel;
 use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
 
+use diesel::Connection;
 use diesel::connection::AnsiTransactionManager;
 use diesel::pg::Pg;
-use diesel::Connection;
 
 use stq_acl::*;
 
@@ -50,21 +50,13 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
     for UserDeliveryAddresssRepoImpl<'a, T>
 {
     fn list_for_user(&self, user_id_value: i32) -> RepoResult<Vec<UserDeliveryAddress>> {
-        let query = user_delivery_address
-            .filter(user_id.eq(user_id_value))
-            .order(id.desc());
+        let query = user_delivery_address.filter(user_id.eq(user_id_value)).order(id.desc());
         query
             .get_results::<UserDeliveryAddress>(self.db_conn)
             .map_err(Error::from)
             .and_then(|addresses: Vec<UserDeliveryAddress>| {
                 for addres in addresses.iter() {
-                    acl::check(
-                        &*self.acl,
-                        &Resource::UserDeliveryAddresses,
-                        &Action::Read,
-                        self,
-                        Some(&addres),
-                    )?;
+                    acl::check(&*self.acl, &Resource::UserDeliveryAddresses, &Action::Read, self, Some(&addres))?;
                 }
                 Ok(addresses)
             })
@@ -76,13 +68,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
             .get_result(self.db_conn)
             .map_err(Error::from)
             .and_then(|addres| {
-                acl::check(
-                    &*self.acl,
-                    &Resource::UserDeliveryAddresses,
-                    &Action::Write,
-                    self,
-                    Some(&addres),
-                )?;
+                acl::check(&*self.acl, &Resource::UserDeliveryAddresses, &Action::Write, self, Some(&addres))?;
                 Ok(addres)
             })
             .and_then(|new_address| {
@@ -90,9 +76,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                     // set all other addresses priority to false
                     let filter = user_delivery_address.filter(user_id.eq(new_address.user_id).and(id.ne(new_address.id)));
                     let query = diesel::update(filter).set(is_priority.eq(false));
-                    let _ = query
-                        .get_result::<UserDeliveryAddress>(self.db_conn)
-                        .map_err(Error::from);
+                    let _ = query.get_result::<UserDeliveryAddress>(self.db_conn).map_err(Error::from);
                 }
                 Ok(new_address)
             })
@@ -105,35 +89,21 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
             .get_result(self.db_conn)
             .map_err(Error::from)
             .and_then(|addres: UserDeliveryAddress| {
-                acl::check(
-                    &*self.acl,
-                    &Resource::UserDeliveryAddresses,
-                    &Action::Write,
-                    self,
-                    Some(&addres),
-                )
+                acl::check(&*self.acl, &Resource::UserDeliveryAddresses, &Action::Write, self, Some(&addres))
             })
             .and_then(|_| {
                 let filter = user_delivery_address.filter(id.eq(id_arg));
 
                 let query = diesel::update(filter).set(&payload);
-                query
-                    .get_result::<UserDeliveryAddress>(self.db_conn)
-                    .map_err(Error::from)
+                query.get_result::<UserDeliveryAddress>(self.db_conn).map_err(Error::from)
             })
             .and_then(|updated_address| {
                 if let Some(is_priority_arg) = payload.is_priority {
                     if is_priority_arg {
                         // set all other addresses priority to false
-                        let filter = user_delivery_address.filter(
-                            user_id
-                                .eq(updated_address.user_id)
-                                .and(id.ne(updated_address.id)),
-                        );
+                        let filter = user_delivery_address.filter(user_id.eq(updated_address.user_id).and(id.ne(updated_address.id)));
                         let query = diesel::update(filter).set(is_priority.eq(false));
-                        let _ = query
-                            .get_result::<UserDeliveryAddress>(self.db_conn)
-                            .map_err(Error::from);
+                        let _ = query.get_result::<UserDeliveryAddress>(self.db_conn).map_err(Error::from);
                     }
                 }
                 Ok(updated_address)
@@ -148,13 +118,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
             .get_result(self.db_conn)
             .map_err(Error::from)
             .and_then(|addres: UserDeliveryAddress| {
-                acl::check(
-                    &*self.acl,
-                    &Resource::UserDeliveryAddresses,
-                    &Action::Write,
-                    self,
-                    Some(&addres),
-                )
+                acl::check(&*self.acl, &Resource::UserDeliveryAddresses, &Action::Write, self, Some(&addres))
             })
             .and_then(|_| {
                 let filtered = user_delivery_address.filter(id.eq(id_arg));

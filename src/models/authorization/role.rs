@@ -12,8 +12,8 @@ mod diesel_impl {
     use std::str;
 
     use diesel::deserialize::Queryable;
-    use diesel::expression::bound::Bound;
     use diesel::expression::AsExpression;
+    use diesel::expression::bound::Bound;
     use diesel::pg::Pg;
     use diesel::row::Row;
     use diesel::serialize::Output;

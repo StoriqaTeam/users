@@ -51,11 +51,7 @@ fn test_request() {
                 };
             }
 
-            let out = format!(
-                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}",
-                message_str.len(),
-                message_str
-            );
+            let out = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}", message_str.len(), message_str);
             inc.write_all(out.as_ref()).unwrap();
             let _ = tx.send(());
         })

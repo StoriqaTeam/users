@@ -54,8 +54,8 @@ pub mod types;
 
 use std::env;
 use std::fs::File;
-use std::io::prelude::*;
 use std::io::Write;
+use std::io::prelude::*;
 use std::process;
 use std::sync::Arc;
 
@@ -83,13 +83,7 @@ pub fn start_server(config: Config) {
     builder
         .format(|formatter, record| {
             let now = Utc::now();
-            writeln!(
-                formatter,
-                "{} - {} - {}",
-                now.to_rfc3339(),
-                record.level(),
-                record.args()
-            )
+            writeln!(formatter, "{} - {} - {}", now.to_rfc3339(), record.level(), record.args())
         })
         .filter(None, LogLevelFilter::Info);
 
@@ -124,15 +118,9 @@ pub fn start_server(config: Config) {
     };
 
     // Prepare database pool
-    let database_url: String = config
-        .server
-        .database
-        .parse()
-        .expect("Database URL must be set in configuration");
+    let database_url: String = config.server.database.parse().expect("Database URL must be set in configuration");
     let manager = ConnectionManager::<PgConnection>::new(database_url);
-    let db_pool = r2d2::Pool::builder()
-        .build(manager)
-        .expect("Failed to create connection pool");
+    let db_pool = r2d2::Pool::builder().build(manager).expect("Failed to create connection pool");
 
     // Prepare CPU pool
     let cpu_pool = CpuPool::new(thread_count);
@@ -172,10 +160,7 @@ pub fn start_server(config: Config) {
     handle.spawn(
         serve
             .for_each(move |conn| {
-                handle_arc2.spawn(
-                    conn.map(|_| ())
-                        .map_err(|why| error!("Server Error: {:?}", why)),
-                );
+                handle_arc2.spawn(conn.map(|_| ()).map_err(|why| error!("Server Error: {:?}", why)));
                 Ok(())
             })
             .map_err(|_| ()),
