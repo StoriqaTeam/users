@@ -3,12 +3,12 @@
 use std::time::SystemTime;
 
 use base64::encode;
+use diesel::Connection;
 use diesel::connection::AnsiTransactionManager;
 use diesel::pg::Pg;
-use diesel::Connection;
-use futures::future;
 use futures::Future;
 use futures::IntoFuture;
+use futures::future;
 use futures_cpupool::CpuPool;
 use hyper::Method;
 use r2d2::{ManageConnection, Pool};
@@ -74,10 +74,10 @@ pub struct UsersServiceImpl<
 }
 
 impl<
-    T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
-    M: ManageConnection<Connection = T>,
-    F: ReposFactory<T>,
-> UsersServiceImpl<T, M, F>
+        T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
+        M: ManageConnection<Connection = T>,
+        F: ReposFactory<T>,
+    > UsersServiceImpl<T, M, F>
 {
     pub fn new(
         db_pool: Pool<M>,
@@ -99,10 +99,10 @@ impl<
 }
 
 impl<
-    T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
-    M: ManageConnection<Connection = T>,
-    F: ReposFactory<T>,
-> UsersService for UsersServiceImpl<T, M, F>
+        T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
+        M: ManageConnection<Connection = T>,
+        F: ReposFactory<T>,
+    > UsersService for UsersServiceImpl<T, M, F>
 {
     /// Returns user by ID
     fn get(&self, user_id: UserId) -> ServiceFuture<User> {
@@ -200,9 +200,7 @@ impl<
                 .map_err(|e| ServiceError::Connection(e.into()))
                 .and_then(move |conn| {
                     let mut users_repo = repo_factory.create_users_repo(&conn, current_uid);
-                    users_repo
-                        .delete_by_saga_id(saga_id)
-                        .map_err(ServiceError::from)
+                    users_repo.delete_by_saga_id(saga_id).map_err(ServiceError::from)
                 })
         }))
     }
@@ -286,30 +284,24 @@ impl<
                             })
                         })
                 })
-                .and_then(
-                    move |(token, user)| -> Box<Future<Item = User, Error = ServiceError>> {
-                        let user_clone: User = user.clone();
-                        if user_absent {
-                            let to = token.email.clone();
-                            let subject = "Email verification".to_string();
-                            let text = format!(
-                                "{}/{}",
-                                notif_config.verify_email_path.clone(),
-                                token.token.clone()
-                            );
+                .and_then(move |(token, user)| -> Box<Future<Item = User, Error = ServiceError>> {
+                    let user_clone: User = user.clone();
+                    if user_absent {
+                        let to = token.email.clone();
+                        let subject = "Email verification".to_string();
+                        let text = format!("{}/{}", notif_config.verify_email_path.clone(), token.token.clone());
 
-                            debug!("Sending email notification to user");
+                        debug!("Sending email notification to user");
 
-                            Box::new(
-                                Self::send_mail(http_clone.clone(), notif_config.clone(), to, subject, text)
-                                    .map(|_| user)
-                                    .or_else(|_| future::ok(user_clone)),
-                            )
-                        } else {
-                            Box::new(future::ok(user_clone))
-                        }
-                    },
-                ),
+                        Box::new(
+                            Self::send_mail(http_clone.clone(), notif_config.clone(), to, subject, text)
+                                .map(|_| user)
+                                .or_else(|_| future::ok(user_clone)),
+                        )
+                    } else {
+                        Box::new(future::ok(user_clone))
+                    }
+                }),
         )
     }
 
@@ -347,11 +339,7 @@ impl<
                 .and_then(move |token| {
                     let to = token.email.clone();
                     let subject = "Email verification".to_string();
-                    let text = format!(
-                        "{}/{}",
-                        notif_config.verify_email_path.clone(),
-                        token.token.clone()
-                    );
+                    let text = format!("{}/{}", notif_config.verify_email_path.clone(), token.token.clone());
 
                     Self::send_mail(http_clone.clone(), notif_config.clone(), to, subject, text).or_else(|_| future::ok(true))
                 }),
@@ -386,35 +374,33 @@ impl<
                                             ServiceError::Unknown("".to_string())
                                         })
                                 })
-                                .and_then(
-                                    move |reset_token| match SystemTime::now().duration_since(reset_token.created_at) {
-                                        Ok(elapsed) => {
-                                            if elapsed.as_secs() < 3600 {
-                                                users_repo
-                                                    .find_by_email(reset_token.email.clone())
-                                                    .and_then(|user| {
-                                                        let update = UpdateUser {
-                                                            phone: None,
-                                                            first_name: None,
-                                                            last_name: None,
-                                                            middle_name: None,
-                                                            gender: None,
-                                                            birthdate: None,
-                                                            avatar: None,
-                                                            is_active: None,
-                                                            email_verified: Some(true),
-                                                        };
+                                .and_then(move |reset_token| match SystemTime::now().duration_since(reset_token.created_at) {
+                                    Ok(elapsed) => {
+                                        if elapsed.as_secs() < 3600 {
+                                            users_repo
+                                                .find_by_email(reset_token.email.clone())
+                                                .and_then(|user| {
+                                                    let update = UpdateUser {
+                                                        phone: None,
+                                                        first_name: None,
+                                                        last_name: None,
+                                                        middle_name: None,
+                                                        gender: None,
+                                                        birthdate: None,
+                                                        avatar: None,
+                                                        is_active: None,
+                                                        email_verified: Some(true),
+                                                    };
 
-                                                        users_repo.update(user.id.clone(), update)
-                                                    })
-                                                    .map_err(|_e| ServiceError::InvalidToken)
-                                            } else {
-                                                Err(ServiceError::InvalidToken)
-                                            }
+                                                    users_repo.update(user.id.clone(), update)
+                                                })
+                                                .map_err(|_e| ServiceError::InvalidToken)
+                                        } else {
+                                            Err(ServiceError::InvalidToken)
                                         }
-                                        Err(_) => Err(ServiceError::InvalidToken),
-                                    },
-                                )
+                                    }
+                                    Err(_) => Err(ServiceError::InvalidToken),
+                                })
                         })
                 })
                 .and_then(move |user| {
@@ -493,10 +479,7 @@ impl<
                                                     password: Some(password_create(new_password)),
                                                 };
 
-                                                ident_repo
-                                                    .update(identity, update)
-                                                    .map(|_| true)
-                                                    .map_err(ServiceError::from)
+                                                ident_repo.update(identity, update).map(|_| true).map_err(ServiceError::from)
                                             }
                                         }
                                     })
@@ -556,11 +539,7 @@ impl<
                 .and_then(move |token| {
                     let to = token.email.clone();
                     let subject = "Password reset".to_string();
-                    let text = format!(
-                        "{}/{}",
-                        notif_config.reset_password_path.clone(),
-                        token.token.clone()
-                    );
+                    let text = format!("{}/{}", notif_config.reset_password_path.clone(), token.token.clone());
 
                     Self::send_mail(http_clone.clone(), notif_config.clone(), to, subject, text).or_else(|_| future::ok(true))
                 }),
@@ -604,10 +583,7 @@ impl<
                                                 ident_repo
                                                     .find_by_email_provider(reset_token.email.clone(), Provider::Email)
                                                     .and_then(move |ident| {
-                                                        debug!(
-                                                            "Token check successful, resetting password for identity {:?}",
-                                                            &ident
-                                                        );
+                                                        debug!("Token check successful, resetting password for identity {:?}", &ident);
                                                         let update = UpdateIdentity {
                                                             password: Some(password_create(new_pass)),
                                                         };

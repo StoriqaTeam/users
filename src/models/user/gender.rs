@@ -20,15 +20,15 @@ impl FromStr for Gender {
 }
 
 mod diesel_impl {
+    use diesel::Queryable;
     use diesel::deserialize::FromSqlRow;
-    use diesel::expression::bound::Bound;
     use diesel::expression::AsExpression;
+    use diesel::expression::bound::Bound;
     use diesel::pg::Pg;
     use diesel::row::Row;
     use diesel::serialize::Output;
     use diesel::serialize::{IsNull, ToSql};
     use diesel::sql_types::*;
-    use diesel::Queryable;
     use std::error::Error;
     use std::io::Write;
 

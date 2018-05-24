@@ -89,14 +89,10 @@ pub fn create_route_parser() -> RouteParser<Route> {
     router.add_route(r"^/users/password_change$", || Route::PasswordChange);
 
     // /users/password_reset/request/:email route
-    router.add_route(r"^/users/password_reset/request$", || {
-        Route::PasswordResetRequest
-    });
+    router.add_route(r"^/users/password_reset/request$", || Route::PasswordResetRequest);
 
     // /users/password_reset/apply/:token route
-    router.add_route(r"^/users/password_reset/apply$", || {
-        Route::PasswordResetApply
-    });
+    router.add_route(r"^/users/password_reset/apply$", || Route::PasswordResetApply);
 
     router.add_route_with_params(r"^/email_verify/resend/(.+)$", |params| {
         params
@@ -113,9 +109,7 @@ pub fn create_route_parser() -> RouteParser<Route> {
     });
 
     // User delivery addresses route
-    router.add_route(r"^/users/delivery_addresses$", || {
-        Route::UserDeliveryAddresses
-    });
+    router.add_route(r"^/users/delivery_addresses$", || Route::UserDeliveryAddresses);
 
     // User delivery addresses/:id route
     router.add_route_with_params(r"^/users/delivery_addresses/(\d+)$", |params| {
