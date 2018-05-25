@@ -65,9 +65,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static> IdentitiesRepo for IdentitiesRepoImpl<'a, T> {
     /// Checks if e-mail is already registered
     fn email_exists(&self, email_arg: String) -> Result<bool, RepoError> {
-        self.execute_query(select(exists(
-            identities.filter(email.eq(email_arg)),
-        )))
+        self.execute_query(select(exists(identities.filter(email.eq(email_arg)))))
     }
 
     /// Checks if e-mail with provider is already registered
