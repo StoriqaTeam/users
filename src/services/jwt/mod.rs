@@ -443,7 +443,7 @@ pub mod tests {
         let result = core.run(work).unwrap();
         assert_eq!(
             result.token,
-            "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjF9.QsUg6-nT7CJHePAHvIsHlOxchFnc0o6NXWVfTWmrrAowBYMAOXsOfkh8VEMqL8H5IwFBBZDr9OleYYX_GbgTn6qS6v_eV4bEPlauxuBCm-R7GkuHvzPwxFOviI9p0kZ0QFj-hz-yRbnobihoYZieCAa_nk0EJjy2jZR5njq9T5eQXk5rsknWvTmSiVtnEOvkTuuSyz6YCPPSQZfBHZtLAc7py6R1YtpyX5MR64tVlQXuZlulb-CpupJeYUNiuIcZ5v6UDLl_3vRYP9ovrYEjSs7Af19_7Jt2COMFrcwEB8-TDYSU_mH13y7Ou2GTizxQeWJcskkpN-EWjS2eRSU4fA"
+            "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjEsInByb3ZpZGVyIjoiRW1haWwifQ.IeWgAVZRzFK1L4JbUkiC42TnTa95OF_Gzdy5PAMwbQJifK9NC_qtxrk9W4S62kYsQaxHLupq2rWhMh4WovHH351EAwgqP7eswsBmEML81jeFuUGQ3Vhlkm9b1x-2H5JJI8lRLkPBcqvJDwUM-_7Jz2Q4qY8vE2SgJ7CcnYFFYpjNELrr1Fm0HJN1hnUhXumY3O8V1W7dm5IfASGZx5uu103EKJsZ9KFwWiSs1ZAzII8jvpL1D2uI4Kq5ESXCve1QRqlfzaAlRbpJEsBENxI7oPV8Bp2FH_qhvhSM957lCNM3GcdgNn3B2Gr3b-T7FUjlZieJbIoels1OScO-Q4vdBg"
         );
     }
 
