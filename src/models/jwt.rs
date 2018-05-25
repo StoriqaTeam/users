@@ -1,4 +1,5 @@
 //! Models for managing Json Web Token
+use models::Provider;
 
 /// Json Web Token created by provider user status
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -25,10 +26,11 @@ pub struct ProviderOauth {
 pub struct JWTPayload {
     pub user_id: i32,
     pub exp: i64,
+    pub provider: Provider,
 }
 
 impl JWTPayload {
-    pub fn new(id: i32, exp_arg: i64) -> Self {
-        Self { user_id: id, exp: exp_arg }
+    pub fn new(id: i32, exp_arg: i64, provider_arg: Provider) -> Self {
+        Self { user_id: id, exp: exp_arg, provider: provider_arg }
     }
 }

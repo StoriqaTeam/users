@@ -270,13 +270,6 @@ impl<
                     }),
             ),
 
-            // POST /jwt/renew
-            (&Post, Some(Route::JWTRenew)) => serialize_future({
-                let now = Utc::now().timestamp();
-
-                jwt_service.renew_token(user_id.clone(), now).map_err(ControllerError::from)
-            }),
-
             // GET /user_roles/<user_id>
             (&Get, Some(Route::UserRole(user_id))) => {
                 debug!("Received request to get roles for user {}", user_id);
