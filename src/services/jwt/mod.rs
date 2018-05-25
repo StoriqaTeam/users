@@ -341,10 +341,17 @@ impl<
                                                             .find_by_email_provider(new_ident.email.clone(), Provider::Email)
                                                             .map_err(ServiceError::from)
                                                             .and_then(move |identity| {
-                                                                password_verify(
-                                                                    identity.password.unwrap().clone(),
-                                                                    new_ident.password.clone(),
-                                                                )
+                                                                if let Some(passwd) = identity.password {
+                                                                    password_verify(passwd, new_ident.password.clone())
+                                                                } else {
+                                                                    error!(
+                                                                        "No password in db for user with Email provider, user_id: {}",
+                                                                        &identity.user_id
+                                                                    );
+                                                                    Err(ServiceError::Validate(
+                                                                        validation_errors!({"password": ["password" => "Wrong password"]}),
+                                                                    ))
+                                                                }
                                                             })
                                                             .map(move |verified| (verified, new_ident_clone))
                                                             .and_then(move |(verified, new_ident)| -> Result<i32, ServiceError> {

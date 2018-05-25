@@ -459,11 +459,18 @@ impl<
                                     .map_err(ServiceError::from)
                                     .and_then(move |identity| {
                                         let ident_clone = identity.clone();
-                                        let verified = password_verify(ident_clone.password.unwrap().clone(), old_password);
+                                        if let Some(passwd) = ident_clone.password {
+                                            let verified = password_verify(passwd, old_password);
 
-                                        match verified {
-                                            Ok(verified) => Ok((verified, identity)),
-                                            Err(e) => Err(e),
+                                            match verified {
+                                                Ok(verified) => Ok((verified, identity)),
+                                                Err(e) => Err(e),
+                                            }
+                                        } else {
+                                            error!("No password in db for user with Email provider, user_id: {}", &ident_clone.user_id);
+                                            Err(ServiceError::Validate(
+                                                validation_errors!({"password": ["password" => "Wrong password"]}),
+                                            ))
                                         }
                                     })
                                     .and_then(move |(verified, identity)| {
