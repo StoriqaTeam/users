@@ -233,7 +233,7 @@ impl<
 
                             conn.transaction::<(ResetToken, User), ServiceError, _>(move || {
                                 ident_repo
-                                    .email_provider_exists(payload.email.to_string(), Provider::Email)
+                                    .email_exists(payload.email.to_string())
                                     .map(move |exists| (payload, exists))
                                     .map_err(ServiceError::from)
                                     .and_then(|(payload, exists)| match exists {
@@ -258,7 +258,7 @@ impl<
                                             .create(
                                                 new_ident.email,
                                                 new_ident.password.clone().map(|pass| password_create(pass)),
-                                                Provider::Email,
+                                                new_ident.provider.clone(),
                                                 user.id.clone(),
                                                 new_ident.saga_id,
                                             )

@@ -23,6 +23,8 @@ pub struct IdentitiesRepoImpl<'a, T: Connection<Backend = Pg, TransactionManager
 
 pub trait IdentitiesRepo {
     /// Checks if e-mail is already registered
+    fn email_exists(&self, email_arg: String) -> Result<bool, RepoError>;
+
     fn email_provider_exists(&self, email_arg: String, provider: Provider) -> Result<bool, RepoError>;
 
     /// Creates new identity
@@ -62,16 +64,16 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 
 impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static> IdentitiesRepo for IdentitiesRepoImpl<'a, T> {
     /// Checks if e-mail is already registered
-    fn email_provider_exists(&self, email_arg: String, provider_arg: Provider) -> Result<bool, RepoError> {
+    fn email_exists(&self, email_arg: String) -> Result<bool, RepoError> {
         self.execute_query(select(exists(
-            identities.filter(email.eq(email_arg)).filter(provider.eq(provider_arg)),
+            identities.filter(email.eq(email_arg)),
         )))
     }
 
-    /// Verifies password
-    fn verify_password(&self, email_arg: String, password_arg: String) -> Result<bool, RepoError> {
+    /// Checks if e-mail with provider is already registered
+    fn email_provider_exists(&self, email_arg: String, provider_arg: Provider) -> Result<bool, RepoError> {
         self.execute_query(select(exists(
-            identities.filter(email.eq(email_arg)).filter(password.eq(password_arg)),
+            identities.filter(email.eq(email_arg)).filter(provider.eq(provider_arg)),
         )))
     }
 
@@ -95,6 +97,13 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 
         let ident_query = diesel::insert_into(identities).values(&identity_arg);
         ident_query.get_result::<Identity>(self.db_conn).map_err(RepoError::from)
+    }
+
+    /// Verifies password
+    fn verify_password(&self, email_arg: String, password_arg: String) -> Result<bool, RepoError> {
+        self.execute_query(select(exists(
+            identities.filter(email.eq(email_arg)).filter(password.eq(password_arg)),
+        )))
     }
 
     /// Find specific user by user_id
