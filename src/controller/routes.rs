@@ -47,9 +47,6 @@ pub fn create_route_parser() -> RouteParser<Route> {
     // JWT facebook route
     router.add_route(r"^/jwt/facebook$", || Route::JWTFacebook);
 
-    // JWT renew route
-    router.add_route(r"^/jwt/renew$", || Route::JWTRenew);
-
     // Users/:id route
     router.add_route_with_params(r"^/users/(\d+)$", |params| {
         params

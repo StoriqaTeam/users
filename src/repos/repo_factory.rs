@@ -238,6 +238,10 @@ pub mod tests {
     pub struct IdentitiesRepoMock;
 
     impl IdentitiesRepo for IdentitiesRepoMock {
+        fn email_exists(&self, email_arg: String) -> Result<bool, RepoError> {
+            Ok(email_arg == MOCK_EMAIL.to_string())
+        }
+
         fn email_provider_exists(&self, email_arg: String, provider_arg: Provider) -> Result<bool, RepoError> {
             Ok(email_arg == MOCK_EMAIL.to_string() && provider_arg == Provider::Email)
         }

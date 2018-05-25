@@ -34,8 +34,6 @@ pub trait JWTService {
     fn create_token_google(self, oauth: ProviderOauth, exp: i64) -> ServiceFuture<JWT>;
     /// Creates new JWT token by facebook
     fn create_token_facebook(self, oauth: ProviderOauth, exp: i64) -> ServiceFuture<JWT>;
-    /// Renew valid token
-    fn renew_token(self, user_id: Option<i32>, exp: i64) -> ServiceFuture<JWT>;
 }
 
 /// JWT services, responsible for JsonWebToken operations
@@ -109,9 +107,9 @@ trait ProfileService<T: Connection<Backend = Pg, TransactionManager = AnsiTransa
 
     fn get_id(&self, profile: P, provider: Provider) -> ServiceFuture<i32>;
 
-    fn create_jwt(&self, id: i32, exp: i64, status: UserStatus, secret: Vec<u8>) -> ServiceFuture<JWT> {
+    fn create_jwt(&self, id: i32, exp: i64, status: UserStatus, secret: Vec<u8>, provider: Provider) -> ServiceFuture<JWT> {
         debug!("Creating token for user {}, at {}", id, exp);
-        let tokenpayload = JWTPayload::new(id, exp);
+        let tokenpayload = JWTPayload::new(id, exp, provider);
         Box::new(
             encode(&Header::new(Algorithm::RS256), &tokenpayload, secret.as_ref())
                 .map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}.", tokenpayload)))
@@ -147,6 +145,8 @@ where
         let service = Arc::new(self);
         let db_pool = service.db_pool.clone();
         let thread_pool = service.cpu_pool.clone();
+        let provider_clone = provider.clone();
+
         let future = service
             .get_profile(info_url, headers)
             .and_then({
@@ -194,7 +194,7 @@ where
             })
             .and_then({
                 let s = service.clone();
-                move |(id, status)| s.create_jwt(id, exp, status, secret)
+                move |(id, status)| s.create_jwt(id, exp, status, secret, provider_clone)
             });
 
         Box::new(future)
@@ -341,10 +341,17 @@ impl<
                                                             .find_by_email_provider(new_ident.email.clone(), Provider::Email)
                                                             .map_err(ServiceError::from)
                                                             .and_then(move |identity| {
-                                                                password_verify(
-                                                                    identity.password.unwrap().clone(),
-                                                                    new_ident.password.clone(),
-                                                                )
+                                                                if let Some(passwd) = identity.password {
+                                                                    password_verify(passwd, new_ident.password.clone())
+                                                                } else {
+                                                                    error!(
+                                                                        "No password in db for user with Email provider, user_id: {}",
+                                                                        &identity.user_id
+                                                                    );
+                                                                    Err(ServiceError::Validate(
+                                                                        validation_errors!({"password": ["password" => "Wrong password"]}),
+                                                                    ))
+                                                                }
                                                             })
                                                             .map(move |verified| (verified, new_ident_clone))
                                                             .and_then(move |(verified, new_ident)| -> Result<i32, ServiceError> {
@@ -370,7 +377,7 @@ impl<
                                 }
                             })
                             .and_then(move |id| {
-                                let tokenpayload = JWTPayload::new(id, exp);
+                                let tokenpayload = JWTPayload::new(id, exp, Provider::Email);
                                 encode(&Header::new(Algorithm::RS256), &tokenpayload, jwt_private_key.as_ref())
                                     .map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}", tokenpayload)))
                                     .and_then(|t| {
@@ -420,27 +427,6 @@ impl<
             exp,
         )
     }
-
-    fn renew_token(self, user_id: Option<i32>, exp: i64) -> ServiceFuture<JWT> {
-        match user_id {
-            Some(id) => {
-                let jwt_private_key = self.jwt_private_key.clone();
-                let tokenpayload = JWTPayload::new(id, exp);
-                Box::new(
-                    encode(&Header::new(Algorithm::RS256), &tokenpayload, jwt_private_key.as_ref())
-                        .map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}", tokenpayload)))
-                        .and_then(|t| {
-                            Ok(JWT {
-                                token: t,
-                                status: UserStatus::Exists,
-                            })
-                        })
-                        .into_future(),
-                )
-            }
-            _ => Box::new(Err(ServiceError::InvalidToken).into_future()),
-        }
-    }
 }
 
 #[cfg(test)]
@@ -464,22 +450,7 @@ pub mod tests {
         let result = core.run(work).unwrap();
         assert_eq!(
             result.token,
-            "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjF9.QsUg6-nT7CJHePAHvIsHlOxchFnc0o6NXWVfTWmrrAowBYMAOXsOfkh8VEMqL8H5IwFBBZDr9OleYYX_GbgTn6qS6v_eV4bEPlauxuBCm-R7GkuHvzPwxFOviI9p0kZ0QFj-hz-yRbnobihoYZieCAa_nk0EJjy2jZR5njq9T5eQXk5rsknWvTmSiVtnEOvkTuuSyz6YCPPSQZfBHZtLAc7py6R1YtpyX5MR64tVlQXuZlulb-CpupJeYUNiuIcZ5v6UDLl_3vRYP9ovrYEjSs7Af19_7Jt2COMFrcwEB8-TDYSU_mH13y7Ou2GTizxQeWJcskkpN-EWjS2eRSU4fA"
-        );
-    }
-
-    #[test]
-    fn test_jwt_renew() {
-        let mut core = Core::new().unwrap();
-        let handle = Arc::new(core.handle());
-        let service = create_jwt_service(handle);
-        let user_id = 1;
-        let exp = 1;
-        let work = service.renew_token(Some(user_id), exp);
-        let result = core.run(work).unwrap();
-        assert_eq!(
-            result.token,
-            "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjF9.QsUg6-nT7CJHePAHvIsHlOxchFnc0o6NXWVfTWmrrAowBYMAOXsOfkh8VEMqL8H5IwFBBZDr9OleYYX_GbgTn6qS6v_eV4bEPlauxuBCm-R7GkuHvzPwxFOviI9p0kZ0QFj-hz-yRbnobihoYZieCAa_nk0EJjy2jZR5njq9T5eQXk5rsknWvTmSiVtnEOvkTuuSyz6YCPPSQZfBHZtLAc7py6R1YtpyX5MR64tVlQXuZlulb-CpupJeYUNiuIcZ5v6UDLl_3vRYP9ovrYEjSs7Af19_7Jt2COMFrcwEB8-TDYSU_mH13y7Ou2GTizxQeWJcskkpN-EWjS2eRSU4fA"
+            "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjEsInByb3ZpZGVyIjoiRW1haWwifQ.IeWgAVZRzFK1L4JbUkiC42TnTa95OF_Gzdy5PAMwbQJifK9NC_qtxrk9W4S62kYsQaxHLupq2rWhMh4WovHH351EAwgqP7eswsBmEML81jeFuUGQ3Vhlkm9b1x-2H5JJI8lRLkPBcqvJDwUM-_7Jz2Q4qY8vE2SgJ7CcnYFFYpjNELrr1Fm0HJN1hnUhXumY3O8V1W7dm5IfASGZx5uu103EKJsZ9KFwWiSs1ZAzII8jvpL1D2uI4Kq5ESXCve1QRqlfzaAlRbpJEsBENxI7oPV8Bp2FH_qhvhSM957lCNM3GcdgNn3B2Gr3b-T7FUjlZieJbIoels1OScO-Q4vdBg"
         );
     }
 
