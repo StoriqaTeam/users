@@ -128,7 +128,7 @@ impl<
         match (req.method(), self.route_parser.test(req.path())) {
             // GET /healthcheck
             (&Get, Some(Route::Healthcheck)) => {
-                debug!("Received healthcheck request");
+                trace!("Received healthcheck request");
                 serialize_future(system_service.healthcheck())
             }
 
