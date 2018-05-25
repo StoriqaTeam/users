@@ -31,6 +31,10 @@ pub struct JWTPayload {
 
 impl JWTPayload {
     pub fn new(id: i32, exp_arg: i64, provider_arg: Provider) -> Self {
-        Self { user_id: id, exp: exp_arg, provider: provider_arg }
+        Self {
+            user_id: id,
+            exp: exp_arg,
+            provider: provider_arg,
+        }
     }
 }
