@@ -3,6 +3,7 @@
 pub mod identity;
 pub mod provider;
 
+pub use self::identity::ChangeIdentityPassword;
 pub use self::identity::Identity;
 pub use self::identity::NewEmailIdentity;
 pub use self::identity::NewIdentity;

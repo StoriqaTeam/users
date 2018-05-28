@@ -17,10 +17,13 @@ pub enum Route {
     UserRoles,
     UserRole(i32),
     DefaultRole(UserId),
+    PasswordChange,
     PasswordResetRequest,
     PasswordResetApply,
     EmailVerifyResend(String),
     EmailVerifyApply(String),
+    UserDeliveryAddresses,
+    UserDeliveryAddress(i32),
 }
 
 pub fn create_route_parser() -> RouteParser<Route> {
@@ -43,9 +46,6 @@ pub fn create_route_parser() -> RouteParser<Route> {
 
     // JWT facebook route
     router.add_route(r"^/jwt/facebook$", || Route::JWTFacebook);
-
-    // JWT renew route
-    router.add_route(r"^/jwt/renew$", || Route::JWTRenew);
 
     // Users/:id route
     router.add_route_with_params(r"^/users/(\d+)$", |params| {
@@ -82,15 +82,14 @@ pub fn create_route_parser() -> RouteParser<Route> {
             .map(|user_id| Route::DefaultRole(user_id))
     });
 
+    // /users/password_change route
+    router.add_route(r"^/users/password_change$", || Route::PasswordChange);
+
     // /users/password_reset/request/:email route
-    router.add_route(r"^/users/password_reset/request$", || {
-        Route::PasswordResetRequest
-    });
+    router.add_route(r"^/users/password_reset/request$", || Route::PasswordResetRequest);
 
     // /users/password_reset/apply/:token route
-    router.add_route(r"^/users/password_reset/apply$", || {
-        Route::PasswordResetApply
-    });
+    router.add_route(r"^/users/password_reset/apply$", || Route::PasswordResetApply);
 
     router.add_route_with_params(r"^/email_verify/resend/(.+)$", |params| {
         params
@@ -104,6 +103,17 @@ pub fn create_route_parser() -> RouteParser<Route> {
             .get(0)
             .and_then(|string_id| string_id.parse::<String>().ok())
             .map(|token| Route::EmailVerifyApply(token))
+    });
+
+    // User delivery addresses route
+    router.add_route(r"^/users/delivery_addresses$", || Route::UserDeliveryAddresses);
+
+    // User delivery addresses/:id route
+    router.add_route_with_params(r"^/users/delivery_addresses/(\d+)$", |params| {
+        params
+            .get(0)
+            .and_then(|string_id| string_id.parse::<i32>().ok())
+            .map(Route::UserDeliveryAddress)
     });
 
     router

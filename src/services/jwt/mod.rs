@@ -1,32 +1,30 @@
 //! Json Web Token Services, presents creating jwt from google, facebook and email + password
 pub mod profile;
 
-use std::str;
 use std::sync::Arc;
 
-use base64::decode;
 use diesel::Connection;
 use diesel::connection::AnsiTransactionManager;
 use diesel::pg::Pg;
-use r2d2::{ManageConnection, Pool};
 use futures::future;
 use futures::{Future, IntoFuture};
 use futures_cpupool::CpuPool;
 use hyper::header::{Authorization, Bearer};
 use hyper::{Headers, Method};
 use jsonwebtoken::{encode, Algorithm, Header};
+use r2d2::{ManageConnection, Pool};
 use serde;
 use serde_json;
-use sha3::{Digest, Sha3_256};
 use stq_http::client::ClientHandle;
 use uuid::Uuid;
 
 use self::profile::{Email, FacebookProfile, GoogleProfile, IntoUser};
+use super::util::password_verify;
 use config::{Config, JWT as JWTConfig, OAuth};
 use models::{self, JWTPayload, NewEmailIdentity, NewIdentity, NewUser, Provider, ProviderOauth, User, UserStatus, JWT};
+use repos::repo_factory::ReposFactory;
 use services::error::ServiceError;
 use services::types::ServiceFuture;
-use repos::repo_factory::ReposFactory;
 
 /// JWT services, responsible for JsonWebToken operations
 pub trait JWTService {
@@ -36,10 +34,6 @@ pub trait JWTService {
     fn create_token_google(self, oauth: ProviderOauth, exp: i64) -> ServiceFuture<JWT>;
     /// Creates new JWT token by facebook
     fn create_token_facebook(self, oauth: ProviderOauth, exp: i64) -> ServiceFuture<JWT>;
-    /// Renew valid token
-    fn renew_token(self, user_id: Option<i32>, exp: i64) -> ServiceFuture<JWT>;
-    /// Verifies password
-    fn password_verify(db_hash: String, clear_password: String) -> Result<bool, ServiceError>;
 }
 
 /// JWT services, responsible for JsonWebToken operations
@@ -61,10 +55,10 @@ pub struct JWTServiceImpl<
 }
 
 impl<
-    T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
-    M: ManageConnection<Connection = T>,
-    F: ReposFactory<T>,
-> JWTServiceImpl<T, M, F>
+        T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
+        M: ManageConnection<Connection = T>,
+        F: ReposFactory<T>,
+    > JWTServiceImpl<T, M, F>
 {
     pub fn new(
         db_pool: Pool<M>,
@@ -100,8 +94,7 @@ pub enum ProfileStatus {
 
 /// Profile service trait, presents standard scheme for receiving profile information from providers
 
-trait ProfileService<T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static, P: Email>
-     {
+trait ProfileService<T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static, P: Email> {
     fn create_token(self, provider: Provider, secret: Vec<u8>, info_url: String, headers: Option<Headers>, exp: i64) -> ServiceFuture<JWT>;
 
     fn get_profile(&self, url: String, headers: Option<Headers>) -> ServiceFuture<P>;
@@ -114,15 +107,12 @@ trait ProfileService<T: Connection<Backend = Pg, TransactionManager = AnsiTransa
 
     fn get_id(&self, profile: P, provider: Provider) -> ServiceFuture<i32>;
 
-    fn create_jwt(&self, id: i32, exp: i64, status: UserStatus, secret: Vec<u8>) -> ServiceFuture<JWT> {
+    fn create_jwt(&self, id: i32, exp: i64, status: UserStatus, secret: Vec<u8>, provider: Provider) -> ServiceFuture<JWT> {
         debug!("Creating token for user {}, at {}", id, exp);
-        let tokenpayload = JWTPayload::new(id, exp);
+        let tokenpayload = JWTPayload::new(id, exp, provider);
         Box::new(
-            encode(
-                &Header::new(Algorithm::RS256),
-                &tokenpayload,
-                secret.as_ref(),
-            ).map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}.", tokenpayload)))
+            encode(&Header::new(Algorithm::RS256), &tokenpayload, secret.as_ref())
+                .map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}.", tokenpayload)))
                 .into_future()
                 .inspect(move |token| {
                     debug!("Token {} created successfully for id {}", token, id);
@@ -133,11 +123,11 @@ trait ProfileService<T: Connection<Backend = Pg, TransactionManager = AnsiTransa
 }
 
 impl<
-    P,
-    T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
-    M: ManageConnection<Connection = T> + 'static,
-    F: ReposFactory<T> + 'static,
-> ProfileService<T, P> for JWTServiceImpl<T, M, F>
+        P,
+        T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
+        M: ManageConnection<Connection = T> + 'static,
+        F: ReposFactory<T> + 'static,
+    > ProfileService<T, P> for JWTServiceImpl<T, M, F>
 where
     P: Email + Clone + Send + 'static,
     NewUser: From<P>,
@@ -155,6 +145,8 @@ where
         let service = Arc::new(self);
         let db_pool = service.db_pool.clone();
         let thread_pool = service.cpu_pool.clone();
+        let provider_clone = provider.clone();
+
         let future = service
             .get_profile(info_url, headers)
             .and_then({
@@ -162,8 +154,7 @@ where
                 let s = service.clone();
                 move |profile| {
                     let profile_clone = profile.clone();
-                    s.profile_status(profile, provider)
-                        .map(|status| (status, profile_clone))
+                    s.profile_status(profile, provider).map(|status| (status, profile_clone))
                 }
             })
             .and_then({
@@ -203,7 +194,7 @@ where
             })
             .and_then({
                 let s = service.clone();
-                move |(id, status)| s.create_jwt(id, exp, status, secret)
+                move |(id, status)| s.create_jwt(id, exp, status, secret, provider_clone)
             });
 
         Box::new(future)
@@ -213,12 +204,7 @@ where
         Box::new(
             self.http_client
                 .request::<serde_json::Value>(Method::Get, url, None, headers)
-                .map_err(|e| {
-                    ServiceError::HttpClient(format!(
-                        "Failed to receive user info from provider. {}",
-                        e.to_string()
-                    ))
-                })
+                .map_err(|e| ServiceError::HttpClient(format!("Failed to receive user info from provider. {}", e.to_string())))
                 .and_then(|val| match val["email"].is_null() {
                     true => Err(ServiceError::Validate(
                         validation_errors!({"email": ["email" => "Email required but not provided"]}),
@@ -233,27 +219,24 @@ where
             let db_pool = self.db_pool.clone();
             let repo_factory = self.repo_factory.clone();
             self.cpu_pool.spawn_fn(move || {
-                db_pool
-                    .get()
-                    .map_err(|e| ServiceError::Connection(e.into()))
-                    .and_then(move |conn| {
-                        let users_repo = repo_factory.create_users_repo_with_sys_acl(&conn);
-                        let ident_repo = repo_factory.create_identities_repo(&conn);
-                        conn.transaction(move || {
-                            users_repo
-                                .email_exists(profile.get_email())
-                                .and_then(|user_exists| match user_exists {
-                                    false => Ok(ProfileStatus::NewUser),
-                                    true => ident_repo
-                                        .email_provider_exists(profile.get_email(), provider)
-                                        .map(|identity_exists| match identity_exists {
-                                            false => ProfileStatus::NewIdentity,
-                                            true => ProfileStatus::ExistingProfile,
-                                        }),
-                                })
-                                .map_err(ServiceError::from)
-                        })
+                db_pool.get().map_err(|e| ServiceError::Connection(e.into())).and_then(move |conn| {
+                    let users_repo = repo_factory.create_users_repo_with_sys_acl(&conn);
+                    let ident_repo = repo_factory.create_identities_repo(&conn);
+                    conn.transaction(move || {
+                        users_repo
+                            .email_exists(profile.get_email())
+                            .and_then(|user_exists| match user_exists {
+                                false => Ok(ProfileStatus::NewUser),
+                                true => ident_repo
+                                    .email_provider_exists(profile.get_email(), provider)
+                                    .map(|identity_exists| match identity_exists {
+                                        false => ProfileStatus::NewIdentity,
+                                        true => ProfileStatus::ExistingProfile,
+                                    }),
+                            })
+                            .map_err(ServiceError::from)
                     })
+                })
             })
         })
     }
@@ -273,9 +256,7 @@ where
             },
         }).map_err(ServiceError::from)?;
 
-        let created_user = self.http_client
-            .request::<User>(Method::Post, url, Some(body), None)
-            .wait()?;
+        let created_user = self.http_client.request::<User>(Method::Post, url, Some(body), None).wait()?;
 
         Ok(created_user.id.0)
     }
@@ -292,10 +273,7 @@ where
                 if update_user.is_empty() {
                     Ok(user.id.0)
                 } else {
-                    users_repo
-                        .update(user.id, update_user)
-                        .map_err(ServiceError::from)
-                        .map(|u| u.id.0)
+                    users_repo.update(user.id, update_user).map_err(ServiceError::from).map(|u| u.id.0)
                 }
             })
     }
@@ -305,27 +283,24 @@ where
             let db_pool = self.db_pool.clone();
             let repo_factory = self.repo_factory.clone();
             self.cpu_pool.spawn_fn(move || {
-                db_pool
-                    .get()
-                    .map_err(|e| ServiceError::Connection(e.into()))
-                    .and_then(move |conn| {
-                        let ident_repo = repo_factory.create_identities_repo(&conn);
+                db_pool.get().map_err(|e| ServiceError::Connection(e.into())).and_then(move |conn| {
+                    let ident_repo = repo_factory.create_identities_repo(&conn);
 
-                        ident_repo
-                            .find_by_email_provider(profile.get_email(), provider)
-                            .map_err(ServiceError::from)
-                            .map(|ident| ident.user_id.0)
-                    })
+                    ident_repo
+                        .find_by_email_provider(profile.get_email(), provider)
+                        .map_err(ServiceError::from)
+                        .map(|ident| ident.user_id.0)
+                })
             })
         })
     }
 }
 
 impl<
-    T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
-    M: ManageConnection<Connection = T>,
-    F: ReposFactory<T>,
-> JWTService for JWTServiceImpl<T, M, F>
+        T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
+        M: ManageConnection<Connection = T>,
+        F: ReposFactory<T>,
+    > JWTService for JWTServiceImpl<T, M, F>
 {
     /// Creates new JWT token by email
     fn create_token_email(&self, payload: NewEmailIdentity, exp: i64) -> ServiceFuture<JWT> {
@@ -366,10 +341,17 @@ impl<
                                                             .find_by_email_provider(new_ident.email.clone(), Provider::Email)
                                                             .map_err(ServiceError::from)
                                                             .and_then(move |identity| {
-                                                                Self::password_verify(
-                                                                    identity.password.unwrap().clone(),
-                                                                    new_ident.password.clone(),
-                                                                )
+                                                                if let Some(passwd) = identity.password {
+                                                                    password_verify(passwd, new_ident.password.clone())
+                                                                } else {
+                                                                    error!(
+                                                                        "No password in db for user with Email provider, user_id: {}",
+                                                                        &identity.user_id
+                                                                    );
+                                                                    Err(ServiceError::Validate(
+                                                                        validation_errors!({"password": ["password" => "Wrong password"]}),
+                                                                    ))
+                                                                }
                                                             })
                                                             .map(move |verified| (verified, new_ident_clone))
                                                             .and_then(move |(verified, new_ident)| -> Result<i32, ServiceError> {
@@ -395,12 +377,9 @@ impl<
                                 }
                             })
                             .and_then(move |id| {
-                                let tokenpayload = JWTPayload::new(id, exp);
-                                encode(
-                                    &Header::new(Algorithm::RS256),
-                                    &tokenpayload,
-                                    jwt_private_key.as_ref(),
-                                ).map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}", tokenpayload)))
+                                let tokenpayload = JWTPayload::new(id, exp, Provider::Email);
+                                encode(&Header::new(Algorithm::RS256), &tokenpayload, jwt_private_key.as_ref())
+                                    .map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}", tokenpayload)))
                                     .and_then(|t| {
                                         Ok(JWT {
                                             token: t,
@@ -448,48 +427,6 @@ impl<
             exp,
         )
     }
-
-    fn renew_token(self, user_id: Option<i32>, exp: i64) -> ServiceFuture<JWT> {
-        match user_id {
-            Some(id) => {
-                let jwt_private_key = self.jwt_private_key.clone();
-                let tokenpayload = JWTPayload::new(id, exp);
-                Box::new(
-                    encode(
-                        &Header::new(Algorithm::RS256),
-                        &tokenpayload,
-                        jwt_private_key.as_ref(),
-                    ).map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}", tokenpayload)))
-                        .and_then(|t| {
-                            Ok(JWT {
-                                token: t,
-                                status: UserStatus::Exists,
-                            })
-                        })
-                        .into_future(),
-                )
-            }
-            _ => Box::new(Err(ServiceError::InvalidToken).into_future()),
-        }
-    }
-
-    fn password_verify(db_hash: String, clear_password: String) -> Result<bool, ServiceError> {
-        let v: Vec<&str> = db_hash.split('.').collect();
-        if v.len() != 2 {
-            Err(ServiceError::Validate(
-                validation_errors!({"password": ["password" => "Password in db has wrong format"]}),
-            ))
-        } else {
-            let salt = v[1];
-            let pass = clear_password + salt;
-            let mut hasher = Sha3_256::default();
-            hasher.input(pass.as_bytes());
-            let out = hasher.result();
-            let computed_hash = decode(v[0])
-                .map_err(|_| ServiceError::Validate(validation_errors!({"password": ["password" => "Password in db has wrong format"]})))?;
-            Ok(computed_hash == &out[..])
-        }
-    }
 }
 
 #[cfg(test)]
@@ -499,8 +436,8 @@ pub mod tests {
 
     use repos::repo_factory::tests::*;
 
-    use services::jwt::JWTService;
     use models::*;
+    use services::jwt::JWTService;
 
     #[test]
     fn test_jwt_email() {
@@ -513,22 +450,7 @@ pub mod tests {
         let result = core.run(work).unwrap();
         assert_eq!(
             result.token,
-            "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjF9.QsUg6-nT7CJHePAHvIsHlOxchFnc0o6NXWVfTWmrrAowBYMAOXsOfkh8VEMqL8H5IwFBBZDr9OleYYX_GbgTn6qS6v_eV4bEPlauxuBCm-R7GkuHvzPwxFOviI9p0kZ0QFj-hz-yRbnobihoYZieCAa_nk0EJjy2jZR5njq9T5eQXk5rsknWvTmSiVtnEOvkTuuSyz6YCPPSQZfBHZtLAc7py6R1YtpyX5MR64tVlQXuZlulb-CpupJeYUNiuIcZ5v6UDLl_3vRYP9ovrYEjSs7Af19_7Jt2COMFrcwEB8-TDYSU_mH13y7Ou2GTizxQeWJcskkpN-EWjS2eRSU4fA"
-        );
-    }
-
-    #[test]
-    fn test_jwt_renew() {
-        let mut core = Core::new().unwrap();
-        let handle = Arc::new(core.handle());
-        let service = create_jwt_service(handle);
-        let user_id = 1;
-        let exp = 1;
-        let work = service.renew_token(Some(user_id), exp);
-        let result = core.run(work).unwrap();
-        assert_eq!(
-            result.token,
-            "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjF9.QsUg6-nT7CJHePAHvIsHlOxchFnc0o6NXWVfTWmrrAowBYMAOXsOfkh8VEMqL8H5IwFBBZDr9OleYYX_GbgTn6qS6v_eV4bEPlauxuBCm-R7GkuHvzPwxFOviI9p0kZ0QFj-hz-yRbnobihoYZieCAa_nk0EJjy2jZR5njq9T5eQXk5rsknWvTmSiVtnEOvkTuuSyz6YCPPSQZfBHZtLAc7py6R1YtpyX5MR64tVlQXuZlulb-CpupJeYUNiuIcZ5v6UDLl_3vRYP9ovrYEjSs7Af19_7Jt2COMFrcwEB8-TDYSU_mH13y7Ou2GTizxQeWJcskkpN-EWjS2eRSU4fA"
+            "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjEsInByb3ZpZGVyIjoiRW1haWwifQ.IeWgAVZRzFK1L4JbUkiC42TnTa95OF_Gzdy5PAMwbQJifK9NC_qtxrk9W4S62kYsQaxHLupq2rWhMh4WovHH351EAwgqP7eswsBmEML81jeFuUGQ3Vhlkm9b1x-2H5JJI8lRLkPBcqvJDwUM-_7Jz2Q4qY8vE2SgJ7CcnYFFYpjNELrr1Fm0HJN1hnUhXumY3O8V1W7dm5IfASGZx5uu103EKJsZ9KFwWiSs1ZAzII8jvpL1D2uI4Kq5ESXCve1QRqlfzaAlRbpJEsBENxI7oPV8Bp2FH_qhvhSM957lCNM3GcdgNn3B2Gr3b-T7FUjlZieJbIoels1OScO-Q4vdBg"
         );
     }
 

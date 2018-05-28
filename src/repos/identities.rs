@@ -7,9 +7,9 @@ use diesel::query_dsl::LoadQuery;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::select;
 
+use diesel::Connection;
 use diesel::connection::AnsiTransactionManager;
 use diesel::pg::Pg;
-use diesel::Connection;
 
 use super::error::RepoError;
 use models::UserId;
@@ -23,6 +23,8 @@ pub struct IdentitiesRepoImpl<'a, T: Connection<Backend = Pg, TransactionManager
 
 pub trait IdentitiesRepo {
     /// Checks if e-mail is already registered
+    fn email_exists(&self, email_arg: String) -> Result<bool, RepoError>;
+
     fn email_provider_exists(&self, email_arg: String, provider: Provider) -> Result<bool, RepoError>;
 
     /// Creates new identity
@@ -37,6 +39,9 @@ pub trait IdentitiesRepo {
 
     /// Verifies password
     fn verify_password(&self, email_arg: String, password_arg: String) -> Result<bool, RepoError>;
+
+    /// Find specific user by user_id
+    fn find_by_id_provider(&self, user_id_arg: UserId, provider_arg: Provider) -> Result<Identity, RepoError>;
 
     /// Find specific user by email
     fn find_by_email_provider(&self, email_arg: String, provider_arg: Provider) -> Result<Identity, RepoError>;
@@ -59,20 +64,14 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 
 impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static> IdentitiesRepo for IdentitiesRepoImpl<'a, T> {
     /// Checks if e-mail is already registered
-    fn email_provider_exists(&self, email_arg: String, provider_arg: Provider) -> Result<bool, RepoError> {
-        self.execute_query(select(exists(
-            identities
-                .filter(email.eq(email_arg))
-                .filter(provider.eq(provider_arg)),
-        )))
+    fn email_exists(&self, email_arg: String) -> Result<bool, RepoError> {
+        self.execute_query(select(exists(identities.filter(email.eq(email_arg)))))
     }
 
-    /// Verifies password
-    fn verify_password(&self, email_arg: String, password_arg: String) -> Result<bool, RepoError> {
+    /// Checks if e-mail with provider is already registered
+    fn email_provider_exists(&self, email_arg: String, provider_arg: Provider) -> Result<bool, RepoError> {
         self.execute_query(select(exists(
-            identities
-                .filter(email.eq(email_arg))
-                .filter(password.eq(password_arg)),
+            identities.filter(email.eq(email_arg)).filter(provider.eq(provider_arg)),
         )))
     }
 
@@ -95,31 +94,35 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
         };
 
         let ident_query = diesel::insert_into(identities).values(&identity_arg);
-        ident_query
-            .get_result::<Identity>(self.db_conn)
-            .map_err(RepoError::from)
+        ident_query.get_result::<Identity>(self.db_conn).map_err(RepoError::from)
+    }
+
+    /// Verifies password
+    fn verify_password(&self, email_arg: String, password_arg: String) -> Result<bool, RepoError> {
+        self.execute_query(select(exists(
+            identities.filter(email.eq(email_arg)).filter(password.eq(password_arg)),
+        )))
+    }
+
+    /// Find specific user by user_id
+    fn find_by_id_provider(&self, user_id_arg: UserId, provider_arg: Provider) -> Result<Identity, RepoError> {
+        let query = identities.filter(user_id.eq(user_id_arg)).filter(provider.eq(provider_arg));
+
+        query.first::<Identity>(self.db_conn).map_err(RepoError::from)
     }
 
     /// Find specific user by email
     fn find_by_email_provider(&self, email_arg: String, provider_arg: Provider) -> Result<Identity, RepoError> {
-        let query = identities
-            .filter(email.eq(email_arg))
-            .filter(provider.eq(provider_arg));
+        let query = identities.filter(email.eq(email_arg)).filter(provider.eq(provider_arg));
 
-        query
-            .first::<Identity>(self.db_conn)
-            .map_err(RepoError::from)
+        query.first::<Identity>(self.db_conn).map_err(RepoError::from)
     }
 
     /// Update identity
     fn update(&self, ident: Identity, update: UpdateIdentity) -> Result<Identity, RepoError> {
-        let filter = identities
-            .filter(email.eq(ident.email))
-            .filter(provider.eq(ident.provider));
+        let filter = identities.filter(email.eq(ident.email)).filter(provider.eq(ident.provider));
 
         let query = diesel::update(filter).set(&update);
-        query
-            .get_result::<Identity>(self.db_conn)
-            .map_err(RepoError::from)
+        query.get_result::<Identity>(self.db_conn).map_err(RepoError::from)
     }
 }
