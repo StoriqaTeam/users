@@ -1,4 +1,9 @@
 pipeline:
+
+###
+# Test PR
+###
+
   update_pr:
     image: plugins/git
     commands:
@@ -25,6 +30,11 @@ pipeline:
       - cargo test
     when:
       event: pull_request
+  
+  ###
+  # Build and deploy to nightly / stage
+  ###
+  
   build:
     image: rust:1.26-stretch
     commands:
@@ -65,22 +75,6 @@ pipeline:
     when:
       branch: master
       event: push
-  deploy2stable:
-    image: jackthestripper/drone_k8s_rollout:20180510
-    namespace: default
-    kind: deployment
-    object: users
-    img_names: storiqateam/stq-users
-    img_tags: ${DRONE_BRANCH//\//_}$${DRONE_PARENT_BUILD_NUMBER}
-    img_cnts: users
-    user: admin
-    addr: https://api.stable.stq.cloud
-    token: vhkzUYmnPSI7MtJO3Et9KczuGoS0goqV
-    ca: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUMwekNDQWJ1Z0F3SUJBZ0lNRlNaRkNyd2ttZEZsRmNURk1BMEdDU3FHU0liM0RRRUJDd1VBTUJVeEV6QVIKQmdOVkJBTVRDbXQxWW1WeWJtVjBaWE13SGhjTk1UZ3dOREUxTVRZeE1ETTJXaGNOTWpnd05ERTBNVFl4TURNMgpXakFWTVJNd0VRWURWUVFERXdwcmRXSmxjbTVsZEdWek1JSUJJakFOQmdrcWhraUc5dzBCQVFFRkFBT0NBUThBCk1JSUJDZ0tDQVFFQTNvSk03QkI3dUF6WUFqQ1FUM3VyeWg1NW40ck5GcjdWUWFzRUhLdkMvVjgzbkVkeTJYLzcKbHlqamlYTEJVKzkvdDV5eUpCUG1VMDVmSHNNblBTTnl1bUh6M2Nmd1U4NnliVTVuUlFjOXRLTkE0UFJ1dW80cgpwMUJlUzNyZ1FoTDN6d3JBTVNYc2toZHRKZms4SjZJR3cvU3Z4Q051RStRNi8zb0JVS1RkU3QyUEZKOVpuUit0Cjl5ZitLa0VLZE1SY1RGRGplbUJCSTlhM1k0amxZQXNjd3hnbStzckpxQjYyaG8zQ1VMT0pBMEZmMEsxSnprNHQKKzRuWnBNSU1zamRKQS9mc1B6Qi9IMXpUeTdZK1pJbzJJTWVGdjg1djk1VEg3TU41YnZ2aWk1bGxyanFOQit4cgpBSXlxSHc0bWxGenlKUzBaUUNEcWhhNmYzdTRzMGIwdFN3SURBUUFCb3lNd0lUQU9CZ05WSFE4QkFmOEVCQU1DCkFRWXdEd1lEVlIwVEFRSC9CQVV3QXdFQi96QU5CZ2txaGtpRzl3MEJBUXNGQUFPQ0FRRUFVUWxKSWUrVWxDZ1kKbG0vd1ppYk9xdXJkUUFBT2dpSUpLdjIzbm1CUWc4MDJjM1pUdFFTZnBDTWRxTVRwRVR5SjIyTlN5elRiZUlGcgpjTEJuVCs0b2dDcUdnMm9nTHRZaDM2aVA0aFIyeXlkU094aFdRZlVCaEo5KzlxZW1iZFVOWU90SGZmakl1bE9TCko3aHY4eTFlWXN1U2Exdjl5TDNIckw2ODVVenVKR2ZyRmllMFovRUZWNlMwS1VkMFJEa3J1WnhPWVp2V01vYmoKVUZPMERyaTFFc2xMSnJXVHQzVFIwQXpZWWhjLzZJQk9NRnBDQ3hmaVFLSERFWjBSWCtCVHlGVVZtV29MYkJuRgozRGFtOFNId21PbkExbVZrR0ZVS3hwWWJ4aUgweDdQK3Ntb1lKbm82Q1NYVmpXOVI1V1NTWWFkQi9PbnBTYkoxClppU2JqVEVmMVE9PQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
-    when:
-      branch: master
-      event: deployment
-      environment: stable
   deploy2stage:
     image: jackthestripper/drone_k8s_rollout:20180510
     namespace: default
@@ -96,6 +90,27 @@ pipeline:
     when:
       branch: release*
       event: push
+  
+  ###
+  # Deploy to stable / production
+  ###
+  
+  deploy2stable:
+    image: jackthestripper/drone_k8s_rollout:20180510
+    namespace: default
+    kind: deployment
+    object: users
+    img_names: storiqateam/stq-users
+    img_tags: ${DRONE_BRANCH//\//_}${DRONE_PARENT_BUILD_NUMBER}
+    img_cnts: users
+    user: admin
+    addr: https://api.stable.stq.cloud
+    token: vhkzUYmnPSI7MtJO3Et9KczuGoS0goqV
+    ca: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUMwekNDQWJ1Z0F3SUJBZ0lNRlNaRkNyd2ttZEZsRmNURk1BMEdDU3FHU0liM0RRRUJDd1VBTUJVeEV6QVIKQmdOVkJBTVRDbXQxWW1WeWJtVjBaWE13SGhjTk1UZ3dOREUxTVRZeE1ETTJXaGNOTWpnd05ERTBNVFl4TURNMgpXakFWTVJNd0VRWURWUVFERXdwcmRXSmxjbTVsZEdWek1JSUJJakFOQmdrcWhraUc5dzBCQVFFRkFBT0NBUThBCk1JSUJDZ0tDQVFFQTNvSk03QkI3dUF6WUFqQ1FUM3VyeWg1NW40ck5GcjdWUWFzRUhLdkMvVjgzbkVkeTJYLzcKbHlqamlYTEJVKzkvdDV5eUpCUG1VMDVmSHNNblBTTnl1bUh6M2Nmd1U4NnliVTVuUlFjOXRLTkE0UFJ1dW80cgpwMUJlUzNyZ1FoTDN6d3JBTVNYc2toZHRKZms4SjZJR3cvU3Z4Q051RStRNi8zb0JVS1RkU3QyUEZKOVpuUit0Cjl5ZitLa0VLZE1SY1RGRGplbUJCSTlhM1k0amxZQXNjd3hnbStzckpxQjYyaG8zQ1VMT0pBMEZmMEsxSnprNHQKKzRuWnBNSU1zamRKQS9mc1B6Qi9IMXpUeTdZK1pJbzJJTWVGdjg1djk1VEg3TU41YnZ2aWk1bGxyanFOQit4cgpBSXlxSHc0bWxGenlKUzBaUUNEcWhhNmYzdTRzMGIwdFN3SURBUUFCb3lNd0lUQU9CZ05WSFE4QkFmOEVCQU1DCkFRWXdEd1lEVlIwVEFRSC9CQVV3QXdFQi96QU5CZ2txaGtpRzl3MEJBUXNGQUFPQ0FRRUFVUWxKSWUrVWxDZ1kKbG0vd1ppYk9xdXJkUUFBT2dpSUpLdjIzbm1CUWc4MDJjM1pUdFFTZnBDTWRxTVRwRVR5SjIyTlN5elRiZUlGcgpjTEJuVCs0b2dDcUdnMm9nTHRZaDM2aVA0aFIyeXlkU094aFdRZlVCaEo5KzlxZW1iZFVOWU90SGZmakl1bE9TCko3aHY4eTFlWXN1U2Exdjl5TDNIckw2ODVVenVKR2ZyRmllMFovRUZWNlMwS1VkMFJEa3J1WnhPWVp2V01vYmoKVUZPMERyaTFFc2xMSnJXVHQzVFIwQXpZWWhjLzZJQk9NRnBDQ3hmaVFLSERFWjBSWCtCVHlGVVZtV29MYkJuRgozRGFtOFNId21PbkExbVZrR0ZVS3hwWWJ4aUgweDdQK3Ntb1lKbm82Q1NYVmpXOVI1V1NTWWFkQi9PbnBTYkoxClppU2JqVEVmMVE9PQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+    when:
+      branch: master
+      event: deployment
+      environment: stable
   deploy2production:
     image: jackthestripper/drone_k8s_rollout:20180510
     namespace: default
@@ -112,6 +127,11 @@ pipeline:
       branch: release*
       event: deployment
       environment: production
+  
+  ###
+  # Notifications
+  ###
+  
   notify_slack:
     image: plugins/slack
     webhook: https://hooks.slack.com/services/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
