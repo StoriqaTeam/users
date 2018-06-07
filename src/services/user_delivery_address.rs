@@ -5,12 +5,14 @@ use futures_cpupool::CpuPool;
 use diesel::Connection;
 use diesel::connection::AnsiTransactionManager;
 use diesel::pg::Pg;
+use failure::Fail;
+use futures::Future;
 use r2d2::{ManageConnection, Pool};
 
-use super::error::ServiceError;
 use super::types::ServiceFuture;
 use models::{NewUserDeliveryAddress, UpdateUserDeliveryAddress, UserDeliveryAddress};
 use repos::ReposFactory;
+use errors::ControllerError;
 
 pub trait UserDeliveryAddressService {
     /// Returns list of user_delivery_address
@@ -64,11 +66,13 @@ impl<
         let curent_user_id = self.user_id.clone();
 
         Box::new(self.cpu_pool.spawn_fn(move || {
-            db_pool.get().map_err(|e| ServiceError::Connection(e.into())).and_then(move |conn| {
+            db_pool.get()                    .map_err(|e| e.context(ControllerError::Connection).into()).and_then(move |conn| {
                 let users_delivery_address_repo = repo_factory.create_users_delivery_address_repo(&*conn, curent_user_id);
-                users_delivery_address_repo.list_for_user(user_id).map_err(ServiceError::from)
+                users_delivery_address_repo.list_for_user(user_id)
             })
-        }))
+        })
+        .map_err(|e| e.context("Service UserDeliveryAddress, get_addresses endpoint error occured.").into())
+        )
     }
 
     /// Delete user delivery address
@@ -78,11 +82,13 @@ impl<
         let user_id = self.user_id.clone();
 
         Box::new(self.cpu_pool.spawn_fn(move || {
-            db_pool.get().map_err(|e| ServiceError::Connection(e.into())).and_then(move |conn| {
+            db_pool.get()                    .map_err(|e| e.context(ControllerError::Connection).into()).and_then(move |conn| {
                 let users_delivery_address_repo = repo_factory.create_users_delivery_address_repo(&*conn, user_id);
-                users_delivery_address_repo.delete(id).map_err(ServiceError::from)
+                users_delivery_address_repo.delete(id)
             })
-        }))
+        })
+        .map_err(|e| e.context("Service UserDeliveryAddress, delete endpoint error occured.").into())
+        )
     }
 
     /// Create a new user delivery address
@@ -92,11 +98,14 @@ impl<
         let user_id = self.user_id.clone();
 
         Box::new(self.cpu_pool.spawn_fn(move || {
-            db_pool.get().map_err(|e| ServiceError::Connection(e.into())).and_then(move |conn| {
+            db_pool.get()                    .map_err(|e| e.context(ControllerError::Connection).into()).and_then(move |conn| {
                 let users_delivery_address_repo = repo_factory.create_users_delivery_address_repo(&*conn, user_id);
-                users_delivery_address_repo.create(payload).map_err(ServiceError::from)
+                users_delivery_address_repo.create(payload)
             })
-        }))
+        })
+        .map_err(|e| e.context("Service UserDeliveryAddress, create endpoint error occured.").into())
+        
+        )
     }
 
     /// Update a user delivery address
@@ -106,10 +115,13 @@ impl<
         let user_id = self.user_id.clone();
 
         Box::new(self.cpu_pool.spawn_fn(move || {
-            db_pool.get().map_err(|e| ServiceError::Connection(e.into())).and_then(move |conn| {
+            db_pool.get()                    .map_err(|e| e.context(ControllerError::Connection).into()).and_then(move |conn| {
                 let users_delivery_address_repo = repo_factory.create_users_delivery_address_repo(&*conn, user_id);
-                users_delivery_address_repo.update(id, payload).map_err(ServiceError::from)
+                users_delivery_address_repo.update(id, payload)
             })
-        }))
+        })
+        .map_err(|e| e.context("Service UserDeliveryAddress, update endpoint error occured.").into())
+        
+        )
     }
 }

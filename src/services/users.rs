@@ -6,6 +6,8 @@ use base64::encode;
 use diesel::Connection;
 use diesel::connection::AnsiTransactionManager;
 use diesel::pg::Pg;
+use failure::Fail;
+use failure::Error as FailureError;
 use futures::Future;
 use futures::IntoFuture;
 use futures::future;
@@ -21,12 +23,11 @@ use models::{ChangeIdentityPassword, NewIdentity, Provider, UpdateIdentity};
 use models::{NewUser, UpdateUser, User, UserId};
 use models::{ResetMail, ResetToken, TokenType};
 use repos::repo_factory::ReposFactory;
-
 use config::Notifications;
-
-use super::error::ServiceError;
 use super::types::ServiceFuture;
 use super::util::{password_create, password_verify};
+use errors::ControllerError;
+
 
 pub trait UsersService {
     /// Returns user by ID
@@ -115,12 +116,14 @@ impl<
         Box::new(self.cpu_pool.spawn_fn(move || {
             db_clone
                 .get()
-                .map_err(|e| ServiceError::Connection(e.into()))
+                .map_err(|e| e.context(ControllerError::Connection).into())
                 .and_then(move |conn| {
                     let mut users_repo = repo_factory.create_users_repo(&conn, current_uid);
-                    users_repo.find(user_id).map_err(ServiceError::from)
+                    users_repo.find(user_id)
                 })
-        }))
+        })
+            .map_err(|e: FailureError| e.context("Service users, get endpoint error occured.").into())
+        )
     }
 
     /// Returns current user
@@ -135,16 +138,21 @@ impl<
             Box::new(self.cpu_pool.spawn_fn(move || {
                 db_clone
                     .get()
-                    .map_err(|e| ServiceError::Connection(e.into()))
+                                        .map_err(|e| e.context(ControllerError::Connection).into())
                     .and_then(move |conn| {
                         let mut users_repo = repo_factory.create_users_repo(&conn, current_uid);
-                        users_repo.find(UserId(id)).map_err(ServiceError::from)
+                        users_repo.find(UserId(id))
                     })
-            }))
+            })
+            .map_err(|e: FailureError| e.context("Service users, current endpoint error occured.").into())
+            )
         } else {
-            Box::new(future::err(ServiceError::Unauthorized(format!(
-                "There is no user id in request header."
-            ))))
+            Box::new(future::err(
+                ControllerError::Forbidden
+                .context(format!("There is no user id in request header"))
+                .into()
+                )
+            )
         }
     }
 
@@ -159,12 +167,14 @@ impl<
         Box::new(self.cpu_pool.spawn_fn(move || {
             db_clone
                 .get()
-                .map_err(|e| ServiceError::Connection(e.into()))
+                                    .map_err(|e| e.context(ControllerError::Connection).into())
                 .and_then(move |conn| {
                     let mut users_repo = repo_factory.create_users_repo(&conn, current_uid);
-                    users_repo.list(from, count).map_err(ServiceError::from)
+                    users_repo.list(from, count)
                 })
-        }))
+        })
+            .map_err(|e: FailureError| e.context("Service users, list endpoint error occured.").into())
+        )
     }
 
     /// Deactivates specific user
@@ -178,12 +188,14 @@ impl<
         Box::new(self.cpu_pool.spawn_fn(move || {
             db_clone
                 .get()
-                .map_err(|e| ServiceError::Connection(e.into()))
+                                    .map_err(|e| e.context(ControllerError::Connection).into())
                 .and_then(move |conn| {
                     let mut users_repo = repo_factory.create_users_repo(&conn, current_uid);
-                    users_repo.deactivate(user_id).map_err(ServiceError::from)
+                    users_repo.deactivate(user_id)
                 })
-        }))
+        })
+            .map_err(|e: FailureError| e.context("Service users, deactivate endpoint error occured.").into())
+        )
     }
 
     /// Deactivates specific user
@@ -197,12 +209,14 @@ impl<
         Box::new(self.cpu_pool.spawn_fn(move || {
             db_clone
                 .get()
-                .map_err(|e| ServiceError::Connection(e.into()))
+                .map_err(|e| e.context(ControllerError::Connection).into())
                 .and_then(move |conn| {
                     let mut users_repo = repo_factory.create_users_repo(&conn, current_uid);
-                    users_repo.delete_by_saga_id(saga_id).map_err(ServiceError::from)
+                    users_repo.delete_by_saga_id(saga_id)
                 })
-        }))
+        })
+            .map_err(|e: FailureError| e.context("Service users, delete_by_saga_id endpoint error occured.").into())
+        )
     }
 
     /// Creates new user
@@ -225,22 +239,22 @@ impl<
                 .spawn_fn(move || {
                     db_clone
                         .get()
-                        .map_err(|e| ServiceError::Connection(e.into()))
+                                            .map_err(|e| e.context(ControllerError::Connection).into())
                         .and_then(move |conn| {
                             let mut users_repo = repo_factory.create_users_repo(&conn, current_uid);
                             let ident_repo = repo_factory.create_identities_repo(&conn);
                             let reset_repo = repo_factory.create_reset_token_repo(&conn);
 
-                            conn.transaction::<(ResetToken, User), ServiceError, _>(move || {
+                            conn.transaction::<(ResetToken, User), FailureError, _>(move || {
                                 ident_repo
                                     .email_exists(payload.email.to_string())
                                     .map(move |exists| (payload, exists))
-                                    .map_err(ServiceError::from)
+                                    
                                     .and_then(|(payload, exists)| match exists {
                                         false => Ok(payload),
-                                        true => Err(ServiceError::Validate(
+                                        true => Err(ControllerError::Validate(
                                             validation_errors!({"email": ["email" => "Email already exists"]}),
-                                        )),
+                                        ).into()),
                                     })
                                     .and_then(move |new_ident| {
                                         let new_user;
@@ -250,7 +264,7 @@ impl<
                                         }
                                         users_repo
                                             .create(new_user)
-                                            .map_err(ServiceError::from)
+                                            
                                             .map(|user| (new_ident, user))
                                     })
                                     .and_then(move |(new_ident, user)| {
@@ -262,7 +276,7 @@ impl<
                                                 user.id.clone(),
                                                 new_ident.saga_id,
                                             )
-                                            .map_err(ServiceError::from)
+                                            
                                             .map(|ident| (ident, user))
                                     })
                                     .and_then(move |(ident, user)| {
@@ -279,12 +293,12 @@ impl<
                                         reset_repo
                                             .create(reset_token)
                                             .map(|token| (token, user))
-                                            .map_err(|_e| ServiceError::Unknown("Cannot create reset token".to_string()))
+                                            .map_err(|e| e.context("Can not create reset token").into())
                                     })
                             })
                         })
                 })
-                .and_then(move |(token, user)| -> Box<Future<Item = User, Error = ServiceError>> {
+                .and_then(move |(token, user)| -> Box<Future<Item = User, Error = FailureError>> {
                     let user_clone: User = user.clone();
                     if user_absent {
                         let to = token.email.clone();
@@ -301,7 +315,9 @@ impl<
                     } else {
                         Box::new(future::ok(user_clone))
                     }
-                }),
+                })
+            .map_err(|e: FailureError| e.context("Service users, create endpoint error occured.").into())
+
         )
     }
 
@@ -317,7 +333,7 @@ impl<
                 .spawn_fn(move || {
                     db_clone
                         .get()
-                        .map_err(|e| ServiceError::Connection(e.into()))
+                                            .map_err(|e| e.context(ControllerError::Connection).into())
                         .and_then(move |conn| {
                             let reset_repo = repo_factory.create_reset_token_repo(&conn);
 
@@ -333,7 +349,7 @@ impl<
 
                             reset_repo
                                 .create(reset_token)
-                                .map_err(|_e| ServiceError::Unknown("Cannot create reset token".to_string()))
+                                .map_err(|e| e.context("Can not create reset token").into())
                         })
                 })
                 .and_then(move |token| {
@@ -342,7 +358,9 @@ impl<
                     let text = format!("{}/{}", notif_config.verify_email_path.clone(), token.token.clone());
 
                     Self::send_mail(http_clone.clone(), notif_config.clone(), to, subject, text).or_else(|_| future::ok(true))
-                }),
+                })
+            .map_err(|e: FailureError| e.context("Service users, resend_verification_link endpoint error occured.").into())
+
         )
     }
 
@@ -358,21 +376,18 @@ impl<
                 .spawn_fn(move || {
                     db_clone
                         .get()
-                        .map_err(|e| ServiceError::Connection(e.into()))
+                                            .map_err(|e| e.context(ControllerError::Connection).into())
                         .and_then(move |conn| {
                             let mut users_repo = repo_factory.create_users_repo_with_sys_acl(&conn);
                             let reset_repo = repo_factory.create_reset_token_repo(&conn);
 
                             reset_repo
                                 .find_by_token(token_arg.clone(), TokenType::EmailVerify)
-                                .map_err(|_e| ServiceError::InvalidToken)
+                                .map_err(|e| e.context(ControllerError::InvalidToken).into())
                                 .and_then(|reset_token| {
                                     reset_repo
                                         .delete_by_token(reset_token.token.clone(), TokenType::EmailVerify)
-                                        .map_err(|_e| {
-                                            println!("Unable to delete token");
-                                            ServiceError::Unknown("".to_string())
-                                        })
+                                        .map_err(|e| e.context("Unable to delete token").into())
                                 })
                                 .and_then(move |reset_token| match SystemTime::now().duration_since(reset_token.created_at) {
                                     Ok(elapsed) => {
@@ -394,12 +409,12 @@ impl<
 
                                                     users_repo.update(user.id.clone(), update)
                                                 })
-                                                .map_err(|_e| ServiceError::InvalidToken)
+                                                .map_err(|e| e.context(ControllerError::InvalidToken).into())
                                         } else {
-                                            Err(ServiceError::InvalidToken)
+                                            Err(ControllerError::InvalidToken.into())
                                         }
                                     }
-                                    Err(_) => Err(ServiceError::InvalidToken),
+                                    Err(_) => Err(ControllerError::InvalidToken.into()),
                                 })
                         })
                 })
@@ -409,7 +424,9 @@ impl<
                     let text = "Email for linked account has been verified".to_string();
 
                     Self::send_mail(http_clone.clone(), notif_config.clone(), to, subject, text).or_else(|_| future::ok(true))
-                }),
+                })
+            .map_err(|e: FailureError| e.context("Service users, verify_email endpoint error occured.").into())
+
         )
     }
 
@@ -424,15 +441,17 @@ impl<
         Box::new(self.cpu_pool.spawn_fn(move || {
             db_clone
                 .get()
-                .map_err(|e| ServiceError::Connection(e.into()))
+                                    .map_err(|e| e.context(ControllerError::Connection).into())
                 .and_then(move |conn| {
                     let mut users_repo = repo_factory.create_users_repo(&conn, current_uid);
                     users_repo
                         .find(user_id.clone())
                         .and_then(move |_user| users_repo.update(user_id, payload))
-                        .map_err(ServiceError::from)
+                        
                 })
-        }))
+        })
+            .map_err(|e: FailureError| e.context("Service users, update endpoint error occured.").into())
+        )
     }
 
     fn change_password(&self, payload: ChangeIdentityPassword) -> ServiceFuture<bool> {
@@ -447,16 +466,16 @@ impl<
                 Box::new(self.cpu_pool.spawn_fn(move || {
                     db_clone
                         .get()
-                        .map_err(|e| ServiceError::Connection(e.into()))
+                                            .map_err(|e| e.context(ControllerError::Connection).into())
                         .and_then(move |conn| {
                             let ident_repo = repo_factory.create_identities_repo(&conn);
                             let old_password = payload.old_password.clone();
                             let new_password = payload.new_password.clone();
 
-                            conn.transaction::<bool, ServiceError, _>(move || {
+                            conn.transaction::<bool, FailureError, _>(move || {
                                 ident_repo
                                     .find_by_id_provider(current_uid.clone(), Provider::Email)
-                                    .map_err(ServiceError::from)
+                                    
                                     .and_then(move |identity| {
                                         let ident_clone = identity.clone();
                                         if let Some(passwd) = ident_clone.password {
@@ -468,17 +487,17 @@ impl<
                                             }
                                         } else {
                                             error!("No password in db for user with Email provider, user_id: {}", &ident_clone.user_id);
-                                            Err(ServiceError::Validate(
+                                            Err(ControllerError::Validate(
                                                 validation_errors!({"password": ["password" => "Wrong password"]}),
-                                            ))
+                                            ).into())
                                         }
                                     })
                                     .and_then(move |(verified, identity)| {
                                         match verified {
                                             //password not verified
-                                            false => Err(ServiceError::Validate(
+                                            false => Err(ControllerError::Validate(
                                                 validation_errors!({"password": ["password" => "Wrong password"]}),
-                                            )),
+                                            ).into()),
                                             //password verified
                                             true => {
                                                 debug!("Changing password for identity {:?}", &identity);
@@ -486,17 +505,23 @@ impl<
                                                     password: Some(password_create(new_password)),
                                                 };
 
-                                                ident_repo.update(identity, update).map(|_| true).map_err(ServiceError::from)
+                                                ident_repo.update(identity, update).map(|_| true)
                                             }
                                         }
                                     })
                             })
                         })
-                }))
+                })
+            .map_err(|e: FailureError| e.context("Service users, change_password endpoint error occured.").into())
+                )
             }
-            None => Box::new(future::err(ServiceError::Unauthorized(
-                "Only authorized user can change password".into(),
-            ))),
+            None => 
+            Box::new(future::err(
+                ControllerError::Forbidden
+                .context(format!("Only authorized user can change password"))
+                .into()
+                )
+            )
         }
     }
 
@@ -514,14 +539,14 @@ impl<
                 .spawn_fn(move || {
                     db_clone
                         .get()
-                        .map_err(|e| ServiceError::Connection(e.into()))
+                        .map_err(|e| e.context(ControllerError::Connection).into())
                         .and_then(move |conn| {
                             let reset_repo = repo_factory.create_reset_token_repo(&conn);
                             let ident_repo = repo_factory.create_identities_repo(&conn);
 
                             ident_repo
                                 .find_by_email_provider(email.clone(), Provider::Email)
-                                .map_err(|_e| ServiceError::InvalidToken)
+                                .map_err(|_e| ControllerError::InvalidToken.into())
                                 .and_then(|ident| {
                                     debug!("Found identity {:?}, generating reset token.", &ident);
 
@@ -539,7 +564,7 @@ impl<
 
                                     reset_repo
                                         .create(reset_token)
-                                        .map_err(|_e| ServiceError::Unknown("Cannot create reset token".to_string()))
+                                        .map_err(|e| e.context("Cannot create reset token").into())
                                 })
                         })
                 })
@@ -549,7 +574,9 @@ impl<
                     let text = format!("{}/{}", notif_config.reset_password_path.clone(), token.token.clone());
 
                     Self::send_mail(http_clone.clone(), notif_config.clone(), to, subject, text).or_else(|_| future::ok(true))
-                }),
+                })
+            .map_err(|e: FailureError| e.context("Service users, password_reset_request endpoint error occured.").into())
+
         )
     }
 
@@ -566,21 +593,18 @@ impl<
                 .spawn_fn(move || {
                     db_clone
                         .get()
-                        .map_err(|e| ServiceError::Connection(e.into()))
+                        .map_err(|e| e.context(ControllerError::Connection).into())
                         .and_then(move |conn| {
                             let reset_repo = repo_factory.create_reset_token_repo(&conn);
                             let ident_repo = repo_factory.create_identities_repo(&conn);
 
                             reset_repo
                                 .find_by_token(token_arg.clone(), TokenType::PasswordReset)
-                                .map_err(|_e| ServiceError::InvalidToken)
+                                .map_err(|_e| ControllerError::InvalidToken.into())
                                 .and_then(|reset_token| {
                                     reset_repo
                                         .delete_by_token(reset_token.token.clone(), TokenType::PasswordReset)
-                                        .map_err(|_e| {
-                                            println!("Unable to delete token");
-                                            ServiceError::Unknown("".to_string())
-                                        })
+                                        .map_err(|e| e.context("Unable to delete token").into())
                                 })
                                 .and_then(move |reset_token| {
                                     debug!("Checking reset token's {:?} expiration", &reset_token);
@@ -597,13 +621,12 @@ impl<
 
                                                         ident_repo.update(ident, update)
                                                     })
-                                                    .map_err(|_e| ServiceError::InvalidToken)
+                                                    .map_err(|e| e.context(ControllerError::InvalidToken).into())
                                             } else {
-                                                error!("Token {:?} has expired", &reset_token);
-                                                Err(ServiceError::InvalidToken)
+                                                Err(ControllerError::InvalidToken.context(format!("Token {:?} has expired", &reset_token)).into())
                                             }
                                         }
-                                        Err(_) => Err(ServiceError::InvalidToken),
+                                        Err(_) => Err(ControllerError::InvalidToken.into()),
                                     }
                                 })
                         })
@@ -614,7 +637,9 @@ impl<
                     let text = "Password for linked account has been successfully reset.".to_string();
 
                     Self::send_mail(http_clone.clone(), notif_config.clone(), to, subject, text).or_else(|_| future::ok(true))
-                }),
+                })
+            .map_err(|e: FailureError| e.context("Service users, password_reset_apply endpoint error occured.").into())
+
         )
     }
 
@@ -628,14 +653,15 @@ impl<
 
         Box::new(
             serde_json::to_string(&ResetMail { to, subject, text })
-                .map_err(ServiceError::from)
+                .map_err(|e| e.into())
                 .into_future()
                 .and_then(move |body| {
                     http_client
                         .request::<String>(Method::Post, url, Some(body), None)
                         .map(|_v| true)
-                        .map_err(|_e| ServiceError::Connection(format_err!("Error sending email")))
-                }),
+                        .map_err(|e| e.context(ControllerError::HttpClient).context("Error sending email").into())
+                })
+            .map_err(|e: FailureError| e.context("Service users, send_mail endpoint error occured.").into())
         )
     }
 }

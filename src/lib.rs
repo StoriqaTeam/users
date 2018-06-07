@@ -50,7 +50,7 @@ pub mod controller;
 pub mod models;
 pub mod repos;
 pub mod services;
-pub mod types;
+pub mod errors;
 
 use std::env;
 use std::fs::File;
