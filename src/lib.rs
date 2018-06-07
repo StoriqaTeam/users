@@ -47,15 +47,15 @@ extern crate validator_derive;
 pub mod macros;
 pub mod config;
 pub mod controller;
+pub mod errors;
 pub mod models;
 pub mod repos;
 pub mod services;
-pub mod errors;
 
 use std::env;
 use std::fs::File;
-use std::io::Write;
 use std::io::prelude::*;
+use std::io::Write;
 use std::process;
 use std::sync::Arc;
 
@@ -74,6 +74,7 @@ use stq_http::client::Config as HttpConfig;
 use stq_http::controller::Application;
 
 use config::Config;
+use errors::ControllerError;
 use repos::acl::RolesCacheImpl;
 use repos::repo_factory::ReposFactoryImpl;
 
@@ -147,7 +148,7 @@ pub fn start_server(config: Config) {
             );
 
             // Prepare application
-            let app = Application::new(controller);
+            let app = Application::<ControllerError>::new(controller);
 
             Ok(app)
         })

@@ -3,11 +3,11 @@
 //! relationship
 
 use diesel;
+use diesel::connection::AnsiTransactionManager;
+use diesel::pg::Pg;
 use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::Connection;
-use diesel::connection::AnsiTransactionManager;
-use diesel::pg::Pg;
 use failure::Error as FailureError;
 
 use stq_acl::*;
@@ -53,7 +53,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
         let query = user_delivery_address.filter(user_id.eq(user_id_value)).order(id.desc());
         query
             .get_results::<UserDeliveryAddress>(self.db_conn)
-             .map_err(|e| e.into())
+            .map_err(|e| e.into())
             .and_then(|addresses: Vec<UserDeliveryAddress>| {
                 for addres in addresses.iter() {
                     acl::check(&*self.acl, &Resource::UserDeliveryAddresses, &Action::Read, self, Some(&addres))?;
@@ -81,7 +81,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                     // set all other addresses priority to false
                     let filter = user_delivery_address.filter(user_id.eq(new_address.user_id).and(id.ne(new_address.id)));
                     let query = diesel::update(filter).set(is_priority.eq(false));
-                    let _ = query.get_result::<UserDeliveryAddress>(self.db_conn) .map_err(|e| e.into());
+                    let _ = query.get_result::<UserDeliveryAddress>(self.db_conn);
                 }
                 Ok(new_address)
             })
@@ -97,7 +97,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 
         query
             .get_result(self.db_conn)
-             .map_err(|e| e.into())
+            .map_err(|e| e.into())
             .and_then(|addres: UserDeliveryAddress| {
                 acl::check(&*self.acl, &Resource::UserDeliveryAddresses, &Action::Write, self, Some(&addres))
             })
@@ -105,7 +105,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                 let filter = user_delivery_address.filter(id.eq(id_arg));
 
                 let query = diesel::update(filter).set(&payload);
-                query.get_result::<UserDeliveryAddress>(self.db_conn) .map_err(|e| e.into())
+                query.get_result::<UserDeliveryAddress>(self.db_conn).map_err(|e| e.into())
             })
             .and_then(|updated_address| {
                 if let Some(is_priority_arg) = payload.is_priority {
@@ -113,7 +113,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                         // set all other addresses priority to false
                         let filter = user_delivery_address.filter(user_id.eq(updated_address.user_id).and(id.ne(updated_address.id)));
                         let query = diesel::update(filter).set(is_priority.eq(false));
-                        let _ = query.get_result::<UserDeliveryAddress>(self.db_conn) .map_err(|e| e.into());
+                        let _ = query.get_result::<UserDeliveryAddress>(self.db_conn);
                     }
                 }
                 Ok(updated_address)
@@ -130,19 +130,16 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 
         query
             .get_result(self.db_conn)
-             .map_err(|e| e.into())
+            .map_err(|e| e.into())
             .and_then(|addres: UserDeliveryAddress| {
                 acl::check(&*self.acl, &Resource::UserDeliveryAddresses, &Action::Write, self, Some(&addres))
             })
             .and_then(|_| {
                 let filtered = user_delivery_address.filter(id.eq(id_arg));
                 let query = diesel::delete(filtered);
-                query.get_result(self.db_conn) .map_err(|e| e.into())
+                query.get_result(self.db_conn).map_err(|e| e.into())
             })
-            .map_err(|e: FailureError| {
-                e.context(format!("Delete user {} delivery address error occured", id_arg))
-                    .into()
-            })
+            .map_err(|e: FailureError| e.context(format!("Delete user {} delivery address error occured", id_arg)).into())
     }
 }
 

@@ -1,6 +1,6 @@
-use diesel::Connection;
 use diesel::connection::AnsiTransactionManager;
 use diesel::pg::Pg;
+use diesel::Connection;
 use failure::Error as FailureError;
 
 use stq_acl::{Acl, SystemACL, UnauthorizedACL};
@@ -129,10 +129,6 @@ pub mod tests {
 
     use r2d2::ManageConnection;
 
-    use diesel::Connection;
-    use diesel::ConnectionResult;
-    use diesel::QueryResult;
-    use diesel::Queryable;
     use diesel::connection::AnsiTransactionManager;
     use diesel::connection::SimpleConnection;
     use diesel::deserialize::QueryableByName;
@@ -141,16 +137,20 @@ pub mod tests {
     use diesel::query_builder::QueryFragment;
     use diesel::query_builder::QueryId;
     use diesel::sql_types::HasSqlType;
+    use diesel::Connection;
+    use diesel::ConnectionResult;
+    use diesel::QueryResult;
+    use diesel::Queryable;
 
     use stq_http::client::Config as HttpConfig;
 
     use config::Config;
     use config::Notifications;
     use models::*;
-    use repos::types::RepoResult;
     use repos::identities::IdentitiesRepo;
     use repos::repo_factory::ReposFactory;
     use repos::reset_token::ResetTokenRepo;
+    use repos::types::RepoResult;
     use repos::user_delivery_address::*;
     use repos::user_roles::UserRolesRepo;
     use repos::users::UsersRepo;
@@ -373,12 +373,10 @@ pub mod tests {
     impl UserDeliveryAddresssRepo for UserDeliveryAddresssRepoMock {
         /// Returns list of user_delivery_address for a specific user
         fn list_for_user(&self, user_id: i32) -> RepoResult<Vec<UserDeliveryAddress>> {
-            Ok(vec![
-                UserDeliveryAddress {
-                    user_id,
-                    ..Default::default()
-                },
-            ])
+            Ok(vec![UserDeliveryAddress {
+                user_id,
+                ..Default::default()
+            }])
         }
 
         /// Create a new user delivery address

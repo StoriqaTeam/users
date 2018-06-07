@@ -1,5 +1,5 @@
-use failure::Error as FailureError;
 use diesel::pg::PgConnection;
+use failure::Error as FailureError;
 use futures::future::Future;
 use r2d2;
 use r2d2_diesel::ConnectionManager;

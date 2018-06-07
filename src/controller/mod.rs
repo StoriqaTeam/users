@@ -10,30 +10,30 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use chrono::Utc;
-
-use diesel::Connection;
 use diesel::connection::AnsiTransactionManager;
 use diesel::pg::Pg;
-
+use diesel::Connection;
+use failure::Fail;
+use futures::future;
 use futures::Future;
 use futures::IntoFuture;
-use futures::future;
 use futures_cpupool::CpuPool;
 use hyper::header::Authorization;
 use hyper::server::Request;
 use hyper::{Delete, Get, Post, Put};
 use r2d2::{ManageConnection, Pool};
+use validator::Validate;
+
 use stq_http::client::ClientHandle;
 use stq_http::controller::Controller;
-use stq_http::errors::ControllerError;
-use stq_http::request_util::ControllerFuture;
+use stq_http::controller::ControllerFuture;
 use stq_http::request_util::parse_body;
 use stq_http::request_util::serialize_future;
 use stq_router::RouteParser;
-use validator::Validate;
 
 use self::routes::Route;
 use config::Config;
+use errors::ControllerError as Error;
 use models;
 use repos::acl::RolesCacheImpl;
 use repos::repo_factory::*;
@@ -125,7 +125,7 @@ impl<
         let user_delivery_address_service =
             UserDeliveryAddressServiceImpl::new(self.db_pool.clone(), self.cpu_pool.clone(), user_id, self.repo_factory.clone());
 
-        match (req.method(), self.route_parser.test(req.path())) {
+        match (&req.method().clone(), self.route_parser.test(req.path().clone())) {
             // GET /healthcheck
             (&Get, Some(Route::Healthcheck)) => {
                 trace!("Received healthcheck request");
@@ -150,22 +150,26 @@ impl<
                     debug!("Received request to get {} users starting from {}", count, offset);
                     serialize_future(users_service.list(offset, count))
                 } else {
-                    Box::new(future::err(ControllerError::UnprocessableEntity(format_err!(
-                        "Error parsing request from gateway body"
-                    ))))
+                    Box::new(future::err(
+                        Error::Parse.context("Parsing query parameters // GET /users failed!").into(),
+                    ))
                 }
             }
 
             // POST /users
             (&Post, Some(Route::Users)) => serialize_future(
                 parse_body::<models::SagaCreateProfile>(req.body())
-                    .map_err(|e| ControllerError::UnprocessableEntity(e.into()))
+                    .map_err(|e| {
+                        e.context(Error::Parse)
+                            .context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                            .into()
+                    })
                     .and_then(move |payload| {
                         debug!("Received request to create profile: {:?}", &payload);
                         payload
                             .identity
                             .validate()
-                            .map_err(|e| ControllerError::Validate(e))
+                            .map_err(|e| Error::Validate(e.into()).context("Validation of NewStore failed!").into())
                             .into_future()
                             .inspect(|_| {
                                 debug!("Validation success");
@@ -178,7 +182,7 @@ impl<
                                     saga_id: payload.identity.saga_id,
                                 };
 
-                                users_service.create(checked_new_ident, payload.user).map_err(ControllerError::from)
+                                users_service.create(checked_new_ident, payload.user)
                             })
                     }),
             ),
@@ -186,19 +190,23 @@ impl<
             // PUT /users/<user_id>
             (&Put, Some(Route::User(user_id))) => serialize_future(
                 parse_body::<models::user::UpdateUser>(req.body())
-                    .map_err(|e| ControllerError::UnprocessableEntity(e.into()))
+                    .map_err(|e| {
+                        e.context(Error::Parse)
+                            .context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                            .into()
+                    })
                     .inspect(|payload| {
                         debug!("Received request to update user: {:?}", &payload);
                     })
                     .and_then(move |update_user| {
                         update_user
                             .validate()
-                            .map_err(|e| ControllerError::Validate(e))
+                            .map_err(|e| Error::Validate(e.into()).context("Validation of NewStore failed!").into())
                             .into_future()
                             .inspect(|_| {
                                 debug!("Validation success");
                             })
-                            .and_then(move |_| users_service.update(user_id, update_user).map_err(ControllerError::from))
+                            .and_then(move |_| users_service.update(user_id, update_user))
                     }),
             ),
 
@@ -217,12 +225,16 @@ impl<
             // POST /jwt/email
             (&Post, Some(Route::JWTEmail)) => serialize_future(
                 parse_body::<models::identity::NewEmailIdentity>(req.body())
-                    .map_err(|e| ControllerError::UnprocessableEntity(e.into()))
+                    .map_err(|e| {
+                        e.context(Error::Parse)
+                            .context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                            .into()
+                    })
                     .and_then(move |new_ident| {
                         debug!("Received request to authenticate with email: {:?}", &new_ident);
                         new_ident
                             .validate()
-                            .map_err(|e| ControllerError::Validate(e))
+                            .map_err(|e| Error::Validate(e.into()).context("Validation of NewStore failed!").into())
                             .into_future()
                             .inspect(|_| {
                                 debug!("Validation success");
@@ -235,9 +247,7 @@ impl<
 
                                 let now = Utc::now().timestamp();
 
-                                jwt_service
-                                    .create_token_email(checked_new_ident, now)
-                                    .map_err(ControllerError::from)
+                                jwt_service.create_token_email(checked_new_ident, now)
                             })
                     }),
             ),
@@ -245,28 +255,36 @@ impl<
             // POST /jwt/google
             (&Post, Some(Route::JWTGoogle)) => serialize_future(
                 parse_body::<models::jwt::ProviderOauth>(req.body())
-                    .map_err(|e| ControllerError::UnprocessableEntity(e.into()))
+                    .map_err(|e| {
+                        e.context(Error::Parse)
+                            .context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                            .into()
+                    })
                     .inspect(|payload| {
                         debug!("Received request to authenticate with Google token: {:?}", &payload);
                     })
                     .and_then(move |oauth| {
                         let now = Utc::now().timestamp();
 
-                        jwt_service.create_token_google(oauth, now).map_err(ControllerError::from)
+                        jwt_service.create_token_google(oauth, now)
                     }),
             ),
 
             // POST /jwt/facebook
             (&Post, Some(Route::JWTFacebook)) => serialize_future(
                 parse_body::<models::jwt::ProviderOauth>(req.body())
-                    .map_err(|e| ControllerError::UnprocessableEntity(e.into()))
+                    .map_err(|e| {
+                        e.context(Error::Parse)
+                            .context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                            .into()
+                    })
                     .inspect(|payload| {
                         debug!("Received request to authenticate with Facebook token: {:?}", &payload);
                     })
                     .and_then(move |oauth| {
                         let now = Utc::now().timestamp();
 
-                        jwt_service.create_token_facebook(oauth, now).map_err(ControllerError::from)
+                        jwt_service.create_token_facebook(oauth, now)
                     }),
             ),
 
@@ -279,96 +297,108 @@ impl<
             // POST /user_roles
             (&Post, Some(Route::UserRoles)) => serialize_future(
                 parse_body::<models::NewUserRole>(req.body())
-                    .map_err(|_| ControllerError::UnprocessableEntity(format_err!("Error parsing request from gateway body")))
+                    .map_err(|e| {
+                        e.context(Error::Parse)
+                            .context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                            .into()
+                    })
                     .inspect(|payload| {
                         debug!("Received request to create role: {:?}", payload);
                     })
-                    .and_then(move |new_role| user_roles_service.create(new_role).map_err(ControllerError::from)),
+                    .and_then(move |new_role| user_roles_service.create(new_role)),
             ),
 
             // DELETE /user_roles/<user_role_id>
             (&Delete, Some(Route::UserRoles)) => serialize_future(
                 parse_body::<models::OldUserRole>(req.body())
-                    .map_err(|_| ControllerError::UnprocessableEntity(format_err!("Error parsing request from gateway body")))
+                    .map_err(|e| {
+                        e.context(Error::Parse)
+                            .context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                            .into()
+                    })
                     .inspect(|payload| {
                         debug!("Received request to remove role: {:?}", payload);
                     })
-                    .and_then(move |old_role| user_roles_service.delete(old_role).map_err(ControllerError::from)),
+                    .and_then(move |old_role| user_roles_service.delete(old_role)),
             ),
 
             // POST /roles/default/<user_id>
             (&Post, Some(Route::DefaultRole(user_id))) => {
                 debug!("Received request to add default role for user {}", user_id);
-                serialize_future(user_roles_service.create_default(user_id.0).map_err(ControllerError::from))
+                serialize_future(user_roles_service.create_default(user_id.0))
             }
 
             // DELETE /roles/default/<user_id>
             (&Delete, Some(Route::DefaultRole(user_id))) => {
                 debug!("Received request to delete default role for user {}", user_id);
-                serialize_future(user_roles_service.delete_default(user_id.0).map_err(ControllerError::from))
+                serialize_future(user_roles_service.delete_default(user_id.0))
             }
 
             // POST /users/password_change
             (&Post, Some(Route::PasswordChange)) => serialize_future(
                 parse_body::<models::ChangeIdentityPassword>(req.body())
-                    .map_err(|_| ControllerError::UnprocessableEntity(format_err!("Error parsing request from gateway body")))
+                    .map_err(|e| {
+                        e.context(Error::Parse)
+                            .context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                            .into()
+                    })
                     .inspect(|payload| {
                         debug!("Received request to start password change: {:?}", payload);
                     })
                     .and_then(move |change_req| {
                         change_req
                             .validate()
-                            .map_err(|e| ControllerError::Validate(e))
+                            .map_err(|e| Error::Validate(e.into()).context("Validation of NewStore failed!").into())
                             .into_future()
-                            .and_then(move |_| users_service.change_password(change_req).map_err(ControllerError::from))
+                            .and_then(move |_| users_service.change_password(change_req))
                     }),
             ),
 
             // POST /users/password_reset/request
             (&Post, Some(Route::PasswordResetRequest)) => serialize_future(
                 parse_body::<models::ResetRequest>(req.body())
-                    .map_err(|_| ControllerError::UnprocessableEntity(format_err!("Error parsing request from gateway body")))
+                    .map_err(|e| {
+                        e.context(Error::Parse)
+                            .context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                            .into()
+                    })
                     .inspect(|payload| {
                         debug!("Received request to start password reset: {:?}", payload);
                     })
                     .and_then(move |reset_req| {
                         reset_req
                             .validate()
-                            .map_err(|e| ControllerError::Validate(e))
+                            .map_err(|e| Error::Validate(e.into()).context("Validation of NewStore failed!").into())
                             .into_future()
-                            .and_then(move |_| users_service.password_reset_request(reset_req.email).map_err(ControllerError::from))
+                            .and_then(move |_| users_service.password_reset_request(reset_req.email))
                     }),
             ),
 
             // POST /users/password_reset/apply
             (&Post, Some(Route::PasswordResetApply)) => serialize_future(
                 parse_body::<models::ResetApply>(req.body())
-                    .map_err(|_| ControllerError::UnprocessableEntity(format_err!("Error parsing request from gateway body")))
+                    .map_err(|e| {
+                        e.context(Error::Parse)
+                            .context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                            .into()
+                    })
                     .inspect(|payload| {
                         debug!("Received request to complete password reset: {:?}", payload);
                     })
                     .and_then(move |reset_apply| {
                         reset_apply
                             .validate()
-                            .map_err(|e| ControllerError::Validate(e))
+                            .map_err(|e| Error::Validate(e.into()).context("Validation of NewStore failed!").into())
                             .into_future()
-                            .and_then(move |_| {
-                                users_service
-                                    .password_reset_apply(reset_apply.token, reset_apply.password)
-                                    .map_err(ControllerError::from)
-                            })
+                            .and_then(move |_| users_service.password_reset_apply(reset_apply.token, reset_apply.password))
                     }),
             ),
 
             // POST /email_verify/resend/<email>
-            (&Post, Some(Route::EmailVerifyResend(email))) => {
-                serialize_future(users_service.resend_verification_link(email).map_err(ControllerError::from))
-            }
+            (&Post, Some(Route::EmailVerifyResend(email))) => serialize_future(users_service.resend_verification_link(email)),
 
             // POST /email_verify/apply/<token>
-            (&Post, Some(Route::EmailVerifyApply(token))) => {
-                serialize_future(users_service.verify_email(token).map_err(ControllerError::from))
-            }
+            (&Post, Some(Route::EmailVerifyApply(token))) => serialize_future(users_service.verify_email(token)),
 
             // GET /users/delivery_addresses/<user_id>
             (&Get, Some(Route::UserDeliveryAddress(user_id))) => {
@@ -379,32 +409,40 @@ impl<
             // POST /users/delivery_addresses
             (&Post, Some(Route::UserDeliveryAddresses)) => serialize_future(
                 parse_body::<models::NewUserDeliveryAddress>(req.body())
-                    .map_err(|_| ControllerError::UnprocessableEntity(format_err!("Error parsing request from gateway body")))
+                    .map_err(|e| {
+                        e.context(Error::Parse)
+                            .context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                            .into()
+                    })
                     .inspect(|payload| {
                         debug!("Received request to create delivery address: {:?}", payload);
                     })
                     .and_then(move |new_address| {
                         new_address
                             .validate()
-                            .map_err(ControllerError::Validate)
+                            .map_err(|e| Error::Validate(e.into()).context("Validation of NewStore failed!").into())
                             .into_future()
-                            .and_then(move |_| user_delivery_address_service.create(new_address).map_err(ControllerError::from))
+                            .and_then(move |_| user_delivery_address_service.create(new_address))
                     }),
             ),
 
             // PUT /users/delivery_addresses/<id>
             (&Put, Some(Route::UserDeliveryAddress(id))) => serialize_future(
                 parse_body::<models::UpdateUserDeliveryAddress>(req.body())
-                    .map_err(|_| ControllerError::UnprocessableEntity(format_err!("Error parsing request from gateway body")))
+                    .map_err(|e| {
+                        e.context(Error::Parse)
+                            .context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                            .into()
+                    })
                     .inspect(|payload| {
                         debug!("Received request to update delivery address: {:?}", payload);
                     })
                     .and_then(move |new_address| {
                         new_address
                             .validate()
-                            .map_err(ControllerError::Validate)
+                            .map_err(|e| Error::Validate(e.into()).context("Validation of NewStore failed!").into())
                             .into_future()
-                            .and_then(move |_| user_delivery_address_service.update(id, new_address).map_err(ControllerError::from))
+                            .and_then(move |_| user_delivery_address_service.update(id, new_address))
                     }),
             ),
 
@@ -415,12 +453,16 @@ impl<
             }
 
             // Fallback
-            _ => {
+            (m, r) => {
                 error!(
-                    "User with id = '{:?}' requests non existing endpoint in users microservice!",
+                    "User with id = '{:?}' requests non existing endpoint in stores microservice!",
                     user_id
                 );
-                Box::new(future::err(ControllerError::NotFound))
+                Box::new(future::err(
+                    Error::NotFound
+                        .context(format!("Request to non existing endpoint in users microservice! {:?} {:?}", m, r))
+                        .into(),
+                ))
             }
         }
     }

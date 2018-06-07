@@ -3,11 +3,11 @@
 //! relationship
 
 use diesel;
+use diesel::connection::AnsiTransactionManager;
+use diesel::pg::Pg;
 use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::Connection;
-use diesel::connection::AnsiTransactionManager;
-use diesel::pg::Pg;
 use failure::Error as FailureError;
 use failure::Fail;
 
@@ -46,7 +46,6 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 }
 
 impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static> UserRolesRepo for UserRolesRepoImpl<'a, T> {
-
     /// Returns list of user_roles for a specific user
     fn list_for_user(&self, user_id_value: i32) -> RepoResult<Vec<Role>> {
         let query = user_roles.filter(user_id.eq(user_id_value));
@@ -62,31 +61,27 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
     /// Create a new user role
     fn create(&self, payload: NewUserRole) -> RepoResult<UserRole> {
         let query = diesel::insert_into(user_roles).values(&payload);
-        query.get_result(self.db_conn)
-        .map_err(|e| {
-                e.context(format!("Create a new user role {:?} error occured", payload))
-                    .into()
-            })
+        query
+            .get_result(self.db_conn)
+            .map_err(|e| e.context(format!("Create a new user role {:?} error occured", payload)).into())
     }
 
     /// Delete role of a user
     fn delete(&self, payload: OldUserRole) -> RepoResult<UserRole> {
-        let filtered = user_roles.filter(user_id.eq(payload.user_id)).filter(role.eq(payload.role));
+        let filtered = user_roles.filter(user_id.eq(payload.user_id)).filter(role.eq(payload.role.clone()));
         let query = diesel::delete(filtered);
-        query.get_result(self.db_conn).map_err(|e| {
-                e.context(format!("Delete user role {:?} error occured", payload))
-                    .into()
-            })
+        query
+            .get_result(self.db_conn)
+            .map_err(|e| e.context(format!("Delete user role {:?} error occured", payload)).into())
     }
 
     /// Delete user roles by user id
     fn delete_by_user_id(&self, user_id_arg: i32) -> RepoResult<UserRole> {
         let filtered = user_roles.filter(user_id.eq(user_id_arg));
         let query = diesel::delete(filtered);
-        query.get_result(self.db_conn).map_err(|e| {
-                e.context(format!("Delete user {} roles error occured", user_id_arg))
-                    .into()
-            })
+        query
+            .get_result(self.db_conn)
+            .map_err(|e| e.context(format!("Delete user {} roles error occured", user_id_arg)).into())
     }
 }
 
