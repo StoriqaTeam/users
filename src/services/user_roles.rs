@@ -109,10 +109,9 @@ impl<
                             let user_roles_repo = repo_factory.create_user_roles_repo(&*conn);
                             user_roles_repo.delete(payload)
                         })
-                        .and_then(|user_role| {
-                            cached_roles.remove(user_id);
-                            Ok(user_role)
-                        })
+                })
+                .inspect(move |_| {
+                    cached_roles.remove(user_id);
                 })
                 .map_err(|e: FailureError| e.context("Service user_roles, delete endpoint error occured.").into()),
         )
@@ -135,10 +134,9 @@ impl<
                             let user_roles_repo = repo_factory.create_user_roles_repo(&*conn);
                             user_roles_repo.create(new_user_role)
                         })
-                        .and_then(|user_role| {
-                            cached_roles.remove(user_id);
-                            Ok(user_role)
-                        })
+                })
+                .inspect(move |_| {
+                    cached_roles.remove(user_id);
                 })
                 .map_err(|e: FailureError| e.context("Service user_roles, create endpoint error occured.").into()),
         )
@@ -160,10 +158,9 @@ impl<
                             let user_roles_repo = repo_factory.create_user_roles_repo(&*conn);
                             user_roles_repo.delete_by_user_id(user_id_arg)
                         })
-                        .and_then(|user_role| {
-                            cached_roles.remove(user_id_arg);
-                            Ok(user_role)
-                        })
+                })
+                .inspect(move |_| {
+                    cached_roles.remove(user_id_arg);
                 })
                 .map_err(|e: FailureError| e.context("Service user_roles, delete_default endpoint error occured.").into()),
         )
@@ -189,10 +186,9 @@ impl<
                             let user_roles_repo = repo_factory.create_user_roles_repo(&*conn);
                             user_roles_repo.create(defaul_role)
                         })
-                        .and_then(|user_role| {
-                            cached_roles.remove(user_id_arg);
-                            Ok(user_role)
-                        })
+                })
+                .inspect(move |_| {
+                    cached_roles.remove(user_id_arg);
                 })
                 .map_err(|e: FailureError| e.context("Service user_roles, create_default endpoint error occured.").into()),
         )
