@@ -74,7 +74,7 @@ use stq_http::client::Config as HttpConfig;
 use stq_http::controller::Application;
 
 use config::Config;
-use errors::ControllerError;
+use errors::Error;
 use repos::acl::RolesCacheImpl;
 use repos::repo_factory::ReposFactoryImpl;
 
@@ -148,7 +148,7 @@ pub fn start_server(config: Config) {
             );
 
             // Prepare application
-            let app = Application::<ControllerError>::new(controller);
+            let app = Application::<Error>::new(controller);
 
             Ok(app)
         })

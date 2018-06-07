@@ -23,7 +23,7 @@ use uuid::Uuid;
 use self::profile::{Email, FacebookProfile, GoogleProfile, IntoUser};
 use super::util::password_verify;
 use config::{Config, OAuth, JWT as JWTConfig};
-use errors::ControllerError;
+use errors::Error;
 use models::{self, JWTPayload, NewEmailIdentity, NewIdentity, NewUser, Provider, ProviderOauth, User, UserStatus, JWT};
 use repos::repo_factory::ReposFactory;
 use repos::types::RepoResult;
@@ -117,7 +117,7 @@ trait ProfileService<T: Connection<Backend = Pg, TransactionManager = AnsiTransa
             encode(&Header::new(Algorithm::RS256), &tokenpayload, secret.as_ref())
                 .map_err(|e| {
                     format_err!("{}", e)
-                        .context(ControllerError::Parse)
+                        .context(Error::Parse)
                         .context(format!("Couldn't encode jwt: {:?}.", tokenpayload))
                         .into()
                 })
@@ -165,7 +165,7 @@ where
                         thread_pool.spawn_fn(move || {
                             db_pool
                                 .get()
-                                .map_err(|e| e.context(ControllerError::Connection).into())
+                                .map_err(|e| e.context(Error::Connection).into())
                                 .and_then(move |conn| match status {
                                     ProfileStatus::ExistingProfile => {
                                         debug!("User exists for this profile. Looking up ID.");
@@ -208,13 +208,11 @@ where
                 .request::<serde_json::Value>(Method::Get, url, None, headers)
                 .map_err(|e| {
                     e.context("Failed to receive user info from provider. {}")
-                        .context(ControllerError::HttpClient)
+                        .context(Error::HttpClient)
                         .into()
                 })
                 .and_then(|val| match val["email"].is_null() {
-                    true => {
-                        Err(ControllerError::Validate(validation_errors!({"email": ["email" => "Email required but not provided"]})).into())
-                    }
+                    true => Err(Error::Validate(validation_errors!({"email": ["email" => "Email required but not provided"]})).into()),
                     false => serde_json::from_value::<P>(val).map_err(From::from),
                 })
                 .map_err(|e: FailureError| e.context("Service jwt, get_profile endpoint error occured.").into()),
@@ -229,7 +227,7 @@ where
                 .spawn_fn(move || {
                     db_pool
                         .get()
-                        .map_err(|e| e.context(ControllerError::Connection).into())
+                        .map_err(|e| e.context(Error::Connection).into())
                         .and_then(move |conn| {
                             let users_repo = repo_factory.create_users_repo_with_sys_acl(&conn);
                             let ident_repo = repo_factory.create_identities_repo(&conn);
@@ -270,7 +268,7 @@ where
                 self.http_client
                     .request::<User>(Method::Post, url, Some(body), None)
                     .wait()
-                    .map_err(|e| e.context(ControllerError::HttpClient).into())
+                    .map_err(|e| e.context(Error::HttpClient).into())
             })
             .map(|created_user| created_user.id.0)
             .map_err(|e: FailureError| e.context("Service jwt, create_profile saga request failed.").into())
@@ -301,7 +299,7 @@ where
                 .spawn_fn(move || {
                     db_pool
                         .get()
-                        .map_err(|e| e.context(ControllerError::Connection).into())
+                        .map_err(|e| e.context(Error::Connection).into())
                         .and_then(move |conn| {
                             let ident_repo = repo_factory.create_identities_repo(&conn);
 
@@ -332,7 +330,7 @@ impl<
                 .spawn_fn(move || {
                     r2d2_clone
                         .get()
-                        .map_err(|e| e.context(ControllerError::Connection).into())
+                        .map_err(|e| e.context(Error::Connection).into())
                         .and_then(move |conn| {
                             let ident_repo = repo_factory.create_identities_repo(&conn);
                             let users_repo = repo_factory.create_users_repo_with_sys_acl(&conn);
@@ -344,9 +342,9 @@ impl<
                                     .and_then(move |(exists, new_ident)| -> RepoResult<i32> {
                                         match exists {
                                             // email does not exist
-                                            false => Err(ControllerError::Validate(
-                                                validation_errors!({"email": ["email" => "Email not found"]}),
-                                            ).into()),
+                                            false => {
+                                                Err(Error::Validate(validation_errors!({"email": ["email" => "Email not found"]})).into())
+                                            }
                                             // email exists, checking password
                                             true => {
                                                 users_repo
@@ -366,7 +364,7 @@ impl<
                                                                         "No password in db for user with Email provider, user_id: {}",
                                                                         &identity.user_id
                                                                     );
-                                                                            Err(ControllerError::Validate(
+                                                                            Err(Error::Validate(
                                                                         validation_errors!({"password": ["password" => "Wrong password"]}),
                                                                     ).into())
                                                                         }
@@ -375,7 +373,7 @@ impl<
                                                                     .and_then(move |(verified, new_ident)| -> Result<i32, FailureError> {
                                                                         match verified {
                                                                     //password not verified
-                                                                    false => Err(ControllerError::Validate(
+                                                                    false => Err(Error::Validate(
                                                                         validation_errors!({"password": ["password" => "Wrong password"]}),
                                                                     ).into()),
                                                                     //password verified
@@ -385,7 +383,7 @@ impl<
                                                                 }
                                                                     })
                                                             }
-                                                            false => Err(ControllerError::Validate(
+                                                            false => Err(Error::Validate(
                                                                 validation_errors!({"email": ["email" => "Email not verified"]}),
                                                             ).into()),
                                                         }
@@ -398,7 +396,7 @@ impl<
                                         encode(&Header::new(Algorithm::RS256), &tokenpayload, jwt_private_key.as_ref())
                                             .map_err(|e| {
                                                 format_err!("{}", e)
-                                                    .context(ControllerError::Parse)
+                                                    .context(Error::Parse)
                                                     .context(format!("Couldn't encode jwt: {:?}.", tokenpayload))
                                                     .into()
                                             })

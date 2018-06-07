@@ -5,7 +5,7 @@ use validator::ValidationErrors;
 use stq_http::errors::{Codeable, PayloadCarrier};
 
 #[derive(Debug, Fail)]
-pub enum ControllerError {
+pub enum Error {
     #[fail(display = "Not found")]
     NotFound,
     #[fail(display = "Parse error")]
@@ -22,22 +22,22 @@ pub enum ControllerError {
     InvalidToken,
 }
 
-impl Codeable for ControllerError {
+impl Codeable for Error {
     fn code(&self) -> StatusCode {
         match *self {
-            ControllerError::NotFound => StatusCode::NotFound,
-            ControllerError::Validate(_) => StatusCode::BadRequest,
-            ControllerError::Parse => StatusCode::UnprocessableEntity,
-            ControllerError::Connection | ControllerError::HttpClient => StatusCode::InternalServerError,
-            ControllerError::Forbidden | ControllerError::InvalidToken => StatusCode::Forbidden,
+            Error::NotFound => StatusCode::NotFound,
+            Error::Validate(_) => StatusCode::BadRequest,
+            Error::Parse => StatusCode::UnprocessableEntity,
+            Error::Connection | Error::HttpClient => StatusCode::InternalServerError,
+            Error::Forbidden | Error::InvalidToken => StatusCode::Forbidden,
         }
     }
 }
 
-impl PayloadCarrier for ControllerError {
+impl PayloadCarrier for Error {
     fn payload(&self) -> Option<serde_json::Value> {
         match *self {
-            ControllerError::Validate(ref e) => serde_json::to_value(e.clone()).ok(),
+            Error::Validate(ref e) => serde_json::to_value(e.clone()).ok(),
             _ => None,
         }
     }

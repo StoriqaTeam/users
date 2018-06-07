@@ -33,7 +33,7 @@ use stq_router::RouteParser;
 
 use self::routes::Route;
 use config::Config;
-use errors::ControllerError as Error;
+use errors::Error;
 use models;
 use repos::acl::RolesCacheImpl;
 use repos::repo_factory::*;

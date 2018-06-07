@@ -10,7 +10,7 @@ use futures::Future;
 use r2d2::{ManageConnection, Pool};
 
 use super::types::ServiceFuture;
-use errors::ControllerError;
+use errors::Error;
 use models::{NewUserDeliveryAddress, UpdateUserDeliveryAddress, UserDeliveryAddress};
 use repos::ReposFactory;
 
@@ -70,7 +70,7 @@ impl<
                 .spawn_fn(move || {
                     db_pool
                         .get()
-                        .map_err(|e| e.context(ControllerError::Connection).into())
+                        .map_err(|e| e.context(Error::Connection).into())
                         .and_then(move |conn| {
                             let users_delivery_address_repo = repo_factory.create_users_delivery_address_repo(&*conn, curent_user_id);
                             users_delivery_address_repo.list_for_user(user_id)
@@ -94,7 +94,7 @@ impl<
                 .spawn_fn(move || {
                     db_pool
                         .get()
-                        .map_err(|e| e.context(ControllerError::Connection).into())
+                        .map_err(|e| e.context(Error::Connection).into())
                         .and_then(move |conn| {
                             let users_delivery_address_repo = repo_factory.create_users_delivery_address_repo(&*conn, user_id);
                             users_delivery_address_repo.delete(id)
@@ -115,7 +115,7 @@ impl<
                 .spawn_fn(move || {
                     db_pool
                         .get()
-                        .map_err(|e| e.context(ControllerError::Connection).into())
+                        .map_err(|e| e.context(Error::Connection).into())
                         .and_then(move |conn| {
                             let users_delivery_address_repo = repo_factory.create_users_delivery_address_repo(&*conn, user_id);
                             users_delivery_address_repo.create(payload)
@@ -136,7 +136,7 @@ impl<
                 .spawn_fn(move || {
                     db_pool
                         .get()
-                        .map_err(|e| e.context(ControllerError::Connection).into())
+                        .map_err(|e| e.context(Error::Connection).into())
                         .and_then(move |conn| {
                             let users_delivery_address_repo = repo_factory.create_users_delivery_address_repo(&*conn, user_id);
                             users_delivery_address_repo.update(id, payload)
