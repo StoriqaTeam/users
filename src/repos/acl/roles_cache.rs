@@ -1,6 +1,6 @@
 //! RolesCache is a module that caches received from db information about user and his roles
-use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use models::authorization::*;

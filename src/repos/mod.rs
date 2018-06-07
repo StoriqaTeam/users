@@ -2,7 +2,6 @@
 
 #[macro_use]
 pub mod acl;
-pub mod error;
 pub mod identities;
 pub mod repo_factory;
 pub mod reset_token;
@@ -12,7 +11,6 @@ pub mod user_roles;
 pub mod users;
 
 pub use self::acl::*;
-pub use self::error::*;
 pub use self::identities::*;
 pub use self::repo_factory::*;
 pub use self::reset_token::*;
