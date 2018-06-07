@@ -57,7 +57,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
     fn execute_query<Q: Send + 'static, U: LoadQuery<T, Q> + Send + 'static>(&self, query: U) -> Result<Q, FailureError> {
         let conn = self.db_conn;
 
-        query.get_result::<Q>(conn).map_err(|e| e.into())
+        query.get_result::<Q>(conn).map_err(From::from)
     }
 }
 

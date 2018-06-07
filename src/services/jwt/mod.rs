@@ -207,15 +207,15 @@ where
             self.http_client
                 .request::<serde_json::Value>(Method::Get, url, None, headers)
                 .map_err(|e| {
-                    e.context(ControllerError::HttpClient)
-                        .context("Failed to receive user info from provider. {}")
+                    e.context("Failed to receive user info from provider. {}")
+                        .context(ControllerError::HttpClient)
                         .into()
                 })
                 .and_then(|val| match val["email"].is_null() {
                     true => {
                         Err(ControllerError::Validate(validation_errors!({"email": ["email" => "Email required but not provided"]})).into())
                     }
-                    false => serde_json::from_value::<P>(val).map_err(|e| e.into()),
+                    false => serde_json::from_value::<P>(val).map_err(From::from),
                 })
                 .map_err(|e: FailureError| e.context("Service jwt, get_profile endpoint error occured.").into()),
         )
@@ -265,7 +265,7 @@ where
                 provider,
                 saga_id: Uuid::new_v4().to_string(),
             },
-        }).map_err(|e| e.into())
+        }).map_err(From::from)
             .and_then(|body| {
                 self.http_client
                     .request::<User>(Method::Post, url, Some(body), None)

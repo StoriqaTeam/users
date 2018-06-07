@@ -160,8 +160,8 @@ impl<
             (&Post, Some(Route::Users)) => serialize_future(
                 parse_body::<models::SagaCreateProfile>(req.body())
                     .map_err(|e| {
-                        e.context(Error::Parse)
-                            .context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                        e.context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                            .context(Error::Parse)
                             .into()
                     })
                     .and_then(move |payload| {
@@ -191,8 +191,8 @@ impl<
             (&Put, Some(Route::User(user_id))) => serialize_future(
                 parse_body::<models::user::UpdateUser>(req.body())
                     .map_err(|e| {
-                        e.context(Error::Parse)
-                            .context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                        e.context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                            .context(Error::Parse)
                             .into()
                     })
                     .inspect(|payload| {
@@ -226,8 +226,8 @@ impl<
             (&Post, Some(Route::JWTEmail)) => serialize_future(
                 parse_body::<models::identity::NewEmailIdentity>(req.body())
                     .map_err(|e| {
-                        e.context(Error::Parse)
-                            .context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                        e.context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                            .context(Error::Parse)
                             .into()
                     })
                     .and_then(move |new_ident| {
@@ -256,8 +256,8 @@ impl<
             (&Post, Some(Route::JWTGoogle)) => serialize_future(
                 parse_body::<models::jwt::ProviderOauth>(req.body())
                     .map_err(|e| {
-                        e.context(Error::Parse)
-                            .context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                        e.context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                            .context(Error::Parse)
                             .into()
                     })
                     .inspect(|payload| {
@@ -274,8 +274,8 @@ impl<
             (&Post, Some(Route::JWTFacebook)) => serialize_future(
                 parse_body::<models::jwt::ProviderOauth>(req.body())
                     .map_err(|e| {
-                        e.context(Error::Parse)
-                            .context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                        e.context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                            .context(Error::Parse)
                             .into()
                     })
                     .inspect(|payload| {
@@ -298,8 +298,8 @@ impl<
             (&Post, Some(Route::UserRoles)) => serialize_future(
                 parse_body::<models::NewUserRole>(req.body())
                     .map_err(|e| {
-                        e.context(Error::Parse)
-                            .context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                        e.context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                            .context(Error::Parse)
                             .into()
                     })
                     .inspect(|payload| {
@@ -312,8 +312,8 @@ impl<
             (&Delete, Some(Route::UserRoles)) => serialize_future(
                 parse_body::<models::OldUserRole>(req.body())
                     .map_err(|e| {
-                        e.context(Error::Parse)
-                            .context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                        e.context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                            .context(Error::Parse)
                             .into()
                     })
                     .inspect(|payload| {
@@ -338,8 +338,8 @@ impl<
             (&Post, Some(Route::PasswordChange)) => serialize_future(
                 parse_body::<models::ChangeIdentityPassword>(req.body())
                     .map_err(|e| {
-                        e.context(Error::Parse)
-                            .context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                        e.context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                            .context(Error::Parse)
                             .into()
                     })
                     .inspect(|payload| {
@@ -358,8 +358,8 @@ impl<
             (&Post, Some(Route::PasswordResetRequest)) => serialize_future(
                 parse_body::<models::ResetRequest>(req.body())
                     .map_err(|e| {
-                        e.context(Error::Parse)
-                            .context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                        e.context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                            .context(Error::Parse)
                             .into()
                     })
                     .inspect(|payload| {
@@ -378,8 +378,8 @@ impl<
             (&Post, Some(Route::PasswordResetApply)) => serialize_future(
                 parse_body::<models::ResetApply>(req.body())
                     .map_err(|e| {
-                        e.context(Error::Parse)
-                            .context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                        e.context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                            .context(Error::Parse)
                             .into()
                     })
                     .inspect(|payload| {
@@ -410,8 +410,8 @@ impl<
             (&Post, Some(Route::UserDeliveryAddresses)) => serialize_future(
                 parse_body::<models::NewUserDeliveryAddress>(req.body())
                     .map_err(|e| {
-                        e.context(Error::Parse)
-                            .context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                        e.context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                            .context(Error::Parse)
                             .into()
                     })
                     .inspect(|payload| {
@@ -430,8 +430,8 @@ impl<
             (&Put, Some(Route::UserDeliveryAddress(id))) => serialize_future(
                 parse_body::<models::UpdateUserDeliveryAddress>(req.body())
                     .map_err(|e| {
-                        e.context(Error::Parse)
-                            .context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                        e.context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                            .context(Error::Parse)
                             .into()
                     })
                     .inspect(|payload| {

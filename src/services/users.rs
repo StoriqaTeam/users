@@ -656,13 +656,13 @@ impl<
 
         Box::new(
             serde_json::to_string(&ResetMail { to, subject, text })
-                .map_err(|e| e.into())
+                .map_err(From::from)
                 .into_future()
                 .and_then(move |body| {
                     http_client
                         .request::<String>(Method::Post, url, Some(body), None)
                         .map(|_v| true)
-                        .map_err(|e| e.context(ControllerError::HttpClient).context("Error sending email").into())
+                        .map_err(|e| e.context("Error sending email").context(ControllerError::HttpClient).into())
                 })
                 .map_err(|e: FailureError| e.context("Service users, send_mail endpoint error occured.").into()),
         )

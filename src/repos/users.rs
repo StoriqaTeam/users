@@ -63,7 +63,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 
         query
             .get_result(self.db_conn)
-            .map_err(|e| e.into())
+            .map_err(From::from)
             .and_then(|user: User| acl::check(&*self.acl, &Resource::Users, &Action::Read, self, Some(&user)).and_then(|_| Ok(user)))
             .map_err(|e: FailureError| e.context(format!("Find specific user {} error occured", user_id_arg)).into())
     }
@@ -74,7 +74,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 
         query
             .get_result(self.db_conn)
-            .map_err(|e| e.into())
+            .map_err(From::from)
             .and_then(|exists| acl::check(&*self.acl, &Resource::Users, &Action::Read, self, None).and_then(|_| Ok(exists)))
             .map_err(|e: FailureError| {
                 e.context(format!("Check that user with email {} already exists error occured", email_arg))
@@ -88,7 +88,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 
         query
             .first::<User>(self.db_conn)
-            .map_err(|e| e.into())
+            .map_err(From::from)
             .and_then(|user: User| acl::check(&*self.acl, &Resource::Users, &Action::Read, self, Some(&user)).and_then(|_| Ok(user)))
             .map_err(|e: FailureError| {
                 e.context(format!("Find specific user by email {:?} error occured", email_arg))
@@ -102,7 +102,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 
         query
             .get_results(self.db_conn)
-            .map_err(|e| e.into())
+            .map_err(From::from)
             .and_then(|users_res: Vec<User>| {
                 for user in users_res.iter() {
                     acl::check(&*self.acl, &Resource::Users, &Action::Read, self, Some(&user))?;
@@ -130,13 +130,13 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 
         query
             .get_result(self.db_conn)
-            .map_err(|e| e.into())
+            .map_err(From::from)
             .and_then(|user: User| acl::check(&*self.acl, &Resource::Users, &Action::Write, self, Some(&user)))
             .and_then(|_| {
                 let filter = users.filter(id.eq(user_id_arg.clone())).filter(is_active.eq(true));
 
                 let query = diesel::update(filter).set(&payload);
-                query.get_result::<User>(self.db_conn).map_err(|e| e.into())
+                query.get_result::<User>(self.db_conn).map_err(From::from)
             })
             .map_err(|e: FailureError| {
                 e.context(format!("update user {} with {:?} error occured", user_id_arg, payload))
@@ -150,13 +150,13 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 
         query
             .get_result(self.db_conn)
-            .map_err(|e| e.into())
+            .map_err(From::from)
             .and_then(|user: User| acl::check(&*self.acl, &Resource::Users, &Action::Write, self, Some(&user)))
             .and_then(|_| {
                 let filter = users.filter(id.eq(user_id_arg.clone())).filter(is_active.eq(true));
                 let query = diesel::update(filter).set(is_active.eq(false));
 
-                query.get_result(self.db_conn).map_err(|e| e.into())
+                query.get_result(self.db_conn).map_err(From::from)
             })
             .map_err(|e: FailureError| e.context(format!("Deactivates user {:?} error occured", user_id_arg)).into())
     }
