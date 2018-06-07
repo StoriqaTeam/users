@@ -30,7 +30,7 @@ use repos::repo_factory::ReposFactory;
 
 pub trait UsersService {
     /// Returns user by ID
-    fn get(&self, user_id: UserId) -> ServiceFuture<User>;
+    fn get(&self, user_id: UserId) -> ServiceFuture<Option<User>>;
     /// Returns current user
     fn current(&self) -> ServiceFuture<User>;
     /// Lists users limited by `from` and `count` parameters
@@ -105,7 +105,7 @@ impl<
     > UsersService for UsersServiceImpl<T, M, F>
 {
     /// Returns user by ID
-    fn get(&self, user_id: UserId) -> ServiceFuture<User> {
+    fn get(&self, user_id: UserId) -> ServiceFuture<Option<User>> {
         let db_clone = self.db_pool.clone();
         let current_uid = self.user_id.clone();
         let repo_factory = self.repo_factory.clone();
@@ -145,6 +145,13 @@ impl<
                             .and_then(move |conn| {
                                 let users_repo = repo_factory.create_users_repo(&conn, current_uid);
                                 users_repo.find(UserId(id))
+                            })
+                            .and_then(|user| {
+                                if let Some(user) = user {
+                                    Ok(user)
+                                } else {
+                                    Err(Error::NotFound.context(format!("Can not fetch user with id {}", id)).into())
+                                }
                             })
                     })
                     .map_err(|e: FailureError| e.context("Service users, current endpoint error occured.").into()),
@@ -394,19 +401,25 @@ impl<
                                             users_repo
                                                 .find_by_email(reset_token.email.clone())
                                                 .and_then(|user| {
-                                                    let update = UpdateUser {
-                                                        phone: None,
-                                                        first_name: None,
-                                                        last_name: None,
-                                                        middle_name: None,
-                                                        gender: None,
-                                                        birthdate: None,
-                                                        avatar: None,
-                                                        is_active: None,
-                                                        email_verified: Some(true),
-                                                    };
+                                                    if let Some(user) = user {
+                                                        let update = UpdateUser {
+                                                            phone: None,
+                                                            first_name: None,
+                                                            last_name: None,
+                                                            middle_name: None,
+                                                            gender: None,
+                                                            birthdate: None,
+                                                            avatar: None,
+                                                            is_active: None,
+                                                            email_verified: Some(true),
+                                                        };
 
-                                                    users_repo.update(user.id.clone(), update)
+                                                        users_repo.update(user.id.clone(), update)
+                                                    } else {
+                                                        Err(Error::NotFound
+                                                            .context(format!("User with email {} not found!", reset_token.email))
+                                                            .into())
+                                                    }
                                                 })
                                                 .map_err(|e| e.context(Error::InvalidToken).into())
                                         } else {
@@ -680,7 +693,7 @@ pub mod tests {
         let service = create_users_service(Some(1), handle);
         let work = service.get(UserId(1));
         let result = core.run(work).unwrap();
-        assert_eq!(result.id, UserId(1));
+        assert_eq!(result.unwrap().id, UserId(1));
     }
 
     #[test]

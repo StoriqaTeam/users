@@ -26,13 +26,13 @@ pub struct UsersRepoImpl<'a, T: Connection<Backend = Pg, TransactionManager = An
 
 pub trait UsersRepo {
     /// Find specific user by ID
-    fn find(&self, user_id: UserId) -> RepoResult<User>;
+    fn find(&self, user_id: UserId) -> RepoResult<Option<User>>;
 
     /// Check that user with specified email already exists
     fn email_exists(&self, email_arg: String) -> RepoResult<bool>;
 
     /// Find specific user by email
-    fn find_by_email(&self, email_arg: String) -> RepoResult<User>;
+    fn find_by_email(&self, email_arg: String) -> RepoResult<Option<User>>;
 
     /// Returns list of users, limited by `from` and `count` parameters
     fn list(&self, from: i32, count: i64) -> RepoResult<Vec<User>>;
@@ -58,13 +58,19 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 
 impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static> UsersRepo for UsersRepoImpl<'a, T> {
     /// Find specific user by ID
-    fn find(&self, user_id_arg: UserId) -> RepoResult<User> {
+    fn find(&self, user_id_arg: UserId) -> RepoResult<Option<User>> {
         let query = users.find(user_id_arg.clone());
 
         query
             .get_result(self.db_conn)
+            .optional()
             .map_err(From::from)
-            .and_then(|user: User| acl::check(&*self.acl, &Resource::Users, &Action::Read, self, Some(&user)).and_then(|_| Ok(user)))
+            .and_then(|user: Option<User>| {
+                if let Some(ref user) = user {
+                    acl::check(&*self.acl, &Resource::Users, &Action::Read, self, Some(user))?;
+                };
+                Ok(user)
+            })
             .map_err(|e: FailureError| e.context(format!("Find specific user {} error occured", user_id_arg)).into())
     }
 
@@ -83,13 +89,19 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
     }
 
     /// Find specific user by email
-    fn find_by_email(&self, email_arg: String) -> RepoResult<User> {
+    fn find_by_email(&self, email_arg: String) -> RepoResult<Option<User>> {
         let query = users.filter(email.eq(email_arg.clone()));
 
         query
-            .first::<User>(self.db_conn)
+            .first(self.db_conn)
+            .optional()
             .map_err(From::from)
-            .and_then(|user: User| acl::check(&*self.acl, &Resource::Users, &Action::Read, self, Some(&user)).and_then(|_| Ok(user)))
+            .and_then(|user: Option<User>| {
+                if let Some(ref user) = user {
+                    acl::check(&*self.acl, &Resource::Users, &Action::Read, self, Some(user))?;
+                };
+                Ok(user)
+            })
             .map_err(|e: FailureError| {
                 e.context(format!("Find specific user by email {:?} error occured", email_arg))
                     .into()

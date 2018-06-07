@@ -190,18 +190,18 @@ pub mod tests {
     pub struct UsersRepoMock;
 
     impl UsersRepo for UsersRepoMock {
-        fn find(&self, user_id: UserId) -> RepoResult<User> {
+        fn find(&self, user_id: UserId) -> RepoResult<Option<User>> {
             let user = create_user(user_id, MOCK_EMAIL.to_string());
-            Ok(user)
+            Ok(Some(user))
         }
 
         fn email_exists(&self, email_arg: String) -> RepoResult<bool> {
             Ok(email_arg == MOCK_EMAIL.to_string())
         }
 
-        fn find_by_email(&self, email_arg: String) -> RepoResult<User> {
+        fn find_by_email(&self, email_arg: String) -> RepoResult<Option<User>> {
             let user = create_user(UserId(1), email_arg);
-            Ok(user)
+            Ok(Some(user))
         }
 
         fn list(&self, from: i32, count: i64) -> RepoResult<Vec<User>> {
