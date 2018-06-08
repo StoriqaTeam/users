@@ -125,7 +125,9 @@ impl<
         let user_delivery_address_service =
             UserDeliveryAddressServiceImpl::new(self.db_pool.clone(), self.cpu_pool.clone(), user_id, self.repo_factory.clone());
 
-        match (&req.method().clone(), self.route_parser.test(req.path().clone())) {
+        let path = req.path().to_string();
+
+        match (&req.method().clone(), self.route_parser.test(req.path())) {
             // GET /healthcheck
             (&Get, Some(Route::Healthcheck)) => {
                 trace!("Received healthcheck request");
@@ -169,7 +171,11 @@ impl<
                         payload
                             .identity
                             .validate()
-                            .map_err(|e| Error::Validate(e.into()).context("Validation of NewStore failed!").into())
+                            .map_err(|e| {
+                                format_err!("Validation of SagaCreateProfile failed!")
+                                    .context(Error::Validate(e.into()))
+                                    .into()
+                            })
                             .into_future()
                             .inspect(|_| {
                                 debug!("Validation success");
@@ -201,7 +207,11 @@ impl<
                     .and_then(move |update_user| {
                         update_user
                             .validate()
-                            .map_err(|e| Error::Validate(e.into()).context("Validation of NewStore failed!").into())
+                            .map_err(|e| {
+                                format_err!("Validation of UpdateUser failed!")
+                                    .context(Error::Validate(e.into()))
+                                    .into()
+                            })
                             .into_future()
                             .inspect(|_| {
                                 debug!("Validation success");
@@ -234,7 +244,11 @@ impl<
                         debug!("Received request to authenticate with email: {:?}", &new_ident);
                         new_ident
                             .validate()
-                            .map_err(|e| Error::Validate(e.into()).context("Validation of NewStore failed!").into())
+                            .map_err(|e| {
+                                format_err!("Validation of NewEmailIdentity failed!")
+                                    .context(Error::Validate(e.into()))
+                                    .into()
+                            })
                             .into_future()
                             .inspect(|_| {
                                 debug!("Validation success");
@@ -348,7 +362,11 @@ impl<
                     .and_then(move |change_req| {
                         change_req
                             .validate()
-                            .map_err(|e| Error::Validate(e.into()).context("Validation of NewStore failed!").into())
+                            .map_err(|e| {
+                                format_err!("Validation of ChangeIdentityPassword failed!")
+                                    .context(Error::Validate(e.into()))
+                                    .into()
+                            })
                             .into_future()
                             .and_then(move |_| users_service.change_password(change_req))
                     }),
@@ -368,7 +386,11 @@ impl<
                     .and_then(move |reset_req| {
                         reset_req
                             .validate()
-                            .map_err(|e| Error::Validate(e.into()).context("Validation of NewStore failed!").into())
+                            .map_err(|e| {
+                                format_err!("Validation of ResetRequest failed!")
+                                    .context(Error::Validate(e.into()))
+                                    .into()
+                            })
                             .into_future()
                             .and_then(move |_| users_service.password_reset_request(reset_req.email))
                     }),
@@ -388,7 +410,11 @@ impl<
                     .and_then(move |reset_apply| {
                         reset_apply
                             .validate()
-                            .map_err(|e| Error::Validate(e.into()).context("Validation of NewStore failed!").into())
+                            .map_err(|e| {
+                                format_err!("Validation of ResetApply failed!")
+                                    .context(Error::Validate(e.into()))
+                                    .into()
+                            })
                             .into_future()
                             .and_then(move |_| users_service.password_reset_apply(reset_apply.token, reset_apply.password))
                     }),
@@ -420,7 +446,11 @@ impl<
                     .and_then(move |new_address| {
                         new_address
                             .validate()
-                            .map_err(|e| Error::Validate(e.into()).context("Validation of NewStore failed!").into())
+                            .map_err(|e| {
+                                format_err!("Validation of NewUserDeliveryAddress failed!")
+                                    .context(Error::Validate(e.into()))
+                                    .into()
+                            })
                             .into_future()
                             .and_then(move |_| user_delivery_address_service.create(new_address))
                     }),
@@ -440,7 +470,11 @@ impl<
                     .and_then(move |new_address| {
                         new_address
                             .validate()
-                            .map_err(|e| Error::Validate(e.into()).context("Validation of NewStore failed!").into())
+                            .map_err(|e| {
+                                format_err!("Validation of UpdateUserDeliveryAddress failed!")
+                                    .context(Error::Validate(e.into()))
+                                    .into()
+                            })
                             .into_future()
                             .and_then(move |_| user_delivery_address_service.update(id, new_address))
                     }),
@@ -453,17 +487,11 @@ impl<
             }
 
             // Fallback
-            (m, r) => {
-                error!(
-                    "User with id = '{:?}' requests non existing endpoint in stores microservice!",
-                    user_id
-                );
-                Box::new(future::err(
-                    Error::NotFound
-                        .context(format!("Request to non existing endpoint in users microservice! {:?} {:?}", m, r))
-                        .into(),
-                ))
-            }
+            (m, _) => Box::new(future::err(
+                format_err!("Request to non existing endpoint in users microservice! {:?} {:?}", m, path)
+                    .context(Error::NotFound)
+                    .into(),
+            )),
         }
     }
 }
