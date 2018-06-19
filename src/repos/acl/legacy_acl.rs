@@ -11,13 +11,7 @@ pub trait Acl<Resource, Action, Scope, Error, T> {
     /// `resource_with_scope` can tell if this resource is in some scope, which is also a part of `acl` for some
     /// permissions. E.g. You can say that a user can do `Create` (`Action`) on `Store` (`Resource`) only if he's the
     /// `Owner` (`Scope`) of the store.
-    fn allows(
-        &self,
-        resource: &Resource,
-        action: &Action,
-        scope_checker: &CheckScope<Scope,T>,
-        obj: Option<&T>,
-    ) -> Result<bool, Error>;
+    fn allows(&self, resource: &Resource, action: &Action, scope_checker: &CheckScope<Scope, T>, obj: Option<&T>) -> Result<bool, Error>;
 }
 
 /// `SystemACL` allows all manipulation with resources in all cases.
@@ -26,13 +20,7 @@ pub struct SystemACL {}
 
 #[allow(unused)]
 impl<Resource, Action, Scope, Error, T> Acl<Resource, Action, Scope, Error, T> for SystemACL {
-    fn allows(
-        &self,
-        resource: &Resource,
-        action: &Action,
-        scope_checker: &CheckScope<Scope,T>,
-        obj: Option<&T>,
-    ) -> Result<bool, Error> {
+    fn allows(&self, resource: &Resource, action: &Action, scope_checker: &CheckScope<Scope, T>, obj: Option<&T>) -> Result<bool, Error> {
         Ok(true)
     }
 }
@@ -43,18 +31,12 @@ pub struct UnauthorizedACL {}
 
 #[allow(unused)]
 impl<Resource, Action, Scope, Error, T> Acl<Resource, Action, Scope, Error, T> for UnauthorizedACL {
-    fn allows(
-        &self,
-        resource: &Resource,
-        action: &Action,
-        scope_checker: &CheckScope<Scope,T>,
-        obj: Option<&T>,
-    ) -> Result<bool, Error> {
+    fn allows(&self, resource: &Resource, action: &Action, scope_checker: &CheckScope<Scope, T>, obj: Option<&T>) -> Result<bool, Error> {
         Ok(false)
     }
 }
 
-pub trait RolesCache : Clone + Send + 'static {
+pub trait RolesCache: Clone + Send + 'static {
     type Role;
 
     fn get(&self, user_id: i32) -> Vec<Self::Role>;
