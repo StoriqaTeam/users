@@ -10,7 +10,7 @@ use diesel::Connection;
 use failure::Error as FailureError;
 use failure::Fail;
 
-use stq_acl::*;
+use repos::legacy_acl::*;
 
 use super::acl;
 use super::types::RepoResult;

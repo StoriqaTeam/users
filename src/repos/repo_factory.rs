@@ -3,7 +3,7 @@ use diesel::pg::Pg;
 use diesel::Connection;
 use failure::Error as FailureError;
 
-use stq_acl::{Acl, SystemACL, UnauthorizedACL};
+use repos::legacy_acl::{Acl, SystemACL, UnauthorizedACL};
 
 use models::*;
 use repos::*;

@@ -6,7 +6,7 @@ use errors::Error;
 use failure::Error as FailureError;
 use failure::Fail;
 
-use stq_acl::{Acl, CheckScope};
+use super::legacy_acl::{Acl, CheckScope};
 
 use models::authorization::*;
 
@@ -93,7 +93,7 @@ impl<T> Acl<Resource, Action, Scope, FailureError, T> for ApplicationAcl {
 mod tests {
     use std::time::SystemTime;
 
-    use stq_acl::{Acl, CheckScope};
+    use repos::legacy_acl::{Acl, CheckScope};
 
     use models::*;
     use repos::*;

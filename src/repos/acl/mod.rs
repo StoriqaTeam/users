@@ -3,6 +3,7 @@
 #[macro_use]
 pub mod macros;
 pub mod acl;
+pub mod legacy_acl;
 pub mod roles_cache;
 
 pub use self::acl::{check, ApplicationAcl};
