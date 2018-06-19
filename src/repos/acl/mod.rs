@@ -4,6 +4,7 @@
 pub mod macros;
 pub mod acl;
 pub mod roles_cache;
+pub mod legacy_acl;
 
 pub use self::acl::{check, ApplicationAcl};
 pub use self::roles_cache::RolesCacheImpl;

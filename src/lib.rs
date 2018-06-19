@@ -34,7 +34,6 @@ extern crate serde;
 extern crate serde_derive;
 extern crate serde_json;
 extern crate sha3;
-extern crate stq_acl;
 extern crate stq_http;
 extern crate stq_router;
 extern crate tokio_core;
