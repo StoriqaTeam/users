@@ -9,6 +9,7 @@ pub enum Route {
     Users,
     User(UserId),
     UserBySagaId(String),
+    UserByEmail,
     Current,
     JWTEmail,
     JWTGoogle,
@@ -34,6 +35,9 @@ pub fn create_route_parser() -> RouteParser<Route> {
 
     // Users Routes
     router.add_route(r"^/users$", || Route::Users);
+
+    // User by email Route
+    router.add_route(r"^/users/by_email$", || Route::UserByEmail);
 
     // Users Routes
     router.add_route(r"^/users/current$", || Route::Current);
