@@ -146,6 +146,20 @@ impl<
                 serialize_future(users_service.current())
             }
 
+            // GET /users/by_email
+            (&Get, Some(Route::UserByEmail)) => {
+                if let Some(email) = parse_query!(req.query().unwrap_or_default(), "email" => String) {
+                    debug!("Received request to get user by email {}", email);
+                    serialize_future(users_service.find_by_email(email))
+                } else {
+                    Box::new(future::err(
+                        Error::Parse
+                            .context("Parsing query parameters // GET /users/by_email failed!")
+                            .into(),
+                    ))
+                }
+            }
+
             // GET /users
             (&Get, Some(Route::Users)) => {
                 if let (Some(offset), Some(count)) = parse_query!(req.query().unwrap_or_default(), "offset" => i32, "count" => i64) {

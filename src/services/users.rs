@@ -57,6 +57,8 @@ pub trait UsersService {
     fn reset_token_create() -> String;
     /// Send email
     fn send_mail(http_client: ClientHandle, notif_config: Notifications, to: String, subject: String, text: String) -> ServiceFuture<bool>;
+    /// Find by email
+    fn find_by_email(&self, email: String) -> ServiceFuture<Option<User>>;
 }
 
 /// Users services, responsible for User-related CRUD operations
@@ -671,6 +673,29 @@ impl<
                         .map_err(|e| e.context("Error sending email").context(Error::HttpClient).into())
                 })
                 .map_err(|e: FailureError| e.context("Service users, send_mail endpoint error occured.").into()),
+        )
+    }
+
+    /// Find by email
+    fn find_by_email(&self, email: String) -> ServiceFuture<Option<User>> {
+        let db_clone = self.db_pool.clone();
+        let current_uid = self.user_id.clone();
+        let repo_factory = self.repo_factory.clone();
+
+        debug!("Getting user by email {}", email);
+
+        Box::new(
+            self.cpu_pool
+                .spawn_fn(move || {
+                    db_clone
+                        .get()
+                        .map_err(|e| e.context(Error::Connection).into())
+                        .and_then(move |conn| {
+                            let users_repo = repo_factory.create_users_repo(&conn, current_uid);
+                            users_repo.find_by_email(email)
+                        })
+                })
+                .map_err(|e: FailureError| e.context("Service users, find by email endpoint error occured.").into()),
         )
     }
 }
