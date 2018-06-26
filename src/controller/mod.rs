@@ -153,8 +153,8 @@ impl<
                     serialize_future(users_service.find_by_email(email))
                 } else {
                     Box::new(future::err(
-                        Error::Parse
-                            .context("Parsing query parameters // GET /users/by_email failed!")
+                        format_err!("Parsing query parameters // GET /users/by_email failed!")
+                            .context(Error::Parse)
                             .into(),
                     ))
                 }
@@ -167,7 +167,9 @@ impl<
                     serialize_future(users_service.list(offset, count))
                 } else {
                     Box::new(future::err(
-                        Error::Parse.context("Parsing query parameters // GET /users failed!").into(),
+                        format_err!("Parsing query parameters // GET /users failed!")
+                            .context(Error::Parse)
+                            .into(),
                     ))
                 }
             }
