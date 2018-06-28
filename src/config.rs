@@ -12,7 +12,6 @@ pub struct Config {
     pub jwt: JWT,
     pub google: OAuth,
     pub facebook: OAuth,
-    pub notifications: Notifications,
 }
 
 /// Common server settings
@@ -48,13 +47,6 @@ pub struct OAuth {
 #[derive(Debug, Deserialize, Clone)]
 pub struct SagaAddr {
     pub url: String,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-pub struct Notifications {
-    pub url: String,
-    pub verify_email_path: String,
-    pub reset_password_path: String,
 }
 
 /// Creates new app config struct

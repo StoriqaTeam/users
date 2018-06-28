@@ -10,22 +10,18 @@ use failure::Error as FailureError;
 use failure::Fail;
 use futures::future;
 use futures::Future;
-use futures::IntoFuture;
 use futures_cpupool::CpuPool;
-use hyper::Method;
 use r2d2::{ManageConnection, Pool};
-use serde_json;
 use uuid::Uuid;
 
 use stq_http::client::ClientHandle;
 
 use super::types::ServiceFuture;
 use super::util::{password_create, password_verify};
-use config::Notifications;
 use errors::Error;
 use models::{ChangeIdentityPassword, NewIdentity, Provider, UpdateIdentity};
 use models::{NewUser, UpdateUser, User, UserId};
-use models::{ResetMail, ResetToken, TokenType};
+use models::{ResetToken, TokenType};
 use repos::repo_factory::ReposFactory;
 
 pub trait UsersService {
@@ -52,11 +48,9 @@ pub trait UsersService {
     /// Get password reset token
     fn get_password_reset_token(&self, email_arg: String) -> ServiceFuture<String>;
     /// Apply password reset
-    fn password_reset_apply(&self, email_arg: String, token_arg: String) -> ServiceFuture<bool>;
+    fn password_reset_apply(&self, token: String, new_pass: String) -> ServiceFuture<String>;
     /// Creates reset token
     fn reset_token_create() -> String;
-    /// Send email
-    fn send_mail(http_client: ClientHandle, notif_config: Notifications, to: String, subject: String, text: String) -> ServiceFuture<bool>;
     /// Find by email
     fn find_by_email(&self, email: String) -> ServiceFuture<Option<User>>;
 }
@@ -71,7 +65,6 @@ pub struct UsersServiceImpl<
     pub cpu_pool: CpuPool,
     pub http_client: ClientHandle,
     user_id: Option<i32>,
-    pub notif_conf: Notifications,
     pub repo_factory: F,
 }
 
@@ -81,20 +74,12 @@ impl<
         F: ReposFactory<T>,
     > UsersServiceImpl<T, M, F>
 {
-    pub fn new(
-        db_pool: Pool<M>,
-        cpu_pool: CpuPool,
-        http_client: ClientHandle,
-        user_id: Option<i32>,
-        notif_conf: Notifications,
-        repo_factory: F,
-    ) -> Self {
+    pub fn new(db_pool: Pool<M>, cpu_pool: CpuPool, http_client: ClientHandle, user_id: Option<i32>, repo_factory: F) -> Self {
         Self {
             db_pool,
             cpu_pool,
             http_client,
             user_id,
-            notif_conf,
             repo_factory,
         }
     }
@@ -485,8 +470,6 @@ impl<
     fn get_password_reset_token(&self, email_arg: String) -> ServiceFuture<String> {
         let db_clone = self.db_pool.clone();
         let email = email_arg.clone();
-        let http_clone = self.http_client.clone();
-        let notif_config = self.notif_conf.clone();
         let repo_factory = self.repo_factory.clone();
 
         Box::new(
@@ -528,10 +511,8 @@ impl<
         )
     }
 
-    fn password_reset_apply(&self, token_arg: String, new_pass: String) -> ServiceFuture<bool> {
+    fn password_reset_apply(&self, token_arg: String, new_pass: String) -> ServiceFuture<String> {
         let db_clone = self.db_pool.clone();
-        let http_clone = self.http_client.clone();
-        let notif_config = self.notif_conf.clone();
         let repo_factory = self.repo_factory.clone();
 
         debug!("Resetting password for token {}.", &token_arg);
@@ -579,13 +560,7 @@ impl<
                                 })
                         })
                 })
-                .and_then(move |ident| {
-                    let to = ident.email.clone();
-                    let subject = "Password reset success".to_string();
-                    let text = "Password for linked account has been successfully reset.".to_string();
-
-                    Self::send_mail(http_clone.clone(), notif_config.clone(), to, subject, text).or_else(|_| future::ok(true))
-                })
+                .map(|ident| ident.email)
                 .map_err(|e: FailureError| e.context("Service users, password_reset_apply endpoint error occured.").into()),
         )
     }
@@ -593,23 +568,6 @@ impl<
     fn reset_token_create() -> String {
         let new_token = Uuid::new_v4().to_string();
         encode(&new_token)
-    }
-
-    fn send_mail(http_client: ClientHandle, notif_config: Notifications, to: String, subject: String, text: String) -> ServiceFuture<bool> {
-        let url = format!("{}/sendmail", notif_config.url.clone());
-
-        Box::new(
-            serde_json::to_string(&ResetMail { to, subject, text })
-                .map_err(From::from)
-                .into_future()
-                .and_then(move |body| {
-                    http_client
-                        .request::<String>(Method::Post, url, Some(body), None)
-                        .map(|_v| true)
-                        .map_err(|e| e.context("Error sending email").context(Error::HttpClient).into())
-                })
-                .map_err(|e: FailureError| e.context("Service users, send_mail endpoint error occured.").into()),
-        )
     }
 
     /// Find by email
