@@ -400,7 +400,7 @@ impl<
                             .validate()
                             .map_err(|e| format_err!("Validation of ResetRequest failed!").context(Error::Validate(e)).into())
                             .into_future()
-                            .and_then(move |_| users_service.password_reset_request(reset_req.email))
+                            .and_then(move |_| users_service.get_password_reset_token(reset_req.email))
                     }),
             ),
 
@@ -424,11 +424,34 @@ impl<
                     }),
             ),
 
-            // POST /email_verify/resend/<email>
-            (&Post, Some(Route::EmailVerifyResend(email))) => serialize_future(users_service.resend_verification_link(email)),
+            // Get /users/email_verify_token
+            (&Get, Some(Route::UserEmailVerifyToken)) => {
+                if let Some(email) = parse_query!(req.query().unwrap_or_default(), "email" => String) {
+                    debug!("Received request to get user with email {} verify token.", email);
+                    serialize_future(users_service.get_email_verification_token(email))
+                } else {
+                    Box::new(future::err(
+                        format_err!("Parsing query parameters // GET /users/email_verify_token failed!")
+                            .context(Error::Parse)
+                            .into(),
+                    ))
+                }
+            },
 
-            // POST /email_verify/apply/<token>
-            (&Post, Some(Route::EmailVerifyApply(token))) => serialize_future(users_service.verify_email(token)),
+            // POST /users/email_verify_token
+            (&Post, Some(Route::UserEmailVerifyToken)) => {
+                if let Some(token) = parse_query!(req.query().unwrap_or_default(), "token" => String) {
+                    debug!("Received request to apply token {} to verify email.", token);
+                    serialize_future(users_service.verify_email(token))
+                } else {
+                    Box::new(future::err(
+                        format_err!("Parsing query parameters // POST /users/email_verify_token failed!")
+                            .context(Error::Parse)
+                            .into(),
+                    ))
+                }
+            
+            },
 
             // GET /users/delivery_addresses/<user_id>
             (&Get, Some(Route::UserDeliveryAddress(user_id))) => {

@@ -41,16 +41,16 @@ pub trait UsersService {
     fn delete_by_saga_id(&self, saga_id: String) -> ServiceFuture<User>;
     /// Creates new user
     fn create(&self, payload: NewIdentity, user_payload: Option<NewUser>) -> ServiceFuture<User>;
-    /// Resends verification link
-    fn resend_verification_link(&self, email: String) -> ServiceFuture<bool>;
+    /// Get email verification token
+    fn get_email_verification_token(&self, email: String) -> ServiceFuture<String>;
     /// Verifies email
-    fn verify_email(&self, token_arg: String) -> ServiceFuture<bool>;
+    fn verify_email(&self, token_arg: String) -> ServiceFuture<String>;
     /// Updates specific user
     fn update(&self, user_id: UserId, payload: UpdateUser) -> ServiceFuture<User>;
     /// Change user password
     fn change_password(&self, payload: ChangeIdentityPassword) -> ServiceFuture<bool>;
-    /// Request password reset
-    fn password_reset_request(&self, email_arg: String) -> ServiceFuture<bool>;
+    /// Get password reset token
+    fn get_password_reset_token(&self, email_arg: String) -> ServiceFuture<String>;
     /// Apply password reset
     fn password_reset_apply(&self, email_arg: String, token_arg: String) -> ServiceFuture<bool>;
     /// Creates reset token
@@ -238,16 +238,12 @@ impl<
     fn create(&self, payload: NewIdentity, user_payload: Option<NewUser>) -> ServiceFuture<User> {
         let db_clone = self.db_pool.clone();
         let current_uid = self.user_id;
-        let http_clone = self.http_client.clone();
-        let notif_config = self.notif_conf.clone();
         let repo_factory = self.repo_factory.clone();
 
         debug!(
             "Creating new user with payload: {:?} and user_payload: {:?}",
             &payload, &user_payload
         );
-
-        let user_absent = user_payload.is_none();
 
         Box::new(
             self.cpu_pool
@@ -258,9 +254,8 @@ impl<
                         .and_then(move |conn| {
                             let users_repo = repo_factory.create_users_repo(&conn, current_uid);
                             let ident_repo = repo_factory.create_identities_repo(&conn);
-                            let reset_repo = repo_factory.create_reset_token_repo(&conn);
 
-                            conn.transaction::<(ResetToken, User), FailureError, _>(move || {
+                            conn.transaction::<User, FailureError, _>(move || {
                                 ident_repo
                                     .email_exists(payload.email.to_string())
                                     .map(move |exists| (payload, exists))
@@ -288,54 +283,18 @@ impl<
                                                 user.id.clone(),
                                                 new_ident.saga_id,
                                             )
-                                            .map(|ident| (ident, user))
-                                    })
-                                    .and_then(move |(ident, user)| {
-                                        let new_token = Self::reset_token_create();
-                                        let reset_token = ResetToken {
-                                            token: new_token,
-                                            email: ident.email.clone(),
-                                            token_type: TokenType::EmailVerify,
-                                            created_at: SystemTime::now(),
-                                        };
-
-                                        let _res = reset_repo.delete_by_email(reset_token.email.clone(), TokenType::EmailVerify);
-
-                                        reset_repo
-                                            .create(reset_token)
-                                            .map(|token| (token, user))
-                                            .map_err(|e| e.context("Can not create reset token").into())
+                                            .map(|_| user)
                                     })
                             })
                         })
-                })
-                .and_then(move |(token, user)| -> Box<Future<Item = User, Error = FailureError>> {
-                    let user_clone: User = user.clone();
-                    if user_absent {
-                        let to = token.email.clone();
-                        let subject = "Email verification".to_string();
-                        let text = format!("{}/{}", notif_config.verify_email_path.clone(), token.token.clone());
-
-                        debug!("Sending email notification to user");
-
-                        Box::new(
-                            Self::send_mail(http_clone.clone(), notif_config.clone(), to, subject, text)
-                                .map(|_| user)
-                                .or_else(|_| future::ok(user_clone)),
-                        )
-                    } else {
-                        Box::new(future::ok(user_clone))
-                    }
                 })
                 .map_err(|e: FailureError| e.context("Service users, create endpoint error occured.").into()),
         )
     }
 
-    /// Resends verification link
-    fn resend_verification_link(&self, email: String) -> ServiceFuture<bool> {
+    /// Get verification token
+    fn get_email_verification_token(&self, email: String) -> ServiceFuture<String> {
         let db_clone = self.db_pool.clone();
-        let http_clone = self.http_client.clone();
-        let notif_config = self.notif_conf.clone();
         let repo_factory = self.repo_factory.clone();
 
         Box::new(
@@ -359,25 +318,17 @@ impl<
 
                             reset_repo
                                 .create(reset_token)
+                                .map(|t| t.token)
                                 .map_err(|e| e.context("Can not create reset token").into())
                         })
-                })
-                .and_then(move |token| {
-                    let to = token.email.clone();
-                    let subject = "Email verification".to_string();
-                    let text = format!("{}/{}", notif_config.verify_email_path.clone(), token.token.clone());
-
-                    Self::send_mail(http_clone.clone(), notif_config.clone(), to, subject, text).or_else(|_| future::ok(true))
                 })
                 .map_err(|e: FailureError| e.context("Service users, resend_verification_link endpoint error occured.").into()),
         )
     }
 
     /// Verifies email
-    fn verify_email(&self, token_arg: String) -> ServiceFuture<bool> {
+    fn verify_email(&self, token_arg: String) -> ServiceFuture<String> {
         let db_clone = self.db_pool.clone();
-        let http_clone = self.http_client.clone();
-        let notif_config = self.notif_conf.clone();
         let repo_factory = self.repo_factory.clone();
 
         Box::new(
@@ -433,13 +384,7 @@ impl<
                                 })
                         })
                 })
-                .and_then(move |user| {
-                    let to = user.email.clone();
-                    let subject = "Email verification".to_string();
-                    let text = "Email for linked account has been verified".to_string();
-
-                    Self::send_mail(http_clone.clone(), notif_config.clone(), to, subject, text).or_else(|_| future::ok(true))
-                })
+                .map(|user| user.email)
                 .map_err(|e: FailureError| e.context("Service users, verify_email endpoint error occured.").into()),
         )
     }
@@ -537,14 +482,12 @@ impl<
         }
     }
 
-    fn password_reset_request(&self, email_arg: String) -> ServiceFuture<bool> {
+    fn get_password_reset_token(&self, email_arg: String) -> ServiceFuture<String> {
         let db_clone = self.db_pool.clone();
         let email = email_arg.clone();
         let http_clone = self.http_client.clone();
         let notif_config = self.notif_conf.clone();
         let repo_factory = self.repo_factory.clone();
-
-        debug!("Resetting password for email {}", &email_arg);
 
         Box::new(
             self.cpu_pool
@@ -580,13 +523,7 @@ impl<
                                 })
                         })
                 })
-                .and_then(move |token| {
-                    let to = token.email.clone();
-                    let subject = "Password reset".to_string();
-                    let text = format!("{}/{}", notif_config.reset_password_path.clone(), token.token.clone());
-
-                    Self::send_mail(http_clone.clone(), notif_config.clone(), to, subject, text).or_else(|_| future::ok(true))
-                })
+                .map(|t| t.token)
                 .map_err(|e: FailureError| e.context("Service users, password_reset_request endpoint error occured.").into()),
         )
     }
