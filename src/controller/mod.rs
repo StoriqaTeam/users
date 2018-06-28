@@ -103,7 +103,7 @@ impl<
         let user_id = auth_header.map(move |auth| auth.0.clone()).and_then(|id| i32::from_str(&id).ok());
 
         let cached_roles = self.roles_cache.clone();
-        let system_service = SystemServiceImpl::new();
+        let system_service = SystemServiceImpl::default();
         let users_service = UsersServiceImpl::new(
             self.db_pool.clone(),
             self.cpu_pool.clone(),
@@ -189,7 +189,7 @@ impl<
                             .validate()
                             .map_err(|e| {
                                 format_err!("Validation of SagaCreateProfile failed!")
-                                    .context(Error::Validate(e.into()))
+                                    .context(Error::Validate(e))
                                     .into()
                             })
                             .into_future()
@@ -223,11 +223,7 @@ impl<
                     .and_then(move |update_user| {
                         update_user
                             .validate()
-                            .map_err(|e| {
-                                format_err!("Validation of UpdateUser failed!")
-                                    .context(Error::Validate(e.into()))
-                                    .into()
-                            })
+                            .map_err(|e| format_err!("Validation of UpdateUser failed!").context(Error::Validate(e)).into())
                             .into_future()
                             .inspect(|_| {
                                 debug!("Validation success");
@@ -262,7 +258,7 @@ impl<
                             .validate()
                             .map_err(|e| {
                                 format_err!("Validation of NewEmailIdentity failed!")
-                                    .context(Error::Validate(e.into()))
+                                    .context(Error::Validate(e))
                                     .into()
                             })
                             .into_future()
@@ -380,7 +376,7 @@ impl<
                             .validate()
                             .map_err(|e| {
                                 format_err!("Validation of ChangeIdentityPassword failed!")
-                                    .context(Error::Validate(e.into()))
+                                    .context(Error::Validate(e))
                                     .into()
                             })
                             .into_future()
@@ -402,11 +398,7 @@ impl<
                     .and_then(move |reset_req| {
                         reset_req
                             .validate()
-                            .map_err(|e| {
-                                format_err!("Validation of ResetRequest failed!")
-                                    .context(Error::Validate(e.into()))
-                                    .into()
-                            })
+                            .map_err(|e| format_err!("Validation of ResetRequest failed!").context(Error::Validate(e)).into())
                             .into_future()
                             .and_then(move |_| users_service.password_reset_request(reset_req.email))
                     }),
@@ -426,11 +418,7 @@ impl<
                     .and_then(move |reset_apply| {
                         reset_apply
                             .validate()
-                            .map_err(|e| {
-                                format_err!("Validation of ResetApply failed!")
-                                    .context(Error::Validate(e.into()))
-                                    .into()
-                            })
+                            .map_err(|e| format_err!("Validation of ResetApply failed!").context(Error::Validate(e)).into())
                             .into_future()
                             .and_then(move |_| users_service.password_reset_apply(reset_apply.token, reset_apply.password))
                     }),
@@ -464,7 +452,7 @@ impl<
                             .validate()
                             .map_err(|e| {
                                 format_err!("Validation of NewUserDeliveryAddress failed!")
-                                    .context(Error::Validate(e.into()))
+                                    .context(Error::Validate(e))
                                     .into()
                             })
                             .into_future()
@@ -488,7 +476,7 @@ impl<
                             .validate()
                             .map_err(|e| {
                                 format_err!("Validation of UpdateUserDeliveryAddress failed!")
-                                    .context(Error::Validate(e.into()))
+                                    .context(Error::Validate(e))
                                     .into()
                             })
                             .into_future()

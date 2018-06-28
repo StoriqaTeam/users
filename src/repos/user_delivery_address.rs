@@ -55,8 +55,8 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
             .get_results::<UserDeliveryAddress>(self.db_conn)
             .map_err(From::from)
             .and_then(|addresses: Vec<UserDeliveryAddress>| {
-                for addres in addresses.iter() {
-                    acl::check(&*self.acl, &Resource::UserDeliveryAddresses, &Action::Read, self, Some(&addres))?;
+                for addres in &addresses {
+                    acl::check(&*self.acl, Resource::UserDeliveryAddresses, Action::Read, self, Some(&addres))?;
                 }
                 Ok(addresses)
             })
@@ -73,7 +73,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
             .get_result(self.db_conn)
             .map_err(From::from)
             .and_then(|addres| {
-                acl::check(&*self.acl, &Resource::UserDeliveryAddresses, &Action::Write, self, Some(&addres))?;
+                acl::check(&*self.acl, Resource::UserDeliveryAddresses, Action::Write, self, Some(&addres))?;
                 Ok(addres)
             })
             .and_then(|new_address| {
@@ -93,13 +93,13 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 
     /// Update a user delivery address
     fn update(&self, id_arg: i32, payload: UpdateUserDeliveryAddress) -> RepoResult<UserDeliveryAddress> {
-        let query = user_delivery_address.find(id_arg.clone());
+        let query = user_delivery_address.find(id_arg);
 
         query
             .get_result(self.db_conn)
             .map_err(From::from)
             .and_then(|addres: UserDeliveryAddress| {
-                acl::check(&*self.acl, &Resource::UserDeliveryAddresses, &Action::Write, self, Some(&addres))
+                acl::check(&*self.acl, Resource::UserDeliveryAddresses, Action::Write, self, Some(&addres))
             })
             .and_then(|_| {
                 let filter = user_delivery_address.filter(id.eq(id_arg));
@@ -126,13 +126,13 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 
     /// Delete user delivery address
     fn delete(&self, id_arg: i32) -> RepoResult<UserDeliveryAddress> {
-        let query = user_delivery_address.find(id_arg.clone());
+        let query = user_delivery_address.find(id_arg);
 
         query
             .get_result(self.db_conn)
             .map_err(From::from)
             .and_then(|addres: UserDeliveryAddress| {
-                acl::check(&*self.acl, &Resource::UserDeliveryAddresses, &Action::Write, self, Some(&addres))
+                acl::check(&*self.acl, Resource::UserDeliveryAddresses, Action::Write, self, Some(&addres))
             })
             .and_then(|_| {
                 let filtered = user_delivery_address.filter(id.eq(id_arg));

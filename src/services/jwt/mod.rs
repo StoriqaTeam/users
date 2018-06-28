@@ -211,9 +211,12 @@ where
                         .context(Error::HttpClient)
                         .into()
                 })
-                .and_then(|val| match val["email"].is_null() {
-                    true => Err(Error::Validate(validation_errors!({"email": ["email" => "Email required but not provided"]})).into()),
-                    false => serde_json::from_value::<P>(val).map_err(From::from),
+                .and_then(|val| {
+                    if val["email"].is_null() {
+                        Err(Error::Validate(validation_errors!({"email": ["email" => "Email required but not provided"]})).into())
+                    } else {
+                        serde_json::from_value::<P>(val).map_err(From::from)
+                    }
                 })
                 .map_err(|e: FailureError| e.context("Service jwt, get_profile endpoint error occured.").into()),
         )
@@ -232,17 +235,21 @@ where
                             let users_repo = repo_factory.create_users_repo_with_sys_acl(&conn);
                             let ident_repo = repo_factory.create_identities_repo(&conn);
                             conn.transaction(move || {
-                                users_repo
-                                    .email_exists(profile.get_email())
-                                    .and_then(|user_exists| match user_exists {
-                                        false => Ok(ProfileStatus::NewUser),
-                                        true => ident_repo
+                                users_repo.email_exists(profile.get_email()).and_then(|user_exists| {
+                                    if user_exists {
+                                        ident_repo
                                             .email_provider_exists(profile.get_email(), provider)
-                                            .map(|identity_exists| match identity_exists {
-                                                false => ProfileStatus::NewIdentity,
-                                                true => ProfileStatus::ExistingProfile,
-                                            }),
-                                    })
+                                            .map(|identity_exists| {
+                                                if identity_exists {
+                                                    ProfileStatus::ExistingProfile
+                                                } else {
+                                                    ProfileStatus::NewIdentity
+                                                }
+                                            })
+                                    } else {
+                                        Ok(ProfileStatus::NewUser)
+                                    }
+                                })
                             })
                         })
                 })
@@ -346,65 +353,58 @@ impl<
                                     .email_provider_exists(payload.email.to_string(), Provider::Email)
                                     .map(|exists| (exists, payload))
                                     .and_then(move |(exists, new_ident)| -> RepoResult<i32> {
-                                        match exists {
+                                        if !exists {
                                             // email does not exist
-                                            false => {
-                                                Err(Error::Validate(validation_errors!({"email": ["email" => "Email not found"]})).into())
-                                            }
+                                            Err(Error::Validate(validation_errors!({"email": ["email" => "Email not found"]})).into())
+                                        } else {
                                             // email exists, checking password
-                                            true => {
-                                                users_repo
-                                                    .find_by_email(new_ident.email.clone())
-                                                    .map(|user| (new_ident, user))
-                                                    .and_then(move |(new_ident, user)| {
-                                                        if let Some(user) = user {
-                                                            match user.email_verified {
-                                                                true => {
-                                                                    let new_ident_clone = new_ident.clone();
-                                                                    ident_repo
-                                                                        .find_by_email_provider(new_ident.email.clone(), Provider::Email)
-                                                                        .and_then(move |identity| {
-                                                                            if let Some(passwd) = identity.password {
-                                                                                password_verify(passwd, new_ident.password.clone())
-                                                                            } else {
-                                                                                error!(
-                                                                        "No password in db for user with Email provider, user_id: {}",
-                                                                        &identity.user_id
-                                                                    );
-                                                                                Err(Error::Validate(
+                                            users_repo
+                                                .find_by_email(new_ident.email.clone())
+                                                .map(|user| (new_ident, user))
+                                                .and_then(move |(new_ident, user)| {
+                                                    if let Some(user) = user {
+                                                        if user.email_verified {
+                                                            let new_ident_clone = new_ident.clone();
+                                                            ident_repo
+                                                                .find_by_email_provider(new_ident.email.clone(), Provider::Email)
+                                                                .and_then(move |identity| {
+                                                                    if let Some(passwd) = identity.password {
+                                                                        password_verify(&passwd, new_ident.password.clone())
+                                                                    } else {
+                                                                        error!(
+                                                                            "No password in db for user with Email provider, user_id: {}",
+                                                                            &identity.user_id
+                                                                        );
+                                                                        Err(Error::Validate(
                                                                         validation_errors!({"password": ["password" => "Wrong password"]}),
                                                                     ).into())
-                                                                            }
-                                                                        })
-                                                                        .map(move |verified| (verified, new_ident_clone))
-                                                                        .and_then(
-                                                                            move |(verified, new_ident)| -> Result<i32, FailureError> {
-                                                                                match verified {
-                                                                    //password not verified
-                                                                    false => Err(Error::Validate(
-                                                                        validation_errors!({"password": ["password" => "Wrong password"]}),
-                                                                    ).into()),
-                                                                    //password verified
-                                                                    true => ident_repo
-                                                                        .find_by_email_provider(new_ident.email, Provider::Email)
-                                                                        .map(|ident| ident.user_id.0),
-                                                                }
-                                                                            },
-                                                                        )
-                                                                }
-                                                                false => Err(
-                                                                    Error::Validate(
-                                                                        validation_errors!({"email": ["email" => "Email not verified"]}),
-                                                                    ).into(),
-                                                                ),
-                                                            }
+                                                                    }
+                                                                })
+                                                                .map(move |verified| (verified, new_ident_clone))
+                                                                .and_then(move |(verified, new_ident)| -> Result<i32, FailureError> {
+                                                                    if !verified {
+                                                                        //password not verified
+                                                                        Err(Error::Validate(
+                                                                            validation_errors!({"password": ["password" => "Wrong password"]}),
+                                                                        ).into())
+                                                                    } else {
+                                                                        //password verified
+                                                                        ident_repo
+                                                                            .find_by_email_provider(new_ident.email, Provider::Email)
+                                                                            .map(|ident| ident.user_id.0)
+                                                                    }
+                                                                })
                                                         } else {
-                                                            Err(Error::NotFound
-                                                                .context(format!("User with email {} not found!", new_ident.email))
-                                                                .into())
+                                                            Err(Error::Validate(
+                                                                validation_errors!({"email": ["email" => "Email not verified"]}),
+                                                            ).into())
                                                         }
-                                                    })
-                                            }
+                                                    } else {
+                                                        Err(Error::NotFound
+                                                            .context(format!("User with email {} not found!", new_ident.email))
+                                                            .into())
+                                                    }
+                                                })
                                         }
                                     })
                                     .and_then(move |id| {

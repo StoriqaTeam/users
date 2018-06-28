@@ -16,7 +16,7 @@ pub fn password_create(clear_password: String) -> String {
     computed_hash + "." + &salt
 }
 
-pub fn password_verify(db_hash: String, clear_password: String) -> RepoResult<bool> {
+pub fn password_verify(db_hash: &str, clear_password: String) -> RepoResult<bool> {
     let v: Vec<&str> = db_hash.split('.').collect();
     if v.len() != 2 {
         Err(Error::Validate(validation_errors!({"password": ["password" => "Password in db has wrong format"]})).into())

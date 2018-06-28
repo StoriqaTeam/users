@@ -108,7 +108,7 @@ pub fn start_server(config: Config) {
     handle.spawn(client_stream.for_each(|_| Ok(())));
 
     // Prepare server
-    let thread_count = config.server.thread_count.clone();
+    let thread_count = config.server.thread_count;
 
     // Prepare server
     let address = {

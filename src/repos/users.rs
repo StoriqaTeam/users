@@ -15,7 +15,7 @@ use repos::legacy_acl::*;
 use super::acl;
 use super::types::RepoResult;
 use models::authorization::*;
-use models::user::user::users::dsl::*;
+use models::user::users::dsl::*;
 use models::{NewUser, UpdateUser, User, UserId};
 
 /// Users repository, responsible for handling users
@@ -67,7 +67,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
             .map_err(From::from)
             .and_then(|user: Option<User>| {
                 if let Some(ref user) = user {
-                    acl::check(&*self.acl, &Resource::Users, &Action::Read, self, Some(user))?;
+                    acl::check(&*self.acl, Resource::Users, Action::Read, self, Some(user))?;
                 };
                 Ok(user)
             })
@@ -81,7 +81,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
         query
             .get_result(self.db_conn)
             .map_err(From::from)
-            .and_then(|exists| acl::check(&*self.acl, &Resource::Users, &Action::Read, self, None).and_then(|_| Ok(exists)))
+            .and_then(|exists| acl::check(&*self.acl, Resource::Users, Action::Read, self, None).and_then(|_| Ok(exists)))
             .map_err(|e: FailureError| {
                 e.context(format!("Check that user with email {} already exists error occured", email_arg))
                     .into()
@@ -98,7 +98,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
             .map_err(From::from)
             .and_then(|user: Option<User>| {
                 if let Some(ref user) = user {
-                    acl::check(&*self.acl, &Resource::Users, &Action::Read, self, Some(user))?;
+                    acl::check(&*self.acl, Resource::Users, Action::Read, self, Some(user))?;
                 };
                 Ok(user)
             })
@@ -116,8 +116,8 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
             .get_results(self.db_conn)
             .map_err(From::from)
             .and_then(|users_res: Vec<User>| {
-                for user in users_res.iter() {
-                    acl::check(&*self.acl, &Resource::Users, &Action::Read, self, Some(&user))?;
+                for user in &users_res {
+                    acl::check(&*self.acl, Resource::Users, Action::Read, self, Some(&user))?;
                 }
 
                 Ok(users_res)
@@ -143,7 +143,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
         query
             .get_result(self.db_conn)
             .map_err(From::from)
-            .and_then(|user: User| acl::check(&*self.acl, &Resource::Users, &Action::Write, self, Some(&user)))
+            .and_then(|user: User| acl::check(&*self.acl, Resource::Users, Action::Write, self, Some(&user)))
             .and_then(|_| {
                 let filter = users.filter(id.eq(user_id_arg.clone())).filter(is_active.eq(true));
 
@@ -163,7 +163,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
         query
             .get_result(self.db_conn)
             .map_err(From::from)
-            .and_then(|user: User| acl::check(&*self.acl, &Resource::Users, &Action::Write, self, Some(&user)))
+            .and_then(|user: User| acl::check(&*self.acl, Resource::Users, Action::Write, self, Some(&user)))
             .and_then(|_| {
                 let filter = users.filter(id.eq(user_id_arg.clone())).filter(is_active.eq(true));
                 let query = diesel::update(filter).set(is_active.eq(false));
