@@ -11,7 +11,7 @@ use failure::Error as FailureError;
 use failure::Fail;
 
 use super::types::RepoResult;
-use models::identity::identity::identities::dsl::*;
+use models::identity::identities::dsl::*;
 use models::UserId;
 use models::{Identity, Provider, UpdateIdentity};
 

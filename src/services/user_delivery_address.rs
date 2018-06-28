@@ -63,7 +63,7 @@ impl<
     fn get_addresses(&self, user_id: i32) -> ServiceFuture<Vec<UserDeliveryAddress>> {
         let db_pool = self.db_pool.clone();
         let repo_factory = self.repo_factory.clone();
-        let curent_user_id = self.user_id.clone();
+        let curent_user_id = self.user_id;
 
         Box::new(
             self.cpu_pool
@@ -87,7 +87,7 @@ impl<
     fn delete(&self, id: i32) -> ServiceFuture<UserDeliveryAddress> {
         let db_pool = self.db_pool.clone();
         let repo_factory = self.repo_factory.clone();
-        let user_id = self.user_id.clone();
+        let user_id = self.user_id;
 
         Box::new(
             self.cpu_pool
@@ -108,7 +108,7 @@ impl<
     fn create(&self, payload: NewUserDeliveryAddress) -> ServiceFuture<UserDeliveryAddress> {
         let db_pool = self.db_pool.clone();
         let repo_factory = self.repo_factory.clone();
-        let user_id = self.user_id.clone();
+        let user_id = self.user_id;
 
         Box::new(
             self.cpu_pool
@@ -129,7 +129,7 @@ impl<
     fn update(&self, id: i32, payload: UpdateUserDeliveryAddress) -> ServiceFuture<UserDeliveryAddress> {
         let db_pool = self.db_pool.clone();
         let repo_factory = self.repo_factory.clone();
-        let user_id = self.user_id.clone();
+        let user_id = self.user_id;
 
         Box::new(
             self.cpu_pool

@@ -109,7 +109,7 @@ impl<
     /// Returns user by ID
     fn get(&self, user_id: UserId) -> ServiceFuture<Option<User>> {
         let db_clone = self.db_pool.clone();
-        let current_uid = self.user_id.clone();
+        let current_uid = self.user_id;
         let repo_factory = self.repo_factory.clone();
 
         debug!("Getting user {}", user_id);
@@ -133,7 +133,7 @@ impl<
     fn current(&self) -> ServiceFuture<User> {
         if let Some(id) = self.user_id {
             let db_clone = self.db_pool.clone();
-            let current_uid = self.user_id.clone();
+            let current_uid = self.user_id;
             let repo_factory = self.repo_factory.clone();
 
             debug!("Fetching current user ({})", id);
@@ -160,7 +160,7 @@ impl<
             )
         } else {
             Box::new(future::err(
-                Error::Forbidden.context(format!("There is no user id in request header")).into(),
+                Error::Forbidden.context("There is no user id in request header").into(),
             ))
         }
     }
@@ -168,7 +168,7 @@ impl<
     /// Lists users limited by `from` and `count` parameters
     fn list(&self, from: i32, count: i64) -> ServiceFuture<Vec<User>> {
         let db_clone = self.db_pool.clone();
-        let current_uid = self.user_id.clone();
+        let current_uid = self.user_id;
         let repo_factory = self.repo_factory.clone();
 
         debug!("Fetching {} users starting from {}", count, from);
@@ -191,7 +191,7 @@ impl<
     /// Deactivates specific user
     fn deactivate(&self, user_id: UserId) -> ServiceFuture<User> {
         let db_clone = self.db_pool.clone();
-        let current_uid = self.user_id.clone();
+        let current_uid = self.user_id;
         let repo_factory = self.repo_factory.clone();
 
         debug!("Deactivating user {}", &user_id);
@@ -214,7 +214,7 @@ impl<
     /// Deactivates specific user
     fn delete_by_saga_id(&self, saga_id: String) -> ServiceFuture<User> {
         let db_clone = self.db_pool.clone();
-        let current_uid = self.user_id.clone();
+        let current_uid = self.user_id;
         let repo_factory = self.repo_factory.clone();
 
         debug!("Deleting user with saga ID {}", &saga_id);
@@ -237,7 +237,7 @@ impl<
     /// Creates new user
     fn create(&self, payload: NewIdentity, user_payload: Option<NewUser>) -> ServiceFuture<User> {
         let db_clone = self.db_pool.clone();
-        let current_uid = self.user_id.clone();
+        let current_uid = self.user_id;
         let http_clone = self.http_client.clone();
         let notif_config = self.notif_conf.clone();
         let repo_factory = self.repo_factory.clone();
@@ -264,9 +264,10 @@ impl<
                                 ident_repo
                                     .email_exists(payload.email.to_string())
                                     .map(move |exists| (payload, exists))
-                                    .and_then(|(payload, exists)| match exists {
-                                        false => Ok(payload),
-                                        true => {
+                                    .and_then(|(payload, exists)| {
+                                        if !exists {
+                                            Ok(payload)
+                                        } else {
                                             Err(Error::Validate(validation_errors!({"email": ["email" => "Email already exists"]})).into())
                                         }
                                     })
@@ -282,7 +283,7 @@ impl<
                                         ident_repo
                                             .create(
                                                 new_ident.email,
-                                                new_ident.password.clone().map(|pass| password_create(pass)),
+                                                new_ident.password.clone().map(password_create),
                                                 new_ident.provider.clone(),
                                                 user.id.clone(),
                                                 new_ident.saga_id,
@@ -446,7 +447,7 @@ impl<
     /// Updates specific user
     fn update(&self, user_id: UserId, payload: UpdateUser) -> ServiceFuture<User> {
         let db_clone = self.db_pool.clone();
-        let current_uid = self.user_id.clone();
+        let current_uid = self.user_id;
         let repo_factory = self.repo_factory.clone();
 
         debug!("Updating user {} with payload: {:?}", &user_id, &payload);
@@ -494,7 +495,7 @@ impl<
                                             .and_then(move |identity| {
                                                 let ident_clone = identity.clone();
                                                 if let Some(passwd) = ident_clone.password {
-                                                    let verified = password_verify(passwd, old_password);
+                                                    let verified = password_verify(&passwd, old_password);
 
                                                     match verified {
                                                         Ok(verified) => Ok((verified, identity)),
@@ -510,20 +511,18 @@ impl<
                                                 }
                                             })
                                             .and_then(move |(verified, identity)| {
-                                                match verified {
+                                                if !verified {
                                                     //password not verified
-                                                    false => Err(Error::Validate(
-                                                        validation_errors!({"password": ["password" => "Wrong password"]}),
-                                                    ).into()),
+                                                    Err(Error::Validate(validation_errors!({"password": ["password" => "Wrong password"]}))
+                                                        .into())
+                                                } else {
                                                     //password verified
-                                                    true => {
-                                                        debug!("Changing password for identity {:?}", &identity);
-                                                        let update = UpdateIdentity {
-                                                            password: Some(password_create(new_password)),
-                                                        };
+                                                    debug!("Changing password for identity {:?}", &identity);
+                                                    let update = UpdateIdentity {
+                                                        password: Some(password_create(new_password)),
+                                                    };
 
-                                                        ident_repo.update(identity, update).map(|_| true)
-                                                    }
+                                                    ident_repo.update(identity, update).map(|_| true)
                                                 }
                                             })
                                     })
@@ -533,7 +532,7 @@ impl<
                 )
             }
             None => Box::new(future::err(
-                Error::Forbidden.context(format!("Only authorized user can change password")).into(),
+                Error::Forbidden.context("Only authorized user can change password").into(),
             )),
         }
     }
@@ -679,7 +678,7 @@ impl<
     /// Find by email
     fn find_by_email(&self, email: String) -> ServiceFuture<Option<User>> {
         let db_clone = self.db_pool.clone();
-        let current_uid = self.user_id.clone();
+        let current_uid = self.user_id;
         let repo_factory = self.repo_factory.clone();
 
         debug!("Getting user by email {}", email);

@@ -102,10 +102,10 @@ impl IntoUser for FacebookProfile {
         };
         UpdateUser {
             phone: None,
-            first_name: first_name,
-            last_name: last_name,
+            first_name,
+            last_name,
             middle_name: None,
-            gender: gender,
+            gender,
             birthdate: None,
             avatar: None,
             is_active: Some(true),
@@ -124,8 +124,8 @@ impl IntoUser for GoogleProfile {
         };
         UpdateUser {
             phone: None,
-            first_name: first_name,
-            last_name: last_name,
+            first_name,
+            last_name,
             middle_name: None,
             gender: None,
             birthdate: None,

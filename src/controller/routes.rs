@@ -56,7 +56,7 @@ pub fn create_route_parser() -> RouteParser<Route> {
         params
             .get(0)
             .and_then(|string_id| string_id.parse::<UserId>().ok())
-            .map(|user_id| Route::User(user_id))
+            .map(Route::User)
     });
 
     // Users/:id route
@@ -64,7 +64,7 @@ pub fn create_route_parser() -> RouteParser<Route> {
         params
             .get(0)
             .and_then(|string_id| string_id.parse::<String>().ok())
-            .map(|saga_id| Route::UserBySagaId(saga_id))
+            .map(Route::UserBySagaId)
     });
 
     // User Routes
@@ -75,7 +75,7 @@ pub fn create_route_parser() -> RouteParser<Route> {
         params
             .get(0)
             .and_then(|string_id| string_id.parse::<i32>().ok())
-            .map(|user_id| Route::UserRole(user_id))
+            .map(Route::UserRole)
     });
 
     // roles/default/:id route
@@ -83,7 +83,7 @@ pub fn create_route_parser() -> RouteParser<Route> {
         params
             .get(0)
             .and_then(|string_id| string_id.parse::<UserId>().ok())
-            .map(|user_id| Route::DefaultRole(user_id))
+            .map(Route::DefaultRole)
     });
 
     // /users/password_change route
@@ -99,14 +99,14 @@ pub fn create_route_parser() -> RouteParser<Route> {
         params
             .get(0)
             .and_then(|string_id| string_id.parse::<String>().ok())
-            .map(|email| Route::EmailVerifyResend(email))
+            .map(Route::EmailVerifyResend)
     });
 
     router.add_route_with_params(r"^/email_verify/apply/(.+)$", |params| {
         params
             .get(0)
             .and_then(|string_id| string_id.parse::<String>().ok())
-            .map(|token| Route::EmailVerifyApply(token))
+            .map(Route::EmailVerifyApply)
     });
 
     // User delivery addresses route

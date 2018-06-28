@@ -7,7 +7,7 @@ use diesel::Connection;
 use failure::Fail;
 
 use super::types::RepoResult;
-use models::reset_token::reset_token::reset_tokens::dsl::*;
+use models::reset_token::reset_tokens::dsl::*;
 use models::{ResetToken, TokenType};
 
 /// Identities repository, responsible for handling identities
