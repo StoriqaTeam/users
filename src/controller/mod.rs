@@ -109,7 +109,6 @@ impl<
             self.cpu_pool.clone(),
             self.client_handle.clone(),
             user_id,
-            self.config.notifications.clone(),
             self.repo_factory.clone(),
         );
         let jwt_service = JWTServiceImpl::new(
@@ -178,7 +177,7 @@ impl<
             (&Post, Some(Route::Users)) => serialize_future(
                 parse_body::<models::SagaCreateProfile>(req.body())
                     .map_err(|e| {
-                        e.context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                        e.context("Parsing body // POST /users in SagaCreateProfile failed!")
                             .context(Error::Parse)
                             .into()
                     })
@@ -213,7 +212,7 @@ impl<
             (&Put, Some(Route::User(user_id))) => serialize_future(
                 parse_body::<models::user::UpdateUser>(req.body())
                     .map_err(|e| {
-                        e.context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                        e.context("Parsing body // PUT /users/<user_id> in UpdateUser failed!")
                             .context(Error::Parse)
                             .into()
                     })
@@ -248,7 +247,7 @@ impl<
             (&Post, Some(Route::JWTEmail)) => serialize_future(
                 parse_body::<models::identity::NewEmailIdentity>(req.body())
                     .map_err(|e| {
-                        e.context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                        e.context("Parsing body // POST /jwt/email in NewEmailIdentity failed!")
                             .context(Error::Parse)
                             .into()
                     })
@@ -282,7 +281,7 @@ impl<
             (&Post, Some(Route::JWTGoogle)) => serialize_future(
                 parse_body::<models::jwt::ProviderOauth>(req.body())
                     .map_err(|e| {
-                        e.context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                        e.context("Parsing body // POST /jwt/google in ProviderOauth failed!")
                             .context(Error::Parse)
                             .into()
                     })
@@ -300,7 +299,7 @@ impl<
             (&Post, Some(Route::JWTFacebook)) => serialize_future(
                 parse_body::<models::jwt::ProviderOauth>(req.body())
                     .map_err(|e| {
-                        e.context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                        e.context("Parsing body // POST /jwt/facebook in ProviderOauth failed!")
                             .context(Error::Parse)
                             .into()
                     })
@@ -324,7 +323,7 @@ impl<
             (&Post, Some(Route::UserRoles)) => serialize_future(
                 parse_body::<models::NewUserRole>(req.body())
                     .map_err(|e| {
-                        e.context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                        e.context("Parsing body // POST /user_roles in NewUserRole failed!")
                             .context(Error::Parse)
                             .into()
                     })
@@ -338,7 +337,7 @@ impl<
             (&Delete, Some(Route::UserRoles)) => serialize_future(
                 parse_body::<models::OldUserRole>(req.body())
                     .map_err(|e| {
-                        e.context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                        e.context("Parsing body // DELETE /user_roles/<user_role_id> in OldUserRole failed!")
                             .context(Error::Parse)
                             .into()
                     })
@@ -364,7 +363,7 @@ impl<
             (&Post, Some(Route::PasswordChange)) => serialize_future(
                 parse_body::<models::ChangeIdentityPassword>(req.body())
                     .map_err(|e| {
-                        e.context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                        e.context("Parsing body // POST /users/password_change in ChangeIdentityPassword failed!")
                             .context(Error::Parse)
                             .into()
                     })
@@ -384,11 +383,11 @@ impl<
                     }),
             ),
 
-            // POST /users/password_reset/request
-            (&Post, Some(Route::PasswordResetRequest)) => serialize_future(
+            // Post /users/password_reset_token
+            (&Post, Some(Route::UserPasswordResetToken)) => serialize_future(
                 parse_body::<models::ResetRequest>(req.body())
                     .map_err(|e| {
-                        e.context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                        e.context("Parsing body // Post /users/password_reset_token in ResetRequest failed!")
                             .context(Error::Parse)
                             .into()
                     })
@@ -400,15 +399,15 @@ impl<
                             .validate()
                             .map_err(|e| format_err!("Validation of ResetRequest failed!").context(Error::Validate(e)).into())
                             .into_future()
-                            .and_then(move |_| users_service.password_reset_request(reset_req.email))
+                            .and_then(move |_| users_service.get_password_reset_token(reset_req.email))
                     }),
             ),
 
-            // POST /users/password_reset/apply
-            (&Post, Some(Route::PasswordResetApply)) => serialize_future(
+            // PUT /users/password_reset_token
+            (&Put, Some(Route::UserPasswordResetToken)) => serialize_future(
                 parse_body::<models::ResetApply>(req.body())
                     .map_err(|e| {
-                        e.context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                        e.context("Parsing body // PUT /users/password_reset_token in ResetApply failed!")
                             .context(Error::Parse)
                             .into()
                     })
@@ -424,11 +423,39 @@ impl<
                     }),
             ),
 
-            // POST /email_verify/resend/<email>
-            (&Post, Some(Route::EmailVerifyResend(email))) => serialize_future(users_service.resend_verification_link(email)),
+            // Post /users/email_verify_token
+            (&Post, Some(Route::UserEmailVerifyToken)) => serialize_future(
+                parse_body::<models::ResetRequest>(req.body())
+                    .map_err(|e| {
+                        e.context("Parsing body // Post /users/email_verify_token in ResetRequest failed!")
+                            .context(Error::Parse)
+                            .into()
+                    })
+                    .inspect(|payload| {
+                        debug!("Received request to get user with email {} verify token", payload.email);
+                    })
+                    .and_then(move |reset_req| {
+                        reset_req
+                            .validate()
+                            .map_err(|e| format_err!("Validation of ResetRequest failed!").context(Error::Validate(e)).into())
+                            .into_future()
+                            .and_then(move |_| users_service.get_email_verification_token(reset_req.email))
+                    }),
+            ),
 
-            // POST /email_verify/apply/<token>
-            (&Post, Some(Route::EmailVerifyApply(token))) => serialize_future(users_service.verify_email(token)),
+            // Put /users/email_verify_token
+            (&Put, Some(Route::UserEmailVerifyToken)) => {
+                if let Some(token) = parse_query!(req.query().unwrap_or_default(), "token" => String) {
+                    debug!("Received request to apply token {} to verify email.", token);
+                    serialize_future(users_service.verify_email(token))
+                } else {
+                    Box::new(future::err(
+                        format_err!("Parsing query parameters // Put /users/email_verify_token failed!")
+                            .context(Error::Parse)
+                            .into(),
+                    ))
+                }
+            }
 
             // GET /users/delivery_addresses/<user_id>
             (&Get, Some(Route::UserDeliveryAddress(user_id))) => {
@@ -440,7 +467,7 @@ impl<
             (&Post, Some(Route::UserDeliveryAddresses)) => serialize_future(
                 parse_body::<models::NewUserDeliveryAddress>(req.body())
                     .map_err(|e| {
-                        e.context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                        e.context("Parsing body // POST /users/delivery_addresses in NewUserDeliveryAddress failed!")
                             .context(Error::Parse)
                             .into()
                     })
@@ -464,7 +491,7 @@ impl<
             (&Put, Some(Route::UserDeliveryAddress(id))) => serialize_future(
                 parse_body::<models::UpdateUserDeliveryAddress>(req.body())
                     .map_err(|e| {
-                        e.context("Parsing body // POST /stores/cart in Vec<CartProduct> failed!")
+                        e.context("Parsing body PUT /users/delivery_addresses/<id> in UpdateUserDeliveryAddress failed!")
                             .context(Error::Parse)
                             .into()
                     })

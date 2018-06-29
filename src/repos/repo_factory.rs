@@ -145,7 +145,6 @@ pub mod tests {
     use stq_http::client::Config as HttpConfig;
 
     use config::Config;
-    use config::Notifications;
     use models::*;
     use repos::identities::IdentitiesRepo;
     use repos::repo_factory::ReposFactory;
@@ -423,13 +422,7 @@ pub mod tests {
         let client = stq_http::client::Client::new(&http_config, &handle);
         let client_handle = client.handle();
 
-        let notif_config = Notifications {
-            url: "url".to_string(),
-            verify_email_path: "verify_email_path".to_string(),
-            reset_password_path: "reset_password_path".to_string(),
-        };
-
-        UsersServiceImpl::new(db_pool, cpu_pool, client_handle, user_id, notif_config, MOCK_REPO_FACTORY)
+        UsersServiceImpl::new(db_pool, cpu_pool, client_handle, user_id, MOCK_REPO_FACTORY)
     }
 
     pub fn create_jwt_service(handle: Arc<Handle>) -> JWTServiceImpl<MockConnection, MockConnectionManager, ReposFactoryMock> {
