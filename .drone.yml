@@ -25,7 +25,6 @@ pipeline:
     - rm -rf .git && mv -f .git.bak .git
     when:
       event: pull_request
-      branch: [ master, release* ]
   test:
     image: rust:1.26-stretch
     environment:
@@ -63,6 +62,9 @@ pipeline:
     - cargo build --release --locked
     when:
       event: push
+      branch:
+      - master
+      - release
   package:
     image: plugins/docker
     repo: storiqateam/stq-users
@@ -74,7 +76,12 @@ pipeline:
     - docker_password
     dockerfile: docker/Dockerfile.run
     when:
-      event: [ push, tag ]
+      event:
+      - push
+      - tag
+      branch:
+      - master
+      - release
   deploy2nightly:
     image: jackthestripper/drone_k8s_rollout:20180610
     namespace: default
@@ -113,7 +120,7 @@ pipeline:
     - source: k8s_stage_addr
       target: k8s_addr
     when:
-      branch: release*
+      branch: release
       event: push
 
 ###
@@ -159,7 +166,7 @@ pipeline:
     - source: k8s_prod_addr
       target: k8s_addr
     when:
-      branch: release*
+      branch: release
       event: deployment
       environment: production
 
@@ -184,15 +191,16 @@ pipeline:
     icon_url: https://drone.io/favicon.ico
     username: cd.stq.cloud
     template: >
-      {{#success build.status}}
-        Build {{build.number}} for {{repo.name}} branch {{build.branch}} succeeded.
-      {{else}}
         Build {{build.number}} for {{repo.name}} branch {{build.branch}} failed.
-      {{/success}}
     when:
-      event: [ push, deployment ]
-      branch: [ master, release ]
-      status: [ failure, success ]
+      event:
+      - push
+      - deployment
+      - tag
+      branch:
+      - master
+      - release
+      status: failure
 
 ###
 # Test services
