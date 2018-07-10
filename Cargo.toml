@@ -34,4 +34,5 @@ failure = "0.1.1"
 lazy_static = "1.0"
 stq_http = { path = "vendor/libstqbackend/http" }
 stq_router = { path = "vendor/libstqbackend/router" }
+stq_logging = { path = "vendor/libstqbackend/logging" }
 uuid = { version = "*", features = ["use_std", "v4", "serde"] }
