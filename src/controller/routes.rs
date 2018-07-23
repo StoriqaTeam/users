@@ -9,6 +9,7 @@ pub enum Route {
     Users,
     User(UserId),
     UserBySagaId(String),
+    UserByEmail,
     Current,
     JWTEmail,
     JWTGoogle,
@@ -18,10 +19,8 @@ pub enum Route {
     UserRole(i32),
     DefaultRole(UserId),
     PasswordChange,
-    PasswordResetRequest,
-    PasswordResetApply,
-    EmailVerifyResend(String),
-    EmailVerifyApply(String),
+    UserPasswordResetToken,
+    UserEmailVerifyToken,
     UserDeliveryAddresses,
     UserDeliveryAddress(i32),
 }
@@ -34,6 +33,9 @@ pub fn create_route_parser() -> RouteParser<Route> {
 
     // Users Routes
     router.add_route(r"^/users$", || Route::Users);
+
+    // User by email Route
+    router.add_route(r"^/users/by_email$", || Route::UserByEmail);
 
     // Users Routes
     router.add_route(r"^/users/current$", || Route::Current);
@@ -52,7 +54,7 @@ pub fn create_route_parser() -> RouteParser<Route> {
         params
             .get(0)
             .and_then(|string_id| string_id.parse::<UserId>().ok())
-            .map(|user_id| Route::User(user_id))
+            .map(Route::User)
     });
 
     // Users/:id route
@@ -60,7 +62,7 @@ pub fn create_route_parser() -> RouteParser<Route> {
         params
             .get(0)
             .and_then(|string_id| string_id.parse::<String>().ok())
-            .map(|saga_id| Route::UserBySagaId(saga_id))
+            .map(Route::UserBySagaId)
     });
 
     // User Routes
@@ -71,7 +73,7 @@ pub fn create_route_parser() -> RouteParser<Route> {
         params
             .get(0)
             .and_then(|string_id| string_id.parse::<i32>().ok())
-            .map(|user_id| Route::UserRole(user_id))
+            .map(Route::UserRole)
     });
 
     // roles/default/:id route
@@ -79,31 +81,17 @@ pub fn create_route_parser() -> RouteParser<Route> {
         params
             .get(0)
             .and_then(|string_id| string_id.parse::<UserId>().ok())
-            .map(|user_id| Route::DefaultRole(user_id))
+            .map(Route::DefaultRole)
     });
 
     // /users/password_change route
     router.add_route(r"^/users/password_change$", || Route::PasswordChange);
 
-    // /users/password_reset/request/:email route
-    router.add_route(r"^/users/password_reset/request$", || Route::PasswordResetRequest);
+    // /users/password_reset_token route
+    router.add_route(r"^/users/password_reset_token$", || Route::UserPasswordResetToken);
 
-    // /users/password_reset/apply/:token route
-    router.add_route(r"^/users/password_reset/apply$", || Route::PasswordResetApply);
-
-    router.add_route_with_params(r"^/email_verify/resend/(.+)$", |params| {
-        params
-            .get(0)
-            .and_then(|string_id| string_id.parse::<String>().ok())
-            .map(|email| Route::EmailVerifyResend(email))
-    });
-
-    router.add_route_with_params(r"^/email_verify/apply/(.+)$", |params| {
-        params
-            .get(0)
-            .and_then(|string_id| string_id.parse::<String>().ok())
-            .map(|token| Route::EmailVerifyApply(token))
-    });
+    // User email verification route
+    router.add_route(r"^/users/email_verify_token$", || Route::UserEmailVerifyToken);
 
     // User delivery addresses route
     router.add_route(r"^/users/delivery_addresses$", || Route::UserDeliveryAddresses);

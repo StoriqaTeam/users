@@ -1,11 +1,12 @@
-use diesel::Connection;
 use diesel::connection::AnsiTransactionManager;
 use diesel::pg::Pg;
+use diesel::Connection;
+use failure::Error as FailureError;
+
+use repos::legacy_acl::{Acl, SystemACL, UnauthorizedACL};
 
 use models::*;
-use repos::error::RepoError;
 use repos::*;
-use stq_acl::{Acl, SystemACL, UnauthorizedACL};
 
 pub trait ReposFactory<C: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static>:
     Clone + Send + Sync + 'static
@@ -38,7 +39,7 @@ impl ReposFactoryImpl {
         } else {
             UserRolesRepoImpl::new(
                 db_conn,
-                Box::new(SystemACL::default()) as Box<Acl<Resource, Action, Scope, RepoError, UserRole>>,
+                Box::new(SystemACL::default()) as Box<Acl<Resource, Action, Scope, FailureError, UserRole>>,
             ).list_for_user(id)
                 .and_then(|ref r| {
                     if !r.is_empty() {
@@ -55,12 +56,12 @@ impl ReposFactoryImpl {
         &self,
         db_conn: &'a C,
         user_id: Option<i32>,
-    ) -> Box<Acl<Resource, Action, Scope, RepoError, T>> {
+    ) -> Box<Acl<Resource, Action, Scope, FailureError, T>> {
         user_id.map_or(
-            Box::new(UnauthorizedACL::default()) as Box<Acl<Resource, Action, Scope, RepoError, T>>,
+            Box::new(UnauthorizedACL::default()) as Box<Acl<Resource, Action, Scope, FailureError, T>>,
             |id| {
                 let roles = self.get_roles(id, db_conn);
-                (Box::new(ApplicationAcl::new(roles, id)) as Box<Acl<Resource, Action, Scope, RepoError, T>>)
+                (Box::new(ApplicationAcl::new(roles, id)) as Box<Acl<Resource, Action, Scope, FailureError, T>>)
             },
         )
     }
@@ -75,7 +76,7 @@ impl<C: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 
     fn create_users_repo_with_sys_acl<'a>(&self, db_conn: &'a C) -> Box<UsersRepo + 'a> {
         Box::new(UsersRepoImpl::new(
             db_conn,
-            Box::new(SystemACL::default()) as Box<Acl<Resource, Action, Scope, RepoError, User>>,
+            Box::new(SystemACL::default()) as Box<Acl<Resource, Action, Scope, FailureError, User>>,
         )) as Box<UsersRepo>
     }
 
@@ -90,7 +91,7 @@ impl<C: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 
     fn create_user_roles_repo<'a>(&self, db_conn: &'a C) -> Box<UserRolesRepo + 'a> {
         Box::new(UserRolesRepoImpl::new(
             db_conn,
-            Box::new(SystemACL::default()) as Box<Acl<Resource, Action, Scope, RepoError, UserRole>>,
+            Box::new(SystemACL::default()) as Box<Acl<Resource, Action, Scope, FailureError, UserRole>>,
         )) as Box<UserRolesRepo>
     }
 
@@ -128,10 +129,6 @@ pub mod tests {
 
     use r2d2::ManageConnection;
 
-    use diesel::Connection;
-    use diesel::ConnectionResult;
-    use diesel::QueryResult;
-    use diesel::Queryable;
     use diesel::connection::AnsiTransactionManager;
     use diesel::connection::SimpleConnection;
     use diesel::deserialize::QueryableByName;
@@ -140,16 +137,19 @@ pub mod tests {
     use diesel::query_builder::QueryFragment;
     use diesel::query_builder::QueryId;
     use diesel::sql_types::HasSqlType;
+    use diesel::Connection;
+    use diesel::ConnectionResult;
+    use diesel::QueryResult;
+    use diesel::Queryable;
 
     use stq_http::client::Config as HttpConfig;
 
     use config::Config;
-    use config::Notifications;
     use models::*;
-    use repos::error::RepoError;
     use repos::identities::IdentitiesRepo;
     use repos::repo_factory::ReposFactory;
     use repos::reset_token::ResetTokenRepo;
+    use repos::types::RepoResult;
     use repos::user_delivery_address::*;
     use repos::user_roles::UserRolesRepo;
     use repos::users::UsersRepo;
@@ -189,21 +189,21 @@ pub mod tests {
     pub struct UsersRepoMock;
 
     impl UsersRepo for UsersRepoMock {
-        fn find(&mut self, user_id: UserId) -> Result<User, RepoError> {
+        fn find(&self, user_id: UserId) -> RepoResult<Option<User>> {
             let user = create_user(user_id, MOCK_EMAIL.to_string());
-            Ok(user)
+            Ok(Some(user))
         }
 
-        fn email_exists(&self, email_arg: String) -> Result<bool, RepoError> {
+        fn email_exists(&self, email_arg: String) -> RepoResult<bool> {
             Ok(email_arg == MOCK_EMAIL.to_string())
         }
 
-        fn find_by_email(&mut self, email_arg: String) -> Result<User, RepoError> {
+        fn find_by_email(&self, email_arg: String) -> RepoResult<Option<User>> {
             let user = create_user(UserId(1), email_arg);
-            Ok(user)
+            Ok(Some(user))
         }
 
-        fn list(&mut self, from: i32, count: i64) -> Result<Vec<User>, RepoError> {
+        fn list(&self, from: i32, count: i64) -> RepoResult<Vec<User>> {
             let mut users = vec![];
             for i in from..(from + count as i32) {
                 let user = create_user(UserId(i), MOCK_EMAIL.to_string());
@@ -212,23 +212,23 @@ pub mod tests {
             Ok(users)
         }
 
-        fn create(&mut self, payload: NewUser) -> Result<User, RepoError> {
+        fn create(&self, payload: NewUser) -> RepoResult<User> {
             let user = create_user(UserId(1), payload.email);
             Ok(user)
         }
 
-        fn update(&mut self, user_id: UserId, _payload: UpdateUser) -> Result<User, RepoError> {
+        fn update(&self, user_id: UserId, _payload: UpdateUser) -> RepoResult<User> {
             let user = create_user(user_id, MOCK_EMAIL.to_string());
             Ok(user)
         }
 
-        fn deactivate(&mut self, user_id: UserId) -> Result<User, RepoError> {
+        fn deactivate(&self, user_id: UserId) -> RepoResult<User> {
             let mut user = create_user(user_id, MOCK_EMAIL.to_string());
             user.is_active = false;
             Ok(user)
         }
 
-        fn delete_by_saga_id(&mut self, _saga_id_arg: String) -> Result<User, RepoError> {
+        fn delete_by_saga_id(&self, _saga_id_arg: String) -> RepoResult<User> {
             let user = create_user(UserId(1), MOCK_EMAIL.to_string());
             Ok(user)
         }
@@ -238,11 +238,11 @@ pub mod tests {
     pub struct IdentitiesRepoMock;
 
     impl IdentitiesRepo for IdentitiesRepoMock {
-        fn email_exists(&self, email_arg: String) -> Result<bool, RepoError> {
+        fn email_exists(&self, email_arg: String) -> RepoResult<bool> {
             Ok(email_arg == MOCK_EMAIL.to_string())
         }
 
-        fn email_provider_exists(&self, email_arg: String, provider_arg: Provider) -> Result<bool, RepoError> {
+        fn email_provider_exists(&self, email_arg: String, provider_arg: Provider) -> RepoResult<bool> {
             Ok(email_arg == MOCK_EMAIL.to_string() && provider_arg == Provider::Email)
         }
 
@@ -253,16 +253,16 @@ pub mod tests {
             provider_arg: Provider,
             user_id: UserId,
             _saga_id: String,
-        ) -> Result<Identity, RepoError> {
+        ) -> RepoResult<Identity> {
             let ident = create_identity(email, password, user_id, provider_arg, MOCK_SAGA_ID.to_string());
             Ok(ident)
         }
 
-        fn verify_password(&self, email_arg: String, password_arg: String) -> Result<bool, RepoError> {
+        fn verify_password(&self, email_arg: String, password_arg: String) -> RepoResult<bool> {
             Ok(email_arg == MOCK_EMAIL.to_string() && password_arg == password_create(MOCK_PASSWORD.to_string()))
         }
 
-        fn find_by_email_provider(&self, email_arg: String, provider_arg: Provider) -> Result<Identity, RepoError> {
+        fn find_by_email_provider(&self, email_arg: String, provider_arg: Provider) -> RepoResult<Identity> {
             let ident = create_identity(
                 email_arg,
                 Some(password_create(MOCK_PASSWORD.to_string())),
@@ -273,7 +273,7 @@ pub mod tests {
             Ok(ident)
         }
 
-        fn find_by_id_provider(&self, user_id: UserId, provider_arg: Provider) -> Result<Identity, RepoError> {
+        fn find_by_id_provider(&self, user_id: UserId, provider_arg: Provider) -> RepoResult<Identity> {
             let ident = create_identity(
                 MOCK_EMAIL.to_string(),
                 Some(password_create(MOCK_PASSWORD.to_string())),
@@ -284,7 +284,7 @@ pub mod tests {
             Ok(ident)
         }
 
-        fn update(&self, ident: Identity, update: UpdateIdentity) -> Result<Identity, RepoError> {
+        fn update(&self, ident: Identity, update: UpdateIdentity) -> RepoResult<Identity> {
             let ident = create_identity(ident.email, update.password, UserId(1), ident.provider, ident.saga_id);
             Ok(ident)
         }
@@ -295,35 +295,35 @@ pub mod tests {
 
     impl ResetTokenRepo for ResetTokenRepoMock {
         /// Create token for user
-        fn create(&self, _reset_token_arg: ResetToken) -> Result<ResetToken, RepoError> {
+        fn create(&self, _reset_token_arg: ResetToken) -> RepoResult<ResetToken> {
             let token = create_reset_token(MOCK_TOKEN.to_string(), MOCK_EMAIL.to_string());
 
             Ok(token)
         }
 
         /// Find by token
-        fn find_by_token(&self, _token_arg: String, _token_type_arg: TokenType) -> Result<ResetToken, RepoError> {
+        fn find_by_token(&self, _token_arg: String, _token_type_arg: TokenType) -> RepoResult<ResetToken> {
             let token = create_reset_token(MOCK_TOKEN.to_string(), MOCK_EMAIL.to_string());
 
             Ok(token)
         }
 
         /// Find by email
-        fn find_by_email(&self, _email_arg: String, _token_type_arg: TokenType) -> Result<ResetToken, RepoError> {
+        fn find_by_email(&self, _email_arg: String, _token_type_arg: TokenType) -> RepoResult<ResetToken> {
             let token = create_reset_token(MOCK_TOKEN.to_string(), MOCK_EMAIL.to_string());
 
             Ok(token)
         }
 
         /// Delete by token
-        fn delete_by_token(&self, _token_arg: String, _token_type_arg: TokenType) -> Result<ResetToken, RepoError> {
+        fn delete_by_token(&self, _token_arg: String, _token_type_arg: TokenType) -> RepoResult<ResetToken> {
             let token = create_reset_token(MOCK_TOKEN.to_string(), MOCK_EMAIL.to_string());
 
             Ok(token)
         }
 
         /// Delete by email
-        fn delete_by_email(&self, _email_arg: String, _token_type_arg: TokenType) -> Result<ResetToken, RepoError> {
+        fn delete_by_email(&self, _email_arg: String, _token_type_arg: TokenType) -> RepoResult<ResetToken> {
             let token = create_reset_token(MOCK_TOKEN.to_string(), MOCK_EMAIL.to_string());
 
             Ok(token)
@@ -334,14 +334,14 @@ pub mod tests {
     pub struct UserRolesRepoMock;
 
     impl UserRolesRepo for UserRolesRepoMock {
-        fn list_for_user(&self, user_id_value: i32) -> Result<Vec<Role>, RepoError> {
+        fn list_for_user(&self, user_id_value: i32) -> RepoResult<Vec<Role>> {
             Ok(match user_id_value {
                 1 => vec![Role::Superuser],
                 _ => vec![Role::User],
             })
         }
 
-        fn create(&self, payload: NewUserRole) -> Result<UserRole, RepoError> {
+        fn create(&self, payload: NewUserRole) -> RepoResult<UserRole> {
             Ok(UserRole {
                 id: 123,
                 user_id: payload.user_id,
@@ -349,7 +349,7 @@ pub mod tests {
             })
         }
 
-        fn delete(&self, payload: OldUserRole) -> Result<UserRole, RepoError> {
+        fn delete(&self, payload: OldUserRole) -> RepoResult<UserRole> {
             Ok(UserRole {
                 id: 123,
                 user_id: payload.user_id,
@@ -357,7 +357,7 @@ pub mod tests {
             })
         }
 
-        fn delete_by_user_id(&self, user_id_arg: i32) -> Result<UserRole, RepoError> {
+        fn delete_by_user_id(&self, user_id_arg: i32) -> RepoResult<UserRole> {
             Ok(UserRole {
                 id: 123,
                 user_id: user_id_arg,
@@ -371,17 +371,15 @@ pub mod tests {
 
     impl UserDeliveryAddresssRepo for UserDeliveryAddresssRepoMock {
         /// Returns list of user_delivery_address for a specific user
-        fn list_for_user(&self, user_id: i32) -> Result<Vec<UserDeliveryAddress>, RepoError> {
-            Ok(vec![
-                UserDeliveryAddress {
-                    user_id,
-                    ..Default::default()
-                },
-            ])
+        fn list_for_user(&self, user_id: i32) -> RepoResult<Vec<UserDeliveryAddress>> {
+            Ok(vec![UserDeliveryAddress {
+                user_id,
+                ..Default::default()
+            }])
         }
 
         /// Create a new user delivery address
-        fn create(&self, payload: NewUserDeliveryAddress) -> Result<UserDeliveryAddress, RepoError> {
+        fn create(&self, payload: NewUserDeliveryAddress) -> RepoResult<UserDeliveryAddress> {
             Ok(UserDeliveryAddress {
                 user_id: payload.user_id,
                 administrative_area_level_1: payload.administrative_area_level_1,
@@ -398,12 +396,12 @@ pub mod tests {
         }
 
         /// Update a user delivery address
-        fn update(&self, id: i32, _payload: UpdateUserDeliveryAddress) -> Result<UserDeliveryAddress, RepoError> {
+        fn update(&self, id: i32, _payload: UpdateUserDeliveryAddress) -> RepoResult<UserDeliveryAddress> {
             Ok(UserDeliveryAddress { id, ..Default::default() })
         }
 
         /// Delete user delivery address
-        fn delete(&self, id: i32) -> Result<UserDeliveryAddress, RepoError> {
+        fn delete(&self, id: i32) -> RepoResult<UserDeliveryAddress> {
             Ok(UserDeliveryAddress { id, ..Default::default() })
         }
     }
@@ -424,13 +422,7 @@ pub mod tests {
         let client = stq_http::client::Client::new(&http_config, &handle);
         let client_handle = client.handle();
 
-        let notif_config = Notifications {
-            url: "url".to_string(),
-            verify_email_path: "verify_email_path".to_string(),
-            reset_password_path: "reset_password_path".to_string(),
-        };
-
-        UsersServiceImpl::new(db_pool, cpu_pool, client_handle, user_id, notif_config, MOCK_REPO_FACTORY)
+        UsersServiceImpl::new(db_pool, cpu_pool, client_handle, user_id, MOCK_REPO_FACTORY)
     }
 
     pub fn create_jwt_service(handle: Arc<Handle>) -> JWTServiceImpl<MockConnection, MockConnectionManager, ReposFactoryMock> {

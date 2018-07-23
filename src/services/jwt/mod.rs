@@ -3,9 +3,11 @@ pub mod profile;
 
 use std::sync::Arc;
 
-use diesel::Connection;
 use diesel::connection::AnsiTransactionManager;
 use diesel::pg::Pg;
+use diesel::Connection;
+use failure::Error as FailureError;
+use failure::Fail;
 use futures::future;
 use futures::{Future, IntoFuture};
 use futures_cpupool::CpuPool;
@@ -20,10 +22,11 @@ use uuid::Uuid;
 
 use self::profile::{Email, FacebookProfile, GoogleProfile, IntoUser};
 use super::util::password_verify;
-use config::{Config, JWT as JWTConfig, OAuth};
+use config::{Config, OAuth, JWT as JWTConfig};
+use errors::Error;
 use models::{self, JWTPayload, NewEmailIdentity, NewIdentity, NewUser, Provider, ProviderOauth, User, UserStatus, JWT};
 use repos::repo_factory::ReposFactory;
-use services::error::ServiceError;
+use repos::types::RepoResult;
 use services::types::ServiceFuture;
 
 /// JWT services, responsible for JsonWebToken operations
@@ -101,9 +104,9 @@ trait ProfileService<T: Connection<Backend = Pg, TransactionManager = AnsiTransa
 
     fn profile_status(&self, profile: P, provider: Provider) -> ServiceFuture<ProfileStatus>;
 
-    fn create_profile(&self, profile: P, provider: Provider) -> Result<i32, ServiceError>;
+    fn create_profile(&self, profile: P, provider: Provider) -> RepoResult<i32>;
 
-    fn update_profile(&self, conn: &T, profile: P) -> Result<i32, ServiceError>;
+    fn update_profile(&self, conn: &T, profile: P) -> RepoResult<i32>;
 
     fn get_id(&self, profile: P, provider: Provider) -> ServiceFuture<i32>;
 
@@ -112,7 +115,12 @@ trait ProfileService<T: Connection<Backend = Pg, TransactionManager = AnsiTransa
         let tokenpayload = JWTPayload::new(id, exp, provider);
         Box::new(
             encode(&Header::new(Algorithm::RS256), &tokenpayload, secret.as_ref())
-                .map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}.", tokenpayload)))
+                .map_err(|e| {
+                    format_err!("{}", e)
+                        .context(Error::Parse)
+                        .context(format!("Couldn't encode jwt: {:?}.", tokenpayload))
+                        .into()
+                })
                 .into_future()
                 .inspect(move |token| {
                     debug!("Token {} created successfully for id {}", token, id);
@@ -134,14 +142,7 @@ where
     P: for<'a> serde::Deserialize<'a>,
     P: IntoUser,
 {
-    fn create_token(
-        self,
-        provider: Provider,
-        secret: Vec<u8>,
-        info_url: String,
-        headers: Option<Headers>,
-        exp: i64,
-    ) -> Box<Future<Item = JWT, Error = ServiceError>> {
+    fn create_token(self, provider: Provider, secret: Vec<u8>, info_url: String, headers: Option<Headers>, exp: i64) -> ServiceFuture<JWT> {
         let service = Arc::new(self);
         let db_pool = service.db_pool.clone();
         let thread_pool = service.cpu_pool.clone();
@@ -164,7 +165,7 @@ where
                         thread_pool.spawn_fn(move || {
                             db_pool
                                 .get()
-                                .map_err(|e| ServiceError::Connection(e.into()))
+                                .map_err(|e| e.context(Error::Connection).into())
                                 .and_then(move |conn| match status {
                                     ProfileStatus::ExistingProfile => {
                                         debug!("User exists for this profile. Looking up ID.");
@@ -195,7 +196,8 @@ where
             .and_then({
                 let s = service.clone();
                 move |(id, status)| s.create_jwt(id, exp, status, secret, provider_clone)
-            });
+            })
+            .map_err(|e: FailureError| e.context("Service jwt, create_token endpoint error occured.").into());
 
         Box::new(future)
     }
@@ -204,13 +206,19 @@ where
         Box::new(
             self.http_client
                 .request::<serde_json::Value>(Method::Get, url, None, headers)
-                .map_err(|e| ServiceError::HttpClient(format!("Failed to receive user info from provider. {}", e.to_string())))
-                .and_then(|val| match val["email"].is_null() {
-                    true => Err(ServiceError::Validate(
-                        validation_errors!({"email": ["email" => "Email required but not provided"]}),
-                    )),
-                    false => serde_json::from_value::<P>(val).map_err(ServiceError::from),
-                }),
+                .map_err(|e| {
+                    e.context("Failed to receive user info from provider. {}")
+                        .context(Error::HttpClient)
+                        .into()
+                })
+                .and_then(|val| {
+                    if val["email"].is_null() {
+                        Err(Error::Validate(validation_errors!({"email": ["email" => "Email required but not provided"]})).into())
+                    } else {
+                        serde_json::from_value::<P>(val).map_err(From::from)
+                    }
+                })
+                .map_err(|e: FailureError| e.context("Service jwt, get_profile endpoint error occured.").into()),
         )
     }
 
@@ -218,35 +226,43 @@ where
         Box::new({
             let db_pool = self.db_pool.clone();
             let repo_factory = self.repo_factory.clone();
-            self.cpu_pool.spawn_fn(move || {
-                db_pool.get().map_err(|e| ServiceError::Connection(e.into())).and_then(move |conn| {
-                    let users_repo = repo_factory.create_users_repo_with_sys_acl(&conn);
-                    let ident_repo = repo_factory.create_identities_repo(&conn);
-                    conn.transaction(move || {
-                        users_repo
-                            .email_exists(profile.get_email())
-                            .and_then(|user_exists| match user_exists {
-                                false => Ok(ProfileStatus::NewUser),
-                                true => ident_repo
-                                    .email_provider_exists(profile.get_email(), provider)
-                                    .map(|identity_exists| match identity_exists {
-                                        false => ProfileStatus::NewIdentity,
-                                        true => ProfileStatus::ExistingProfile,
-                                    }),
+            self.cpu_pool
+                .spawn_fn(move || {
+                    db_pool
+                        .get()
+                        .map_err(|e| e.context(Error::Connection).into())
+                        .and_then(move |conn| {
+                            let users_repo = repo_factory.create_users_repo_with_sys_acl(&conn);
+                            let ident_repo = repo_factory.create_identities_repo(&conn);
+                            conn.transaction(move || {
+                                users_repo.email_exists(profile.get_email()).and_then(|user_exists| {
+                                    if user_exists {
+                                        ident_repo
+                                            .email_provider_exists(profile.get_email(), provider)
+                                            .map(|identity_exists| {
+                                                if identity_exists {
+                                                    ProfileStatus::ExistingProfile
+                                                } else {
+                                                    ProfileStatus::NewIdentity
+                                                }
+                                            })
+                                    } else {
+                                        Ok(ProfileStatus::NewUser)
+                                    }
+                                })
                             })
-                            .map_err(ServiceError::from)
-                    })
+                        })
                 })
-            })
+                .map_err(|e: FailureError| e.context("Service jwt, profile_status endpoint error occured.").into())
         })
     }
 
-    fn create_profile(&self, profile_arg: P, provider: Provider) -> Result<i32, ServiceError> {
+    fn create_profile(&self, profile_arg: P, provider: Provider) -> RepoResult<i32> {
         let new_user = NewUser::from(profile_arg.clone());
 
         let url = format!("{}/{}", &self.saga_addr, "create_account");
 
-        let body = serde_json::to_string(&models::SagaCreateProfile {
+        serde_json::to_string(&models::SagaCreateProfile {
             user: Some(new_user.clone()),
             identity: NewIdentity {
                 email: new_user.email,
@@ -254,44 +270,58 @@ where
                 provider,
                 saga_id: Uuid::new_v4().to_string(),
             },
-        }).map_err(ServiceError::from)?;
-
-        let created_user = self.http_client.request::<User>(Method::Post, url, Some(body), None).wait()?;
-
-        Ok(created_user.id.0)
+        }).map_err(From::from)
+            .and_then(|body| {
+                self.http_client
+                    .request::<User>(Method::Post, url, Some(body), None)
+                    .wait()
+                    .map_err(|e| e.context(Error::HttpClient).into())
+            })
+            .map(|created_user| created_user.id.0)
+            .map_err(|e: FailureError| e.context("Service jwt, create_profile saga request failed.").into())
     }
 
-    fn update_profile(&self, conn: &T, profile: P) -> Result<i32, ServiceError> {
-        let mut users_repo = self.repo_factory.create_users_repo_with_sys_acl(conn);
+    fn update_profile(&self, conn: &T, profile: P) -> RepoResult<i32> {
+        let users_repo = self.repo_factory.create_users_repo_with_sys_acl(conn);
         users_repo
             .find_by_email(profile.get_email())
-            .map_err(ServiceError::from)
             .map(|user| (profile, user))
             .and_then(move |(profile, user)| {
-                let update_user = profile.merge_into_user(user.clone());
+                if let Some(user) = user {
+                    let update_user = profile.merge_into_user(user.clone());
 
-                if update_user.is_empty() {
-                    Ok(user.id.0)
+                    if update_user.is_empty() {
+                        Ok(user.id.0)
+                    } else {
+                        users_repo.update(user.id, update_user).map(|u| u.id.0)
+                    }
                 } else {
-                    users_repo.update(user.id, update_user).map_err(ServiceError::from).map(|u| u.id.0)
+                    Err(Error::NotFound
+                        .context(format!("User with email {} not found!", profile.get_email()))
+                        .into())
                 }
             })
+            .map_err(|e: FailureError| e.context("Service jwt, update_profile endpoint error occured.").into())
     }
 
     fn get_id(&self, profile: P, provider: Provider) -> ServiceFuture<i32> {
         Box::new({
             let db_pool = self.db_pool.clone();
             let repo_factory = self.repo_factory.clone();
-            self.cpu_pool.spawn_fn(move || {
-                db_pool.get().map_err(|e| ServiceError::Connection(e.into())).and_then(move |conn| {
-                    let ident_repo = repo_factory.create_identities_repo(&conn);
+            self.cpu_pool
+                .spawn_fn(move || {
+                    db_pool
+                        .get()
+                        .map_err(|e| e.context(Error::Connection).into())
+                        .and_then(move |conn| {
+                            let ident_repo = repo_factory.create_identities_repo(&conn);
 
-                    ident_repo
-                        .find_by_email_provider(profile.get_email(), provider)
-                        .map_err(ServiceError::from)
-                        .map(|ident| ident.user_id.0)
+                            ident_repo
+                                .find_by_email_provider(profile.get_email(), provider)
+                                .map(|ident| ident.user_id.0)
+                        })
                 })
-            })
+                .map_err(|e: FailureError| e.context("Service jwt, get_id endpoint error occured.").into())
         })
     }
 }
@@ -308,88 +338,96 @@ impl<
         let jwt_private_key = self.jwt_private_key.clone();
         let repo_factory = self.repo_factory.clone();
 
-        Box::new(self.cpu_pool.spawn_fn(move || {
-            r2d2_clone
-                .get()
-                .map_err(|e| ServiceError::Connection(e.into()))
-                .and_then(move |conn| {
-                    let ident_repo = repo_factory.create_identities_repo(&conn);
-                    let mut users_repo = repo_factory.create_users_repo_with_sys_acl(&conn);
+        Box::new(
+            self.cpu_pool
+                .spawn_fn(move || {
+                    r2d2_clone
+                        .get()
+                        .map_err(|e| e.context(Error::Connection).into())
+                        .and_then(move |conn| {
+                            let ident_repo = repo_factory.create_identities_repo(&conn);
+                            let users_repo = repo_factory.create_users_repo_with_sys_acl(&conn);
 
-                    conn.transaction::<JWT, ServiceError, _>(move || {
-                        ident_repo
-                            .email_provider_exists(payload.email.to_string(), Provider::Email)
-                            .map_err(ServiceError::from)
-                            .map(|exists| (exists, payload))
-                            .and_then(move |(exists, new_ident)| -> Result<i32, ServiceError> {
-                                match exists {
-                                    // email does not exist
-                                    false => Err(ServiceError::Validate(
-                                        validation_errors!({"email": ["email" => "Email not found"]}),
-                                    )),
-                                    // email exists, checking password
-                                    true => {
-                                        users_repo
-                                            .find_by_email(new_ident.email.clone())
-                                            .map_err(ServiceError::from)
-                                            .map(|user| (new_ident, user))
-                                            .and_then(move |(new_ident, user)| {
-                                                match user.email_verified {
-                                                    true => {
-                                                        let new_ident_clone = new_ident.clone();
-                                                        ident_repo
-                                                            .find_by_email_provider(new_ident.email.clone(), Provider::Email)
-                                                            .map_err(ServiceError::from)
-                                                            .and_then(move |identity| {
-                                                                if let Some(passwd) = identity.password {
-                                                                    password_verify(passwd, new_ident.password.clone())
-                                                                } else {
-                                                                    error!(
-                                                                        "No password in db for user with Email provider, user_id: {}",
-                                                                        &identity.user_id
-                                                                    );
-                                                                    Err(ServiceError::Validate(
+                            conn.transaction::<JWT, FailureError, _>(move || {
+                                ident_repo
+                                    .email_provider_exists(payload.email.to_string(), Provider::Email)
+                                    .map(|exists| (exists, payload))
+                                    .and_then(move |(exists, new_ident)| -> RepoResult<i32> {
+                                        if !exists {
+                                            // email does not exist
+                                            Err(Error::Validate(validation_errors!({"email": ["email" => "Email not found"]})).into())
+                                        } else {
+                                            // email exists, checking password
+                                            users_repo
+                                                .find_by_email(new_ident.email.clone())
+                                                .map(|user| (new_ident, user))
+                                                .and_then(move |(new_ident, user)| {
+                                                    if let Some(user) = user {
+                                                        if user.email_verified {
+                                                            let new_ident_clone = new_ident.clone();
+                                                            ident_repo
+                                                                .find_by_email_provider(new_ident.email.clone(), Provider::Email)
+                                                                .and_then(move |identity| {
+                                                                    if let Some(passwd) = identity.password {
+                                                                        password_verify(&passwd, new_ident.password.clone())
+                                                                    } else {
+                                                                        error!(
+                                                                            "No password in db for user with Email provider, user_id: {}",
+                                                                            &identity.user_id
+                                                                        );
+                                                                        Err(Error::Validate(
                                                                         validation_errors!({"password": ["password" => "Wrong password"]}),
-                                                                    ))
-                                                                }
-                                                            })
-                                                            .map(move |verified| (verified, new_ident_clone))
-                                                            .and_then(move |(verified, new_ident)| -> Result<i32, ServiceError> {
-                                                                match verified {
-                                                                    //password not verified
-                                                                    false => Err(ServiceError::Validate(
-                                                                        validation_errors!({"password": ["password" => "Wrong password"]}),
-                                                                    )),
-                                                                    //password verified
-                                                                    true => ident_repo
-                                                                        .find_by_email_provider(new_ident.email, Provider::Email)
-                                                                        .map_err(ServiceError::from)
-                                                                        .map(|ident| ident.user_id.0),
-                                                                }
-                                                            })
+                                                                    ).into())
+                                                                    }
+                                                                })
+                                                                .map(move |verified| (verified, new_ident_clone))
+                                                                .and_then(move |(verified, new_ident)| -> Result<i32, FailureError> {
+                                                                    if !verified {
+                                                                        //password not verified
+                                                                        Err(Error::Validate(
+                                                                            validation_errors!({"password": ["password" => "Wrong password"]}),
+                                                                        ).into())
+                                                                    } else {
+                                                                        //password verified
+                                                                        ident_repo
+                                                                            .find_by_email_provider(new_ident.email, Provider::Email)
+                                                                            .map(|ident| ident.user_id.0)
+                                                                    }
+                                                                })
+                                                        } else {
+                                                            Err(Error::Validate(
+                                                                validation_errors!({"email": ["email" => "Email not verified"]}),
+                                                            ).into())
+                                                        }
+                                                    } else {
+                                                        Err(Error::NotFound
+                                                            .context(format!("User with email {} not found!", new_ident.email))
+                                                            .into())
                                                     }
-                                                    false => Err(ServiceError::Validate(
-                                                        validation_errors!({"email": ["email" => "Email not verified"]}),
-                                                    )),
-                                                }
+                                                })
+                                        }
+                                    })
+                                    .and_then(move |id| {
+                                        let tokenpayload = JWTPayload::new(id, exp, Provider::Email);
+                                        encode(&Header::new(Algorithm::RS256), &tokenpayload, jwt_private_key.as_ref())
+                                            .map_err(|e| {
+                                                format_err!("{}", e)
+                                                    .context(Error::Parse)
+                                                    .context(format!("Couldn't encode jwt: {:?}.", tokenpayload))
+                                                    .into()
                                             })
-                                    }
-                                }
-                            })
-                            .and_then(move |id| {
-                                let tokenpayload = JWTPayload::new(id, exp, Provider::Email);
-                                encode(&Header::new(Algorithm::RS256), &tokenpayload, jwt_private_key.as_ref())
-                                    .map_err(|_| ServiceError::Parse(format!("Couldn't encode jwt: {:?}", tokenpayload)))
-                                    .and_then(|t| {
-                                        Ok(JWT {
-                                            token: t,
-                                            status: UserStatus::Exists,
-                                        })
+                                            .and_then(|t| {
+                                                Ok(JWT {
+                                                    token: t,
+                                                    status: UserStatus::Exists,
+                                                })
+                                            })
                                     })
                             })
-                    })
+                        })
                 })
-        }))
+                .map_err(|e: FailureError| e.context("Service jwt, create_token_email endpoint error occured.").into()),
+        )
     }
 
     /// https://developers.google.com/identity/protocols/OpenIDConnect#validatinganidtoken

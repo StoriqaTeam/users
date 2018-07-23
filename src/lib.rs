@@ -34,9 +34,9 @@ extern crate serde;
 extern crate serde_derive;
 extern crate serde_json;
 extern crate sha3;
-extern crate stq_acl;
 extern crate stq_http;
 extern crate stq_router;
+extern crate stq_logging;
 extern crate tokio_core;
 extern crate uuid;
 extern crate validator;
@@ -47,26 +47,21 @@ extern crate validator_derive;
 pub mod macros;
 pub mod config;
 pub mod controller;
+pub mod errors;
 pub mod models;
 pub mod repos;
 pub mod services;
-pub mod types;
 
-use std::env;
 use std::fs::File;
-use std::io::Write;
 use std::io::prelude::*;
 use std::process;
 use std::sync::Arc;
 
-use chrono::prelude::*;
 use diesel::pg::PgConnection;
-use env_logger::Builder as LogBuilder;
 use futures::future;
 use futures::{Future, Stream};
 use futures_cpupool::CpuPool;
 use hyper::server::Http;
-use log::LevelFilter as LogLevelFilter;
 use r2d2_diesel::ConnectionManager;
 use tokio_core::reactor::Core;
 
@@ -74,26 +69,12 @@ use stq_http::client::Config as HttpConfig;
 use stq_http::controller::Application;
 
 use config::Config;
+use errors::Error;
 use repos::acl::RolesCacheImpl;
 use repos::repo_factory::ReposFactoryImpl;
 
 /// Starts new web service from provided `Config`
 pub fn start_server(config: Config) {
-    let mut builder = LogBuilder::new();
-    builder
-        .format(|formatter, record| {
-            let now = Utc::now();
-            writeln!(formatter, "{} - {} - {}", now.to_rfc3339(), record.level(), record.args())
-        })
-        .filter(None, LogLevelFilter::Info);
-
-    if env::var("RUST_LOG").is_ok() {
-        builder.parse(&env::var("RUST_LOG").unwrap());
-    }
-
-    // Prepare logger
-    builder.init();
-
     // Prepare reactor
     let mut core = Core::new().expect("Unexpected error creating event loop core");
     let handle = Arc::new(core.handle());
@@ -108,7 +89,7 @@ pub fn start_server(config: Config) {
     handle.spawn(client_stream.for_each(|_| Ok(())));
 
     // Prepare server
-    let thread_count = config.server.thread_count.clone();
+    let thread_count = config.server.thread_count;
 
     // Prepare server
     let address = {
@@ -147,7 +128,7 @@ pub fn start_server(config: Config) {
             );
 
             // Prepare application
-            let app = Application::new(controller);
+            let app = Application::<Error>::new(controller);
 
             Ok(app)
         })

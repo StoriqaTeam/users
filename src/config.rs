@@ -1,7 +1,9 @@
 //! Config module contains the top-level config for the app.
+use std::env;
+
+use stq_logging::GrayLogConfig;
 
 use config_crate::{Config as RawConfig, ConfigError, Environment, File};
-use std::env;
 
 /// Basic settings - HTTP binding address and database DSN
 #[derive(Debug, Deserialize, Clone)]
@@ -12,7 +14,7 @@ pub struct Config {
     pub jwt: JWT,
     pub google: OAuth,
     pub facebook: OAuth,
-    pub notifications: Notifications,
+    pub graylog: Option<GrayLogConfig>,
 }
 
 /// Common server settings
@@ -50,13 +52,6 @@ pub struct SagaAddr {
     pub url: String,
 }
 
-#[derive(Deserialize, Debug, Clone)]
-pub struct Notifications {
-    pub url: String,
-    pub verify_email_path: String,
-    pub reset_password_path: String,
-}
-
 /// Creates new app config struct
 /// #Examples
 /// ```
@@ -70,7 +65,7 @@ impl Config {
         s.merge(File::with_name("config/base"))?;
 
         // Note that this file is _optional_
-        let env = env::var("RUN_MODE").unwrap_or("development".into());
+        let env = env::var("RUN_MODE").unwrap_or_else(|_| "development".into());
         s.merge(File::with_name(&format!("config/{}", env)).required(false))?;
 
         // Add in settings from the environment (with a prefix of STQ_USERS)

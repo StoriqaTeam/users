@@ -1,6 +1,6 @@
 //! RolesCache is a module that caches received from db information about user and his roles
-use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use models::authorization::*;
@@ -34,8 +34,8 @@ impl RolesCacheImpl {
         hash_map.contains_key(&id)
     }
 
-    pub fn add_roles(&self, id: i32, roles: &Vec<Role>) {
+    pub fn add_roles(&self, id: i32, roles: &[Role]) {
         let mut hash_map = self.roles_cache.lock().unwrap();
-        hash_map.insert(id, roles.clone());
+        hash_map.insert(id, roles.to_vec());
     }
 }
