@@ -10,3 +10,6 @@ info_url = "https://graph.facebook.com/me"
 
 [saga_addr]
 url = "http://saga:8000"
+
+[graylog]
+addr = "udplog.stq.cloud:32303"
