@@ -4,22 +4,11 @@ pub mod provider;
 
 pub use self::provider::Provider;
 
+use uuid::Uuid;
 use validator::Validate;
 
 use models::UserId;
-
-use uuid::Uuid;
-
-table! {
-    use diesel::sql_types::*;
-    identities (user_id) {
-        user_id -> Integer,
-        email -> Varchar,
-        password -> Nullable<VarChar>,
-        provider -> Varchar,
-        saga_id -> VarChar,
-    }
-}
+use schema::identities;
 
 /// Payload for creating identity for users
 #[derive(Debug, Serialize, Deserialize, Validate, Insertable, Queryable, Clone)]

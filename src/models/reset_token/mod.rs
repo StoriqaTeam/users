@@ -7,14 +7,7 @@ use std::time::SystemTime;
 
 use validator::Validate;
 
-table! {
-    reset_tokens (token) {
-        token -> VarChar,
-        email -> VarChar,
-        token_type -> VarChar,
-        created_at -> Timestamp,
-    }
-}
+use schema::reset_tokens;
 
 #[derive(Serialize, Deserialize, Queryable, Insertable, Debug)]
 #[table_name = "reset_tokens"]

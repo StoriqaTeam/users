@@ -15,8 +15,8 @@ use repos::legacy_acl::*;
 use super::acl;
 use super::types::RepoResult;
 use models::authorization::*;
-use models::user::users::dsl::*;
 use models::{NewUser, UpdateUser, User, UserId};
+use schema::users::dsl::*;
 
 /// Users repository, responsible for handling users
 pub struct UsersRepoImpl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static> {

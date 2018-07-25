@@ -15,8 +15,8 @@ use repos::legacy_acl::*;
 
 use super::types::RepoResult;
 use models::authorization::*;
-use models::user_role::user_roles::dsl::*;
 use models::{NewUserRole, OldUserRole, Role, UserRole};
+use schema::user_roles::dsl::*;
 
 /// UserRoles repository for handling UserRoles
 pub trait UserRolesRepo {

@@ -1,13 +1,6 @@
 //! Models for managing Roles
 use models::Role;
-
-table! {
-    user_roles (id) {
-        id -> Integer,
-        user_id -> Integer,
-        role -> VarChar,
-    }
-}
+use schema::user_roles;
 
 #[derive(Serialize, Queryable, Insertable, Debug)]
 #[table_name = "user_roles"]

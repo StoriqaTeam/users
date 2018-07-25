@@ -7,8 +7,8 @@ use diesel::Connection;
 use failure::Fail;
 
 use super::types::RepoResult;
-use models::reset_token::reset_tokens::dsl::*;
 use models::{ResetToken, TokenType};
+use schema::reset_tokens::dsl::*;
 
 /// Identities repository, responsible for handling identities
 pub struct ResetTokenRepoImpl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static> {
