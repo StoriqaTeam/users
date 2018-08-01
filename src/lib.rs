@@ -35,8 +35,8 @@ extern crate serde_derive;
 extern crate serde_json;
 extern crate sha3;
 extern crate stq_http;
-extern crate stq_router;
 extern crate stq_logging;
+extern crate stq_router;
 extern crate tokio_core;
 extern crate uuid;
 extern crate validator;
@@ -50,6 +50,7 @@ pub mod controller;
 pub mod errors;
 pub mod models;
 pub mod repos;
+pub mod schema;
 pub mod services;
 
 use std::fs::File;

@@ -23,7 +23,7 @@ impl From<GoogleProfile> for NewUser {
         NewUser {
             email: google_id.email,
             phone: None,
-            first_name: Some(google_id.name),
+            first_name: Some(google_id.given_name),
             last_name: Some(google_id.family_name),
             middle_name: None,
             gender: Gender::Undefined,
@@ -116,16 +116,12 @@ impl IntoUser for FacebookProfile {
 
 impl IntoUser for GoogleProfile {
     fn merge_into_user(&self, user: User) -> UpdateUser {
-        let first_name = if user.first_name.is_none() { Some(self.name.clone()) } else { None };
-        let last_name = if user.last_name.is_none() {
-            Some(self.family_name.clone())
-        } else {
-            None
-        };
+        let first_name = user.first_name.unwrap_or_else(|| self.given_name.clone());
+        let last_name = user.last_name.unwrap_or_else(|| self.family_name.clone());
         UpdateUser {
             phone: None,
-            first_name,
-            last_name,
+            first_name: Some(first_name),
+            last_name: Some(last_name),
             middle_name: None,
             gender: None,
             birthdate: None,

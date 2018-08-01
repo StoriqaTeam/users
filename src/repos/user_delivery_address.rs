@@ -15,8 +15,8 @@ use repos::legacy_acl::*;
 use super::acl;
 use super::types::RepoResult;
 use models::authorization::*;
-use models::user_delivery_address::user_delivery_address::dsl::*;
 use models::{NewUserDeliveryAddress, UpdateUserDeliveryAddress, UserDeliveryAddress};
+use schema::user_delivery_address::dsl::*;
 
 /// UserDeliveryAddresss repository for handling UserDeliveryAddresss
 pub trait UserDeliveryAddresssRepo {
@@ -68,22 +68,74 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 
     /// Create a new user delivery address
     fn create(&self, payload: NewUserDeliveryAddress) -> RepoResult<UserDeliveryAddress> {
-        let query = diesel::insert_into(user_delivery_address).values(&payload);
-        query
-            .get_result(self.db_conn)
+        let mut exist_query = user_delivery_address
+            .filter(user_id.eq(payload.user_id.clone()))
+            .filter(country.eq(payload.country.clone()))
+            .filter(postal_code.eq(payload.postal_code.clone()))
+            .into_boxed();
+
+        if let Some(administrative_area_level_1_arg) = payload.administrative_area_level_1.clone() {
+            exist_query = exist_query.filter(administrative_area_level_1.eq(administrative_area_level_1_arg));
+        } else {
+            exist_query = exist_query.filter(administrative_area_level_1.is_null());
+        };
+        if let Some(administrative_area_level_2_arg) = payload.administrative_area_level_2.clone() {
+            exist_query = exist_query.filter(administrative_area_level_2.eq(administrative_area_level_2_arg));
+        } else {
+            exist_query = exist_query.filter(administrative_area_level_2.is_null())
+        };
+        if let Some(locality_arg) = payload.locality.clone() {
+            exist_query = exist_query.filter(locality.eq(locality_arg));
+        } else {
+            exist_query = exist_query.filter(locality.is_null())
+        };
+        if let Some(political_arg) = payload.political.clone() {
+            exist_query = exist_query.filter(political.eq(political_arg));
+        } else {
+            exist_query = exist_query.filter(political.is_null())
+        };
+        if let Some(route_arg) = payload.route.clone() {
+            exist_query = exist_query.filter(route.eq(route_arg));
+        } else {
+            exist_query = exist_query.filter(route.is_null())
+        };
+        if let Some(street_number_arg) = payload.street_number.clone() {
+            exist_query = exist_query.filter(street_number.eq(street_number_arg));
+        } else {
+            exist_query = exist_query.filter(street_number.is_null())
+        };
+        if let Some(address_arg) = payload.address.clone() {
+            exist_query = exist_query.filter(address.eq(address_arg));
+        } else {
+            exist_query = exist_query.filter(address.is_null())
+        };
+
+        exist_query
+            .get_result::<UserDeliveryAddress>(self.db_conn)
+            .optional()
             .map_err(From::from)
-            .and_then(|addres| {
-                acl::check(&*self.acl, Resource::UserDeliveryAddresses, Action::Write, self, Some(&addres))?;
-                Ok(addres)
-            })
-            .and_then(|new_address| {
-                if new_address.is_priority {
-                    // set all other addresses priority to false
-                    let filter = user_delivery_address.filter(user_id.eq(new_address.user_id).and(id.ne(new_address.id)));
-                    let query = diesel::update(filter).set(is_priority.eq(false));
-                    let _ = query.get_result::<UserDeliveryAddress>(self.db_conn);
+            .and_then(|user_delivery_address_arg| {
+                if let Some(user_delivery_address_arg) = user_delivery_address_arg {
+                    Ok(user_delivery_address_arg)
+                } else {
+                    let query = diesel::insert_into(user_delivery_address).values(&payload);
+                    query
+                        .get_result(self.db_conn)
+                        .map_err(From::from)
+                        .and_then(|addres| {
+                            acl::check(&*self.acl, Resource::UserDeliveryAddresses, Action::Write, self, Some(&addres))?;
+                            Ok(addres)
+                        })
+                        .and_then(|new_address| {
+                            if new_address.is_priority {
+                                // set all other addresses priority to false
+                                let filter = user_delivery_address.filter(user_id.eq(new_address.user_id).and(id.ne(new_address.id)));
+                                let query = diesel::update(filter).set(is_priority.eq(false));
+                                let _ = query.get_result::<UserDeliveryAddress>(self.db_conn);
+                            }
+                            Ok(new_address)
+                        })
                 }
-                Ok(new_address)
             })
             .map_err(|e: FailureError| {
                 e.context(format!("Create a new user delivery address {:?} error occured", payload))

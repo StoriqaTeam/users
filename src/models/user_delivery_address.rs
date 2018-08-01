@@ -1,22 +1,7 @@
 //! Models for managing user delivery address
 use validator::Validate;
 
-table! {
-    user_delivery_address (id) {
-        id -> Integer,
-        user_id -> Integer,
-        administrative_area_level_1 -> Nullable<VarChar>,
-        administrative_area_level_2 -> Nullable<VarChar>,
-        country -> VarChar,
-        locality -> Nullable<VarChar>,
-        political -> Nullable<VarChar>,
-        postal_code -> VarChar,
-        route -> Nullable<VarChar>,
-        street_number -> Nullable<VarChar>,
-        address -> Nullable<VarChar>,
-        is_priority -> Bool,
-    }
-}
+use schema::user_delivery_address;
 
 #[derive(Serialize, Queryable, Insertable, Debug, Default)]
 #[table_name = "user_delivery_address"]

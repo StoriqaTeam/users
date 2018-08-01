@@ -15,6 +15,7 @@ use regex::Regex;
 use validator::{Validate, ValidationError};
 
 use models::NewIdentity;
+use schema::users;
 
 pub fn validate_phone(phone: &str) -> Result<(), ValidationError> {
     lazy_static! {
@@ -29,28 +30,6 @@ pub fn validate_phone(phone: &str) -> Result<(), ValidationError> {
             message: Some(Cow::from("Incorrect phone format")),
             params: HashMap::new(),
         })
-    }
-}
-
-table! {
-    use diesel::sql_types::*;
-    users (id) {
-        id -> Integer,
-        email -> Varchar,
-        email_verified -> Bool,
-        phone -> Nullable<VarChar>,
-        phone_verified -> Bool,
-        is_active -> Bool ,
-        first_name -> Nullable<VarChar>,
-        last_name -> Nullable<VarChar>,
-        middle_name -> Nullable<VarChar>,
-        gender -> Nullable<VarChar>,
-        birthdate -> Nullable<Date>,
-        avatar -> Nullable<VarChar>,
-        last_login_at -> Timestamp,
-        created_at -> Timestamp,
-        updated_at -> Timestamp,
-        saga_id -> VarChar,
     }
 }
 

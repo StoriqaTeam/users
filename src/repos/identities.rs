@@ -11,9 +11,9 @@ use failure::Error as FailureError;
 use failure::Fail;
 
 use super::types::RepoResult;
-use models::identity::identities::dsl::*;
 use models::UserId;
 use models::{Identity, Provider, UpdateIdentity};
+use schema::identities::dsl::*;
 
 /// Identities repository, responsible for handling identities
 pub struct IdentitiesRepoImpl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static> {
