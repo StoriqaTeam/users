@@ -252,7 +252,7 @@ impl<
                             .into()
                     })
                     .and_then(move |new_ident| {
-                        debug!("Received request to authenticate with email: {:?}", &new_ident);
+                        debug!("Received request to authenticate with email: {}", &new_ident);
                         new_ident
                             .validate()
                             .map_err(|e| {
