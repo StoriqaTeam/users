@@ -10,6 +10,8 @@ use validator::Validate;
 use models::UserId;
 use schema::identities;
 
+use std::fmt;
+
 /// Payload for creating identity for users
 #[derive(Debug, Serialize, Deserialize, Validate, Insertable, Queryable, Clone)]
 #[table_name = "identities"]
@@ -65,5 +67,11 @@ impl From<NewEmailIdentity> for NewIdentity {
             provider: Provider::UnverifiedEmail,
             saga_id: Uuid::new_v4().to_string(),
         }
+    }
+}
+
+impl fmt::Display for NewEmailIdentity {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "NewEmailIdentity {{ email: \"{}\", password: \"{}\" }}", self.email, "*****")
     }
 }
