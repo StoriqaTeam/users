@@ -203,7 +203,12 @@ impl<
                                     saga_id: payload.identity.saga_id,
                                 };
 
-                                users_service.create(checked_new_ident, payload.user)
+                                let user = payload.user.map(|mut user| {
+                                    user.email = user.email.to_lowercase();
+                                    user
+                                });
+
+                                users_service.create(checked_new_ident, user)
                             })
                     }),
             ),
