@@ -3,6 +3,7 @@ pub mod token_type;
 
 pub use self::token_type::TokenType;
 
+use std::fmt;
 use std::time::SystemTime;
 
 use validator::Validate;
@@ -36,4 +37,10 @@ pub struct ResetMail {
     pub to: String,
     pub subject: String,
     pub text: String,
+}
+
+impl fmt::Display for ResetApply {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "ResetApply {{ token: \"{}\", password: \"{}\" }}", self.token, "*****")
+    }
 }
