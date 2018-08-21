@@ -72,6 +72,6 @@ impl From<NewEmailIdentity> for NewIdentity {
 
 impl fmt::Display for NewEmailIdentity {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "NewEmailIdentity {{ email: \"{}\", password: \"{}\" }}", self.email, "*****")
+        write!(f, "NewEmailIdentity {{ email: \"{}\", password: \"******\" }}", self.email)
     }
 }
