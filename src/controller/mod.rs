@@ -417,7 +417,7 @@ impl<
                             .into()
                     })
                     .inspect(|payload| {
-                        debug!("Received request to complete password reset: {:?}", payload);
+                        debug!("Received request to complete password reset: {}", payload);
                     })
                     .and_then(move |reset_apply| {
                         reset_apply
