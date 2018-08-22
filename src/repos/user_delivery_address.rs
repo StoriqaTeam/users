@@ -69,7 +69,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
     /// Create a new user delivery address
     fn create(&self, payload: NewUserDeliveryAddress) -> RepoResult<UserDeliveryAddress> {
         let mut exist_query = user_delivery_address
-            .filter(user_id.eq(payload.user_id.clone()))
+            .filter(user_id.eq(payload.user_id))
             .filter(country.eq(payload.country.clone()))
             .filter(postal_code.eq(payload.postal_code.clone()))
             .into_boxed();
