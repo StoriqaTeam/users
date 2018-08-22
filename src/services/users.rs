@@ -481,10 +481,28 @@ impl<
                         .and_then(move |conn| {
                             let reset_repo = repo_factory.create_reset_token_repo(&conn);
                             let ident_repo = repo_factory.create_identities_repo(&conn);
-
-                            ident_repo
-                                .find_by_email_provider(email.clone(), Provider::Email)
-                                .map_err(|_e| Error::InvalidToken.into())
+                            let users_repo = repo_factory.create_users_repo_with_sys_acl(&conn);
+                            users_repo
+                                .find_by_email(email.clone())
+                                .and_then(|user| {
+                                    user.ok_or_else(|| {
+                                        Error::NotFound
+                                            .context(format!("User with email {} not found!", email.clone()))
+                                            .into()
+                                    }).and_then(|user| {
+                                        if !user.email_verified {
+                                            //email not verified
+                                            Err(Error::Validate(validation_errors!({"email": ["email" => "Email not verified"]})).into())
+                                        } else {
+                                            Ok(user)
+                                        }
+                                    })
+                                })
+                                .and_then(|_| {
+                                    ident_repo
+                                        .find_by_email_provider(email.clone(), Provider::Email)
+                                        .map_err(|e| e.context("Identity by email search failure").context(Error::InvalidToken).into())
+                                })
                                 .and_then(|ident| {
                                     debug!("Found identity {:?}, generating reset token.", &ident);
 
@@ -529,7 +547,7 @@ impl<
 
                             reset_repo
                                 .find_by_token(token_arg.clone(), TokenType::PasswordReset)
-                                .map_err(|_e| Error::InvalidToken.into())
+                                .map_err(|e| e.context("Reset token by token search failure").context(Error::InvalidToken).into())
                                 .and_then(|reset_token| {
                                     reset_repo
                                         .delete_by_token(reset_token.token.clone(), TokenType::PasswordReset)

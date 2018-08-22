@@ -149,7 +149,7 @@ impl<
             (&Get, Some(Route::UserByEmail)) => {
                 if let Some(email) = parse_query!(req.query().unwrap_or_default(), "email" => String) {
                     debug!("Received request to get user by email {}", email);
-                    serialize_future(users_service.find_by_email(email))
+                    serialize_future(users_service.find_by_email(email.to_lowercase()))
                 } else {
                     Box::new(future::err(
                         format_err!("Parsing query parameters // GET /users/by_email failed!")
@@ -404,7 +404,7 @@ impl<
                             .validate()
                             .map_err(|e| format_err!("Validation of ResetRequest failed!").context(Error::Validate(e)).into())
                             .into_future()
-                            .and_then(move |_| users_service.get_password_reset_token(reset_req.email))
+                            .and_then(move |_| users_service.get_password_reset_token(reset_req.email.to_lowercase()))
                     }),
             ),
 
@@ -444,7 +444,7 @@ impl<
                             .validate()
                             .map_err(|e| format_err!("Validation of ResetRequest failed!").context(Error::Validate(e)).into())
                             .into_future()
-                            .and_then(move |_| users_service.get_email_verification_token(reset_req.email))
+                            .and_then(move |_| users_service.get_email_verification_token(reset_req.email.to_lowercase()))
                     }),
             ),
 
