@@ -28,11 +28,12 @@ pipeline:
   test:
     image: rust:1.28-stretch
     environment:
-    - CARGO_HOME=deps
-    - PGPASSWORD=a1a1a1a1
     - RUN_MODE=k8s
     - DATABASE_HOST=db-postgresql
     - DATABASE_URL=postgresql://users:users@db-postgresql/users
+    - RUST_BACKTRACE=1
+    - CARGO_HOME=deps
+    - PGPASSWORD=a1a1a1a1
     commands:
     - rustup component add rustfmt-preview
     - cargo fmt -- --check
@@ -43,6 +44,7 @@ pipeline:
     - apt-get update && apt-get install -y libpq5 postgresql-client-10
     - psql -U postgres -h db-postgresql -c "CREATE ROLE users WITH PASSWORD 'users' LOGIN REPLICATION" -c "CREATE DATABASE users OWNER users"
     - psql -U postgres -h db-postgresql -d users -c "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"";
+    - mkdir -p /usr/local/cargo/bin || true
     - wget -q https://s3.eu-central-1.amazonaws.com/dumpster.stq/diesel -O /usr/local/cargo/bin/diesel
     - chmod +x /usr/local/cargo/bin/diesel
     - diesel migration run
@@ -174,7 +176,7 @@ pipeline:
       environment: production
 
 ###
-# Notifications and post deploy
+# Notifications and post deploy ops
 ###
 
   rebuild-cache:
