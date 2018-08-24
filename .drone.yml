@@ -3,8 +3,7 @@ pipeline:
     image: plugins/s3-cache:1
     pull: true
     secrets: [ aws_access_key_id, aws_secret_access_key ]
-    mount:
-    - deps
+    mount: deps
     restore: true
     when:
       event:
@@ -37,7 +36,7 @@ pipeline:
     commands:
     - rustup component add rustfmt-preview
     - cargo fmt -- --check
-    - apt-get update && apt-get install -y wget gnupg2 ca-certificates
+    - apt-get update && apt-get install -y ca-certificates wget gnupg2
     - update-ca-certificates
     - wget -q https://www.postgresql.org/media/keys/ACCC4CF8.asc -O - | apt-key add -
     - echo "deb http://apt.postgresql.org/pub/repos/apt/ stretch-pgdg main" >> /etc/apt/sources.list.d/pgdg.list
@@ -69,10 +68,10 @@ pipeline:
   package:
     image: plugins/docker
     repo: storiqateam/stq-users
+    dockerfile: docker/Dockerfile.run
     tags:
     - ${DRONE_BRANCH//\//_}
     - ${DRONE_BRANCH//\//_}${DRONE_BUILD_NUMBER}
-    dockerfile: docker/Dockerfile.run
     secrets:
     - docker_username
     - docker_password
@@ -81,10 +80,10 @@ pipeline:
   package:
     image: plugins/docker
     repo: storiqateam/stq-users
+    dockerfile: docker/Dockerfile.run
     tags:
     - '${DRONE_TAG}'
     - latest
-    dockerfile: docker/Dockerfile.run
     secrets:
     - docker_username
     - docker_password
@@ -183,8 +182,7 @@ pipeline:
     image: plugins/s3-cache:1
     pull: true
     secrets: [ aws_access_key_id, aws_secret_access_key ]
-    mount:
-    - deps
+    mount: deps
     rebuild: true
     when:
       event: push
