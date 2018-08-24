@@ -1,6 +1,7 @@
 //! Config module contains the top-level config for the app.
 use std::env;
 
+use stq_http;
 use stq_logging::GrayLogConfig;
 
 use config_crate::{Config as RawConfig, ConfigError, Environment, File};
@@ -31,6 +32,7 @@ pub struct Server {
 pub struct Client {
     pub http_client_retries: usize,
     pub http_client_buffer_size: usize,
+    pub http_timeout_ms: u64,
     pub dns_worker_thread_count: usize,
 }
 
@@ -72,5 +74,13 @@ impl Config {
         s.merge(Environment::with_prefix("STQ_USERS"))?;
 
         s.try_into()
+    }
+
+    pub fn to_http_config(&self) -> stq_http::client::Config {
+        stq_http::client::Config {
+            http_client_buffer_size: self.client.http_client_buffer_size,
+            http_client_retries: self.client.http_client_retries,
+            timeout_duration_ms: self.client.http_timeout_ms,
+        }
     }
 }
