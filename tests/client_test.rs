@@ -17,7 +17,6 @@ use futures::{Future, Stream};
 use hyper::Method;
 use tokio_core::reactor::Core;
 
-use stq_http::client::Config as HttpConfig;
 use stq_http::client::Error;
 use users_lib::config::Config;
 
@@ -58,11 +57,7 @@ fn test_request() {
         .unwrap();
 
     let config = Config::new().unwrap();
-    let http_config = HttpConfig {
-        http_client_retries: config.client.http_client_retries,
-        http_client_buffer_size: config.client.http_client_buffer_size,
-    };
-    let client = stq_http::client::Client::new(&http_config, &handle);
+    let client = stq_http::client::Client::new(&config.to_http_config(), &handle);
     let client_handle = client.handle();
     let client_stream = client.stream();
     handle.spawn(client_stream.for_each(|_| Ok(())));

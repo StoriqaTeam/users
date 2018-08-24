@@ -123,12 +123,6 @@ pub mod tests {
     use std::time::SystemTime;
 
     use base64::encode;
-    use futures_cpupool::CpuPool;
-    use sha3::{Digest, Sha3_256};
-    use tokio_core::reactor::Handle;
-
-    use r2d2::ManageConnection;
-
     use diesel::connection::AnsiTransactionManager;
     use diesel::connection::SimpleConnection;
     use diesel::deserialize::QueryableByName;
@@ -141,8 +135,10 @@ pub mod tests {
     use diesel::ConnectionResult;
     use diesel::QueryResult;
     use diesel::Queryable;
-
-    use stq_http::client::Config as HttpConfig;
+    use futures_cpupool::CpuPool;
+    use r2d2::ManageConnection;
+    use sha3::{Digest, Sha3_256};
+    use tokio_core::reactor::Handle;
 
     use config::Config;
     use models::*;
@@ -415,11 +411,7 @@ pub mod tests {
         let cpu_pool = CpuPool::new(1);
 
         let config = Config::new().unwrap();
-        let http_config = HttpConfig {
-            http_client_retries: config.client.http_client_retries,
-            http_client_buffer_size: config.client.http_client_buffer_size,
-        };
-        let client = stq_http::client::Client::new(&http_config, &handle);
+        let client = stq_http::client::Client::new(&config.to_http_config(), &handle);
         let client_handle = client.handle();
 
         UsersServiceImpl::new(db_pool, cpu_pool, client_handle, user_id, MOCK_REPO_FACTORY)
@@ -431,11 +423,7 @@ pub mod tests {
         let cpu_pool = CpuPool::new(1);
 
         let config = Config::new().unwrap();
-        let http_config = HttpConfig {
-            http_client_retries: config.client.http_client_retries,
-            http_client_buffer_size: config.client.http_client_buffer_size,
-        };
-        let client = stq_http::client::Client::new(&http_config, &handle);
+        let client = stq_http::client::Client::new(&config.to_http_config(), &handle);
         let client_handle = client.handle();
 
         debug!("Reading private key file {}", &config.jwt.secret_key_path);
