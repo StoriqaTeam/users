@@ -3,8 +3,7 @@ pipeline:
     image: plugins/s3-cache:1
     pull: true
     secrets: [ aws_access_key_id, aws_secret_access_key ]
-    mount:
-    - deps
+    mount: deps
     restore: true
     when:
       event:
@@ -26,23 +25,25 @@ pipeline:
     when:
       event: pull_request
   test:
-    image: rust:1.26-stretch
+    image: rust:1.28-stretch
     environment:
-    - CARGO_HOME=deps
-    - PGPASSWORD=a1a1a1a1
     - RUN_MODE=k8s
     - DATABASE_HOST=db-postgresql
     - DATABASE_URL=postgresql://users:users@db-postgresql/users
+    - RUST_BACKTRACE=1
+    - CARGO_HOME=deps
+    - PGPASSWORD=a1a1a1a1
     commands:
     - rustup component add rustfmt-preview
-    - cargo fmt --all -- --write-mode=diff
-    - apt-get update && apt-get install -y wget gnupg2 ca-certificates
+    - cargo fmt -- --check
+    - apt-get update && apt-get install -y ca-certificates wget gnupg2
     - update-ca-certificates
     - wget -q https://www.postgresql.org/media/keys/ACCC4CF8.asc -O - | apt-key add -
     - echo "deb http://apt.postgresql.org/pub/repos/apt/ stretch-pgdg main" >> /etc/apt/sources.list.d/pgdg.list
     - apt-get update && apt-get install -y libpq5 postgresql-client-10
     - psql -U postgres -h db-postgresql -c "CREATE ROLE users WITH PASSWORD 'users' LOGIN REPLICATION" -c "CREATE DATABASE users OWNER users"
     - psql -U postgres -h db-postgresql -d users -c "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"";
+    - mkdir -p /usr/local/cargo/bin || true
     - wget -q https://s3.eu-central-1.amazonaws.com/dumpster.stq/diesel -O /usr/local/cargo/bin/diesel
     - chmod +x /usr/local/cargo/bin/diesel
     - diesel migration run
@@ -55,35 +56,41 @@ pipeline:
 ###
 
   build:
-    image: rust:1.26-stretch
+    image: rust:1.28-stretch
     environment:
     - CARGO_HOME=deps
     commands:
     - cargo build --release --locked
     when:
-      event: push
-      branch:
-      - master
-      - release
+      event:
+      - push
+      - tag
   package:
     image: plugins/docker
     repo: storiqateam/stq-users
+    dockerfile: docker/Dockerfile.run
     tags:
     - ${DRONE_BRANCH//\//_}
     - ${DRONE_BRANCH//\//_}${DRONE_BUILD_NUMBER}
     secrets:
     - docker_username
     - docker_password
-    dockerfile: docker/Dockerfile.run
     when:
-      event:
-      - push
-      - tag
-      branch:
-      - master
-      - release
+      event: push
+  package:
+    image: plugins/docker
+    repo: storiqateam/stq-users
+    dockerfile: docker/Dockerfile.run
+    tags:
+    - '${DRONE_TAG}'
+    - latest
+    secrets:
+    - docker_username
+    - docker_password
+    when:
+      event: tag
   deploy2nightly:
-    image: jackthestripper/drone_k8s_rollout:20180610
+    image: jackthestripper/drone_setimage
     namespace: default
     kind: deployment
     object: users
@@ -103,12 +110,12 @@ pipeline:
       branch: master
       event: push
   deploy2stage:
-    image: jackthestripper/drone_k8s_rollout:20180610
+    image: jackthestripper/drone_setimage
     namespace: default
     kind: deployment
     object: users
     img_names: storiqateam/stq-users
-    img_tags: ${DRONE_BRANCH//\//_}${DRONE_BUILD_NUMBER}
+    img_tags: '${DRONE_TAG}'
     img_cnts: users
     secrets:
     - source: k8s_stage_ca
@@ -120,15 +127,14 @@ pipeline:
     - source: k8s_stage_addr
       target: k8s_addr
     when:
-      branch: release
-      event: push
+      event: tag
 
 ###
 # Deploy to stable / production
 ###
 
   deploy2stable:
-    image: jackthestripper/drone_k8s_rollout:20180610
+    image: jackthestripper/drone_setimage
     namespace: default
     kind: deployment
     object: users
@@ -145,16 +151,15 @@ pipeline:
     - source: k8s_stable_addr
       target: k8s_addr
     when:
-      branch: master
       event: deployment
       environment: stable
   deploy2production:
-    image: jackthestripper/drone_k8s_rollout:20180610
+    image: jackthestripper/drone_setimage
     namespace: default
     kind: deployment
     object: users
     img_names: storiqateam/stq-users
-    img_tags: ${DRONE_BRANCH//\//_}${DRONE_PARENT_BUILD_NUMBER}
+    img_tags: '${DRONE_TAG}'
     img_cnts: users
     secrets:
     - source: k8s_prod_ca
@@ -166,41 +171,57 @@ pipeline:
     - source: k8s_prod_addr
       target: k8s_addr
     when:
-      branch: release
       event: deployment
       environment: production
 
 ###
-# Notifications and post deploy
+# Notifications and post deploy ops
 ###
 
   rebuild-cache:
     image: plugins/s3-cache:1
     pull: true
     secrets: [ aws_access_key_id, aws_secret_access_key ]
-    mount:
-    - deps
+    mount: deps
     rebuild: true
     when:
       event: push
       branch: master
-  notify_slack:
+  slack:
     image: plugins/slack
     webhook: https://hooks.slack.com/services/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
     channel: release
     icon_url: https://drone.io/favicon.ico
     username: cd.stq.cloud
     template: >
-        Build {{build.number}} for {{repo.name}} branch {{build.branch}} failed.
+      {{#success build.status}}
+        {{repo.name}} has been released to stage.stq.cloud!
+      {{else}}
+        Failed to deploy {{repo.name}} to stage.stq.cloud! More details here {{build.link}}
+      {{/success}}
     when:
-      event:
-      - push
-      - deployment
-      - tag
-      branch:
-      - master
-      - release
-      status: failure
+      event: tag
+      status:
+      - success
+      - failure
+  slack:
+    image: plugins/slack
+    webhook: https://hooks.slack.com/services/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
+    channel: release
+    icon_url: https://drone.io/favicon.ico
+    username: cd.stq.cloud
+    template: >
+      {{#success build.status}}
+        {{repo.name}} has been released to production.stq.cloud!
+      {{else}}
+        Failed to deploy {{repo.name}} to production.stq.cloud! More details here {{build.link}}
+      {{/success}}
+    when:
+      event: deployment
+      environment: production
+      status:
+      - success
+      - failure
 
 ###
 # Test services
@@ -213,5 +234,3 @@ services:
     - POSTGRES_PASSWORD=a1a1a1a1
     when:
       event: pull_request
-
-

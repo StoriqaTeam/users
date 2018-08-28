@@ -415,11 +415,7 @@ pub mod tests {
         let cpu_pool = CpuPool::new(1);
 
         let config = Config::new().unwrap();
-        let http_config = HttpConfig {
-            http_client_retries: config.client.http_client_retries,
-            http_client_buffer_size: config.client.http_client_buffer_size,
-        };
-        let client = stq_http::client::Client::new(&http_config, &handle);
+        let client = stq_http::client::Client::new(&config.to_http_config(), &handle);
         let client_handle = client.handle();
 
         UsersServiceImpl::new(db_pool, cpu_pool, client_handle, user_id, MOCK_REPO_FACTORY)
@@ -431,11 +427,7 @@ pub mod tests {
         let cpu_pool = CpuPool::new(1);
 
         let config = Config::new().unwrap();
-        let http_config = HttpConfig {
-            http_client_retries: config.client.http_client_retries,
-            http_client_buffer_size: config.client.http_client_buffer_size,
-        };
-        let client = stq_http::client::Client::new(&http_config, &handle);
+        let client = stq_http::client::Client::new(&config.to_http_config(), &handle);
         let client_handle = client.handle();
 
         debug!("Reading private key file {}", &config.jwt.secret_key_path);
