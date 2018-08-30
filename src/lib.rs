@@ -13,7 +13,6 @@ extern crate chrono;
 extern crate config as config_crate;
 #[macro_use]
 extern crate diesel;
-extern crate env_logger;
 #[macro_use]
 extern crate failure;
 extern crate futures;

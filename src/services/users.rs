@@ -28,7 +28,7 @@ pub trait UsersService {
     /// Returns user by ID
     fn get(&self, user_id: UserId) -> ServiceFuture<Option<User>>;
     /// Returns current user
-    fn current(&self) -> ServiceFuture<User>;
+    fn current(&self) -> ServiceFuture<Option<User>>;
     /// Lists users limited by `from` and `count` parameters
     fn list(&self, from: i32, count: i64) -> ServiceFuture<Vec<User>>;
     /// Deactivates specific user
@@ -115,7 +115,7 @@ impl<
     }
 
     /// Returns current user
-    fn current(&self) -> ServiceFuture<User> {
+    fn current(&self) -> ServiceFuture<Option<User>> {
         if let Some(id) = self.user_id {
             let db_clone = self.db_pool.clone();
             let current_uid = self.user_id;
@@ -133,20 +133,11 @@ impl<
                                 let users_repo = repo_factory.create_users_repo(&conn, current_uid);
                                 users_repo.find(UserId(id))
                             })
-                            .and_then(|user| {
-                                if let Some(user) = user {
-                                    Ok(user)
-                                } else {
-                                    Err(Error::NotFound.context(format!("Can not fetch user with id {}", id)).into())
-                                }
-                            })
                     })
                     .map_err(|e: FailureError| e.context("Service users, current endpoint error occured.").into()),
             )
         } else {
-            Box::new(future::err(
-                Error::Forbidden.context("There is no user id in request header").into(),
-            ))
+            Box::new(future::ok(None))
         }
     }
 
@@ -640,7 +631,7 @@ pub mod tests {
         let service = create_users_service(Some(1), handle);
         let work = service.current();
         let result = core.run(work).unwrap();
-        assert_eq!(result.email, MOCK_EMAIL.to_string());
+        assert_eq!(result.unwrap().email, MOCK_EMAIL.to_string());
     }
 
     #[test]
