@@ -33,7 +33,7 @@ pub fn validate_phone(phone: &str) -> Result<(), ValidationError> {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Queryable, Clone)]
+#[derive(Debug, Serialize, Deserialize, Queryable, Clone, PartialEq)]
 pub struct User {
     pub id: UserId,
     pub email: String,

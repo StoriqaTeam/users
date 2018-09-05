@@ -477,9 +477,7 @@ impl<
                                 .find_by_email(email.clone())
                                 .and_then(|user| {
                                     user.ok_or_else(|| {
-                                        Error::NotFound
-                                            .context(format!("User with email {} not found!", email.clone()))
-                                            .into()
+                                        Error::Validate(validation_errors!({"email": ["email" => "Email does not exists"]})).into()
                                     }).and_then(|user| {
                                         if !user.email_verified {
                                             //email not verified
@@ -641,7 +639,7 @@ pub mod tests {
         let service = create_users_service(None, handle);
         let work = service.current();
         let result = core.run(work);
-        assert_eq!(result.is_err(), true);
+        assert_eq!(result.unwrap(), None);
     }
 
     #[test]
