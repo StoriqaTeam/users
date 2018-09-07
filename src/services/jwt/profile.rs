@@ -39,7 +39,7 @@ impl From<GoogleProfile> for NewUser {
 pub struct FacebookProfile {
     pub id: String,
     pub email: String,
-    pub gender: String,
+    pub gender: Option<String>,
     pub first_name: String,
     pub last_name: String,
     pub name: String,
@@ -47,13 +47,18 @@ pub struct FacebookProfile {
 
 impl From<FacebookProfile> for NewUser {
     fn from(facebook_id: FacebookProfile) -> Self {
+        let gender = if let Some(gender) = facebook_id.gender {
+            Gender::from_str(&gender).unwrap_or(Gender::Undefined)
+        } else {
+            Gender::Undefined
+        };
         NewUser {
             email: facebook_id.email,
             phone: None,
             first_name: Some(facebook_id.first_name),
             last_name: Some(facebook_id.last_name),
             middle_name: None,
-            gender: Gender::from_str(facebook_id.gender.as_ref()).unwrap(),
+            gender,
             birthdate: None,
             last_login_at: SystemTime::now(),
             saga_id: Uuid::new_v4().to_string(),
@@ -96,7 +101,7 @@ impl IntoUser for FacebookProfile {
             None
         };
         let gender = if user.gender == Gender::Undefined {
-            Some(Gender::from_str(self.gender.as_ref()).unwrap())
+            self.gender.clone().map(|g| Gender::from_str(&g).unwrap_or(Gender::Undefined))
         } else {
             None
         };
