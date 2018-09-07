@@ -215,7 +215,7 @@ where
                     if val["email"].is_null() {
                         Err(Error::Validate(validation_errors!({"email": ["email" => "Email required but not provided"]})).into())
                     } else {
-                        serde_json::from_value::<P>(val).map_err(From::from)
+                        serde_json::from_value::<P>(val.clone()).map_err(|e| e.context(format!("Can not parse profile: {}", val)).into())
                     }
                 })
                 .map_err(|e: FailureError| e.context("Service jwt, get_profile endpoint error occured.").into()),
