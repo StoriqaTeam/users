@@ -180,8 +180,7 @@ impl<
                         e.context("Parsing body // POST /users in SagaCreateProfile failed!")
                             .context(Error::Parse)
                             .into()
-                    })
-                    .and_then(move |payload| {
+                    }).and_then(move |payload| {
                         debug!("Received request to create profile: {:?}", &payload);
                         payload
                             .identity
@@ -190,12 +189,10 @@ impl<
                                 format_err!("Validation of SagaCreateProfile failed!")
                                     .context(Error::Validate(e))
                                     .into()
-                            })
-                            .into_future()
+                            }).into_future()
                             .inspect(|_| {
                                 debug!("Validation success");
-                            })
-                            .and_then(move |_| {
+                            }).and_then(move |_| {
                                 let checked_new_ident = models::identity::NewIdentity {
                                     email: payload.identity.email.to_lowercase(),
                                     password: payload.identity.password,
@@ -220,19 +217,16 @@ impl<
                         e.context("Parsing body // PUT /users/<user_id> in UpdateUser failed!")
                             .context(Error::Parse)
                             .into()
-                    })
-                    .inspect(|payload| {
+                    }).inspect(|payload| {
                         debug!("Received request to update user: {:?}", &payload);
-                    })
-                    .and_then(move |update_user| {
+                    }).and_then(move |update_user| {
                         update_user
                             .validate()
                             .map_err(|e| format_err!("Validation of UpdateUser failed!").context(Error::Validate(e)).into())
                             .into_future()
                             .inspect(|_| {
                                 debug!("Validation success");
-                            })
-                            .and_then(move |_| users_service.update(user_id, update_user))
+                            }).and_then(move |_| users_service.update(user_id, update_user))
                     }),
             ),
 
@@ -255,8 +249,7 @@ impl<
                         e.context("Parsing body // POST /jwt/email in NewEmailIdentity failed!")
                             .context(Error::Parse)
                             .into()
-                    })
-                    .and_then(move |new_ident| {
+                    }).and_then(move |new_ident| {
                         debug!("Received request to authenticate with email: {}", &new_ident);
                         new_ident
                             .validate()
@@ -264,12 +257,10 @@ impl<
                                 format_err!("Validation of NewEmailIdentity failed!")
                                     .context(Error::Validate(e))
                                     .into()
-                            })
-                            .into_future()
+                            }).into_future()
                             .inspect(|_| {
                                 debug!("Validation success");
-                            })
-                            .and_then(move |_| {
+                            }).and_then(move |_| {
                                 let checked_new_ident = models::identity::NewEmailIdentity {
                                     email: new_ident.email.to_lowercase(),
                                     password: new_ident.password,
@@ -289,11 +280,9 @@ impl<
                         e.context("Parsing body // POST /jwt/google in ProviderOauth failed!")
                             .context(Error::Parse)
                             .into()
-                    })
-                    .inspect(|payload| {
+                    }).inspect(|payload| {
                         debug!("Received request to authenticate with Google token: {:?}", &payload);
-                    })
-                    .and_then(move |oauth| {
+                    }).and_then(move |oauth| {
                         let now = Utc::now().timestamp();
 
                         jwt_service.create_token_google(oauth, now)
@@ -307,11 +296,9 @@ impl<
                         e.context("Parsing body // POST /jwt/facebook in ProviderOauth failed!")
                             .context(Error::Parse)
                             .into()
-                    })
-                    .inspect(|payload| {
+                    }).inspect(|payload| {
                         debug!("Received request to authenticate with Facebook token: {:?}", &payload);
-                    })
-                    .and_then(move |oauth| {
+                    }).and_then(move |oauth| {
                         let now = Utc::now().timestamp();
 
                         jwt_service.create_token_facebook(oauth, now)
@@ -331,11 +318,9 @@ impl<
                         e.context("Parsing body // POST /user_roles in NewUserRole failed!")
                             .context(Error::Parse)
                             .into()
-                    })
-                    .inspect(|payload| {
+                    }).inspect(|payload| {
                         debug!("Received request to create role: {:?}", payload);
-                    })
-                    .and_then(move |new_role| user_roles_service.create(new_role)),
+                    }).and_then(move |new_role| user_roles_service.create(new_role)),
             ),
 
             // DELETE /user_roles/<user_role_id>
@@ -345,11 +330,9 @@ impl<
                         e.context("Parsing body // DELETE /user_roles/<user_role_id> in OldUserRole failed!")
                             .context(Error::Parse)
                             .into()
-                    })
-                    .inspect(|payload| {
+                    }).inspect(|payload| {
                         debug!("Received request to remove role: {:?}", payload);
-                    })
-                    .and_then(move |old_role| user_roles_service.delete(old_role)),
+                    }).and_then(move |old_role| user_roles_service.delete(old_role)),
             ),
 
             // POST /roles/default/<user_id>
@@ -371,19 +354,16 @@ impl<
                         e.context("Parsing body // POST /users/password_change in ChangeIdentityPassword failed!")
                             .context(Error::Parse)
                             .into()
-                    })
-                    .inspect(|payload| {
+                    }).inspect(|payload| {
                         debug!("Received request to start password change: {:?}", payload);
-                    })
-                    .and_then(move |change_req| {
+                    }).and_then(move |change_req| {
                         change_req
                             .validate()
                             .map_err(|e| {
                                 format_err!("Validation of ChangeIdentityPassword failed!")
                                     .context(Error::Validate(e))
                                     .into()
-                            })
-                            .into_future()
+                            }).into_future()
                             .and_then(move |_| users_service.change_password(change_req))
                     }),
             ),
@@ -395,11 +375,9 @@ impl<
                         e.context("Parsing body // Post /users/password_reset_token in ResetRequest failed!")
                             .context(Error::Parse)
                             .into()
-                    })
-                    .inspect(|payload| {
+                    }).inspect(|payload| {
                         debug!("Received request to start password reset: {:?}", payload);
-                    })
-                    .and_then(move |reset_req| {
+                    }).and_then(move |reset_req| {
                         reset_req
                             .validate()
                             .map_err(|e| format_err!("Validation of ResetRequest failed!").context(Error::Validate(e)).into())
@@ -415,11 +393,9 @@ impl<
                         e.context("Parsing body // PUT /users/password_reset_token in ResetApply failed!")
                             .context(Error::Parse)
                             .into()
-                    })
-                    .inspect(|payload| {
+                    }).inspect(|payload| {
                         debug!("Received request to complete password reset: {}", payload);
-                    })
-                    .and_then(move |reset_apply| {
+                    }).and_then(move |reset_apply| {
                         reset_apply
                             .validate()
                             .map_err(|e| format_err!("Validation of ResetApply failed!").context(Error::Validate(e)).into())
@@ -435,11 +411,9 @@ impl<
                         e.context("Parsing body // Post /users/email_verify_token in ResetRequest failed!")
                             .context(Error::Parse)
                             .into()
-                    })
-                    .inspect(|payload| {
+                    }).inspect(|payload| {
                         debug!("Received request to get user with email {} verify token", payload.email);
-                    })
-                    .and_then(move |reset_req| {
+                    }).and_then(move |reset_req| {
                         reset_req
                             .validate()
                             .map_err(|e| format_err!("Validation of ResetRequest failed!").context(Error::Validate(e)).into())
@@ -475,19 +449,16 @@ impl<
                         e.context("Parsing body // POST /users/delivery_addresses in NewUserDeliveryAddress failed!")
                             .context(Error::Parse)
                             .into()
-                    })
-                    .inspect(|payload| {
+                    }).inspect(|payload| {
                         debug!("Received request to create delivery address: {:?}", payload);
-                    })
-                    .and_then(move |new_address| {
+                    }).and_then(move |new_address| {
                         new_address
                             .validate()
                             .map_err(|e| {
                                 format_err!("Validation of NewUserDeliveryAddress failed!")
                                     .context(Error::Validate(e))
                                     .into()
-                            })
-                            .into_future()
+                            }).into_future()
                             .and_then(move |_| user_delivery_address_service.create(new_address))
                     }),
             ),
@@ -499,19 +470,16 @@ impl<
                         e.context("Parsing body PUT /users/delivery_addresses/<id> in UpdateUserDeliveryAddress failed!")
                             .context(Error::Parse)
                             .into()
-                    })
-                    .inspect(|payload| {
+                    }).inspect(|payload| {
                         debug!("Received request to update delivery address: {:?}", payload);
-                    })
-                    .and_then(move |new_address| {
+                    }).and_then(move |new_address| {
                         new_address
                             .validate()
                             .map_err(|e| {
                                 format_err!("Validation of UpdateUserDeliveryAddress failed!")
                                     .context(Error::Validate(e))
                                     .into()
-                            })
-                            .into_future()
+                            }).into_future()
                             .and_then(move |_| user_delivery_address_service.update(id, new_address))
                     }),
             ),

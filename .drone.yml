@@ -25,7 +25,7 @@ pipeline:
     when:
       event: pull_request
   test:
-    image: rust:1.28-stretch
+    image: rust:1.29.0-stretch
     environment:
     - RUN_MODE=k8s
     - DATABASE_HOST=db-postgresql
@@ -36,7 +36,7 @@ pipeline:
     commands:
     - rustup component add rustfmt-preview
     - cargo fmt -- --check
-    - apt-get update && apt-get install -y ca-certificates wget gnupg2
+    - apt-get update && apt-get install -y ca-certificates wget gnupg2 clang
     - update-ca-certificates
     - wget -q https://www.postgresql.org/media/keys/ACCC4CF8.asc -O - | apt-key add -
     - echo "deb http://apt.postgresql.org/pub/repos/apt/ stretch-pgdg main" >> /etc/apt/sources.list.d/pgdg.list
@@ -56,10 +56,11 @@ pipeline:
 ###
 
   build:
-    image: rust:1.28-stretch
+    image: rust:1.29.0-stretch
     environment:
     - CARGO_HOME=deps
     commands:
+    - apt-get update && apt-get install -y clang
     - cargo build --release --locked
     when:
       event:

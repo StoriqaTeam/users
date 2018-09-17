@@ -70,8 +70,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                     acl::check(&*self.acl, Resource::Users, Action::Read, self, Some(user))?;
                 };
                 Ok(user)
-            })
-            .map_err(|e: FailureError| e.context(format!("Find specific user {} error occured", user_id_arg)).into())
+            }).map_err(|e: FailureError| e.context(format!("Find specific user {} error occured", user_id_arg)).into())
     }
 
     /// Check that user with specified email already exists
@@ -101,8 +100,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                     acl::check(&*self.acl, Resource::Users, Action::Read, self, Some(user))?;
                 };
                 Ok(user)
-            })
-            .map_err(|e: FailureError| {
+            }).map_err(|e: FailureError| {
                 e.context(format!("Find specific user by email {:?} error occured", email_arg))
                     .into()
             })
@@ -121,8 +119,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                 }
 
                 Ok(users_res)
-            })
-            .map_err(|e: FailureError| {
+            }).map_err(|e: FailureError| {
                 e.context(format!("list of users, limited by {} and {} error occured", from, count))
                     .into()
             })
@@ -149,8 +146,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 
                 let query = diesel::update(filter).set(&payload);
                 query.get_result::<User>(self.db_conn).map_err(From::from)
-            })
-            .map_err(|e: FailureError| {
+            }).map_err(|e: FailureError| {
                 e.context(format!("update user {} with {:?} error occured", user_id_arg, payload))
                     .into()
             })
@@ -169,8 +165,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                 let query = diesel::update(filter).set(is_active.eq(false));
 
                 query.get_result(self.db_conn).map_err(From::from)
-            })
-            .map_err(|e: FailureError| e.context(format!("Deactivates user {:?} error occured", user_id_arg)).into())
+            }).map_err(|e: FailureError| e.context(format!("Deactivates user {:?} error occured", user_id_arg)).into())
     }
 
     /// Deletes specific user by saga id

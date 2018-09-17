@@ -59,8 +59,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                     acl::check(&*self.acl, Resource::UserDeliveryAddresses, Action::Read, self, Some(&addres))?;
                 }
                 Ok(addresses)
-            })
-            .map_err(|e: FailureError| {
+            }).map_err(|e: FailureError| {
                 e.context(format!("list of user_delivery_address for user {} error occured", user_id_value))
                     .into()
             })
@@ -125,8 +124,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                         .and_then(|addres| {
                             acl::check(&*self.acl, Resource::UserDeliveryAddresses, Action::Write, self, Some(&addres))?;
                             Ok(addres)
-                        })
-                        .and_then(|new_address| {
+                        }).and_then(|new_address| {
                             if new_address.is_priority {
                                 // set all other addresses priority to false
                                 let filter = user_delivery_address.filter(user_id.eq(new_address.user_id).and(id.ne(new_address.id)));
@@ -136,8 +134,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                             Ok(new_address)
                         })
                 }
-            })
-            .map_err(|e: FailureError| {
+            }).map_err(|e: FailureError| {
                 e.context(format!("Create a new user delivery address {:?} error occured", payload))
                     .into()
             })
@@ -152,14 +149,12 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
             .map_err(From::from)
             .and_then(|addres: UserDeliveryAddress| {
                 acl::check(&*self.acl, Resource::UserDeliveryAddresses, Action::Write, self, Some(&addres))
-            })
-            .and_then(|_| {
+            }).and_then(|_| {
                 let filter = user_delivery_address.filter(id.eq(id_arg));
 
                 let query = diesel::update(filter).set(&payload);
                 query.get_result::<UserDeliveryAddress>(self.db_conn).map_err(From::from)
-            })
-            .and_then(|updated_address| {
+            }).and_then(|updated_address| {
                 if let Some(is_priority_arg) = payload.is_priority {
                     if is_priority_arg {
                         // set all other addresses priority to false
@@ -169,8 +164,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                     }
                 }
                 Ok(updated_address)
-            })
-            .map_err(|e: FailureError| {
+            }).map_err(|e: FailureError| {
                 e.context(format!("Update user {} delivery address {:?} error occured", id_arg, payload))
                     .into()
             })
@@ -185,13 +179,11 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
             .map_err(From::from)
             .and_then(|addres: UserDeliveryAddress| {
                 acl::check(&*self.acl, Resource::UserDeliveryAddresses, Action::Write, self, Some(&addres))
-            })
-            .and_then(|_| {
+            }).and_then(|_| {
                 let filtered = user_delivery_address.filter(id.eq(id_arg));
                 let query = diesel::delete(filtered);
                 query.get_result(self.db_conn).map_err(From::from)
-            })
-            .map_err(|e: FailureError| e.context(format!("Delete user {} delivery address error occured", id_arg)).into())
+            }).map_err(|e: FailureError| e.context(format!("Delete user {} delivery address error occured", id_arg)).into())
     }
 }
 

@@ -109,8 +109,7 @@ impl<
                             let users_repo = repo_factory.create_users_repo(&conn, current_uid);
                             users_repo.find(user_id)
                         })
-                })
-                .map_err(|e: FailureError| e.context("Service users, get endpoint error occured.").into()),
+                }).map_err(|e: FailureError| e.context("Service users, get endpoint error occured.").into()),
         )
     }
 
@@ -133,8 +132,7 @@ impl<
                                 let users_repo = repo_factory.create_users_repo(&conn, current_uid);
                                 users_repo.find(UserId(id))
                             })
-                    })
-                    .map_err(|e: FailureError| e.context("Service users, current endpoint error occured.").into()),
+                    }).map_err(|e: FailureError| e.context("Service users, current endpoint error occured.").into()),
             )
         } else {
             Box::new(future::ok(None))
@@ -159,8 +157,7 @@ impl<
                             let users_repo = repo_factory.create_users_repo(&conn, current_uid);
                             users_repo.list(from, count)
                         })
-                })
-                .map_err(|e: FailureError| e.context("Service users, list endpoint error occured.").into()),
+                }).map_err(|e: FailureError| e.context("Service users, list endpoint error occured.").into()),
         )
     }
 
@@ -182,8 +179,7 @@ impl<
                             let users_repo = repo_factory.create_users_repo(&conn, current_uid);
                             users_repo.deactivate(user_id)
                         })
-                })
-                .map_err(|e: FailureError| e.context("Service users, deactivate endpoint error occured.").into()),
+                }).map_err(|e: FailureError| e.context("Service users, deactivate endpoint error occured.").into()),
         )
     }
 
@@ -205,8 +201,7 @@ impl<
                             let users_repo = repo_factory.create_users_repo(&conn, current_uid);
                             users_repo.delete_by_saga_id(saga_id)
                         })
-                })
-                .map_err(|e: FailureError| e.context("Service users, delete_by_saga_id endpoint error occured.").into()),
+                }).map_err(|e: FailureError| e.context("Service users, delete_by_saga_id endpoint error occured.").into()),
         )
     }
 
@@ -241,16 +236,14 @@ impl<
                                         } else {
                                             Err(Error::Validate(validation_errors!({"email": ["email" => "Email already exists"]})).into())
                                         }
-                                    })
-                                    .and_then(move |new_ident| {
+                                    }).and_then(move |new_ident| {
                                         let new_user;
                                         match user_payload {
                                             Some(usr) => new_user = usr.clone(),
                                             None => new_user = NewUser::from(new_ident.clone()),
                                         }
                                         users_repo.create(new_user).map(|user| (new_ident, user))
-                                    })
-                                    .and_then(move |(new_ident, user)| {
+                                    }).and_then(move |(new_ident, user)| {
                                         ident_repo
                                             .create(
                                                 new_ident.email,
@@ -258,13 +251,11 @@ impl<
                                                 new_ident.provider.clone(),
                                                 user.id.clone(),
                                                 new_ident.saga_id,
-                                            )
-                                            .map(|_| user)
+                                            ).map(|_| user)
                                     })
                             })
                         })
-                })
-                .map_err(|e: FailureError| e.context("Service users, create endpoint error occured.").into()),
+                }).map_err(|e: FailureError| e.context("Service users, create endpoint error occured.").into()),
         )
     }
 
@@ -297,8 +288,7 @@ impl<
                                 .map(|t| t.token)
                                 .map_err(|e| e.context("Can not create reset token").into())
                         })
-                })
-                .map_err(|e: FailureError| e.context("Service users, resend_verification_link endpoint error occured.").into()),
+                }).map_err(|e: FailureError| e.context("Service users, resend_verification_link endpoint error occured.").into()),
         )
     }
 
@@ -324,43 +314,42 @@ impl<
                                     reset_repo
                                         .delete_by_token(reset_token.token.clone(), TokenType::EmailVerify)
                                         .map_err(|e| e.context("Unable to delete token").into())
-                                })
-                                .and_then(move |reset_token| match SystemTime::now().duration_since(reset_token.created_at) {
-                                    Ok(elapsed) => {
-                                        if elapsed.as_secs() < 3600 {
-                                            users_repo
-                                                .find_by_email(reset_token.email.clone())
-                                                .and_then(|user| {
-                                                    if let Some(user) = user {
-                                                        let update = UpdateUser {
-                                                            phone: None,
-                                                            first_name: None,
-                                                            last_name: None,
-                                                            middle_name: None,
-                                                            gender: None,
-                                                            birthdate: None,
-                                                            avatar: None,
-                                                            is_active: None,
-                                                            email_verified: Some(true),
-                                                        };
+                                }).and_then(move |reset_token| {
+                                    match SystemTime::now().duration_since(reset_token.created_at) {
+                                        Ok(elapsed) => {
+                                            if elapsed.as_secs() < 3600 {
+                                                users_repo
+                                                    .find_by_email(reset_token.email.clone())
+                                                    .and_then(|user| {
+                                                        if let Some(user) = user {
+                                                            let update = UpdateUser {
+                                                                phone: None,
+                                                                first_name: None,
+                                                                last_name: None,
+                                                                middle_name: None,
+                                                                gender: None,
+                                                                birthdate: None,
+                                                                avatar: None,
+                                                                is_active: None,
+                                                                email_verified: Some(true),
+                                                            };
 
-                                                        users_repo.update(user.id.clone(), update)
-                                                    } else {
-                                                        Err(Error::NotFound
-                                                            .context(format!("User with email {} not found!", reset_token.email))
-                                                            .into())
-                                                    }
-                                                })
-                                                .map_err(|e| e.context(Error::InvalidToken).into())
-                                        } else {
-                                            Err(Error::InvalidToken.into())
+                                                            users_repo.update(user.id.clone(), update)
+                                                        } else {
+                                                            Err(Error::NotFound
+                                                                .context(format!("User with email {} not found!", reset_token.email))
+                                                                .into())
+                                                        }
+                                                    }).map_err(|e| e.context(Error::InvalidToken).into())
+                                            } else {
+                                                Err(Error::InvalidToken.into())
+                                            }
                                         }
+                                        Err(_) => Err(Error::InvalidToken.into()),
                                     }
-                                    Err(_) => Err(Error::InvalidToken.into()),
                                 })
                         })
-                })
-                .map(|user| user.email)
+                }).map(|user| user.email)
                 .map_err(|e: FailureError| e.context("Service users, verify_email endpoint error occured.").into()),
         )
     }
@@ -385,8 +374,7 @@ impl<
                                 .find(user_id.clone())
                                 .and_then(move |_user| users_repo.update(user_id, payload))
                         })
-                })
-                .map_err(|e: FailureError| e.context("Service users, update endpoint error occured.").into()),
+                }).map_err(|e: FailureError| e.context("Service users, update endpoint error occured.").into()),
         )
     }
 
@@ -430,8 +418,7 @@ impl<
                                                     Err(Error::Validate(validation_errors!({"password": ["password" => "Wrong password"]}))
                                                         .into())
                                                 }
-                                            })
-                                            .and_then(move |(verified, identity)| {
+                                            }).and_then(move |(verified, identity)| {
                                                 if !verified {
                                                     //password not verified
                                                     Err(Error::Validate(validation_errors!({"password": ["password" => "Wrong password"]}))
@@ -448,8 +435,7 @@ impl<
                                             })
                                     })
                                 })
-                        })
-                        .map_err(|e: FailureError| e.context("Service users, change_password endpoint error occured.").into()),
+                        }).map_err(|e: FailureError| e.context("Service users, change_password endpoint error occured.").into()),
                 )
             }
             None => Box::new(future::err(
@@ -486,13 +472,11 @@ impl<
                                             Ok(user)
                                         }
                                     })
-                                })
-                                .and_then(|_| {
+                                }).and_then(|_| {
                                     ident_repo
                                         .find_by_email_provider(email.clone(), Provider::Email)
                                         .map_err(|e| e.context("Identity by email search failure").context(Error::InvalidToken).into())
-                                })
-                                .and_then(|ident| {
+                                }).and_then(|ident| {
                                     debug!("Found identity {:?}, generating reset token.", &ident);
 
                                     debug!("Removing previous tokens for {} if any", &ident.email);
@@ -512,8 +496,7 @@ impl<
                                         .map_err(|e| e.context("Cannot create reset token").into())
                                 })
                         })
-                })
-                .map(|t| t.token)
+                }).map(|t| t.token)
                 .map_err(|e: FailureError| e.context("Service users, password_reset_request endpoint error occured.").into()),
         )
     }
@@ -541,8 +524,7 @@ impl<
                                     reset_repo
                                         .delete_by_token(reset_token.token.clone(), TokenType::PasswordReset)
                                         .map_err(|e| e.context("Unable to delete token").into())
-                                })
-                                .and_then(move |reset_token| {
+                                }).and_then(move |reset_token| {
                                     debug!("Checking reset token's {:?} expiration", &reset_token);
                                     match SystemTime::now().duration_since(reset_token.created_at) {
                                         Ok(elapsed) => {
@@ -556,8 +538,7 @@ impl<
                                                         };
 
                                                         ident_repo.update(ident, update)
-                                                    })
-                                                    .map_err(|e| e.context(Error::InvalidToken).into())
+                                                    }).map_err(|e| e.context(Error::InvalidToken).into())
                                             } else {
                                                 Err(Error::InvalidToken.context(format!("Token {:?} has expired", &reset_token)).into())
                                             }
@@ -566,8 +547,7 @@ impl<
                                     }
                                 })
                         })
-                })
-                .map(|ident| ident.email)
+                }).map(|ident| ident.email)
                 .map_err(|e: FailureError| e.context("Service users, password_reset_apply endpoint error occured.").into()),
         )
     }
@@ -595,8 +575,7 @@ impl<
                             let users_repo = repo_factory.create_users_repo(&conn, current_uid);
                             users_repo.find_by_email(email)
                         })
-                })
-                .map_err(|e: FailureError| e.context("Service users, find by email endpoint error occured.").into()),
+                }).map_err(|e: FailureError| e.context("Service users, find by email endpoint error occured.").into()),
         )
     }
 }
