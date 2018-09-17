@@ -75,8 +75,7 @@ impl<
                             let users_delivery_address_repo = repo_factory.create_users_delivery_address_repo(&*conn, curent_user_id);
                             users_delivery_address_repo.list_for_user(user_id)
                         })
-                })
-                .map_err(|e| {
+                }).map_err(|e| {
                     e.context("Service UserDeliveryAddress, get_addresses endpoint error occured.")
                         .into()
                 }),
@@ -99,8 +98,7 @@ impl<
                             let users_delivery_address_repo = repo_factory.create_users_delivery_address_repo(&*conn, user_id);
                             users_delivery_address_repo.delete(id)
                         })
-                })
-                .map_err(|e| e.context("Service UserDeliveryAddress, delete endpoint error occured.").into()),
+                }).map_err(|e| e.context("Service UserDeliveryAddress, delete endpoint error occured.").into()),
         )
     }
 
@@ -120,8 +118,7 @@ impl<
                             let users_delivery_address_repo = repo_factory.create_users_delivery_address_repo(&*conn, user_id);
                             users_delivery_address_repo.create(payload)
                         })
-                })
-                .map_err(|e| e.context("Service UserDeliveryAddress, create endpoint error occured.").into()),
+                }).map_err(|e| e.context("Service UserDeliveryAddress, create endpoint error occured.").into()),
         )
     }
 
@@ -141,8 +138,7 @@ impl<
                             let users_delivery_address_repo = repo_factory.create_users_delivery_address_repo(&*conn, user_id);
                             users_delivery_address_repo.update(id, payload)
                         })
-                })
-                .map_err(|e| e.context("Service UserDeliveryAddress, update endpoint error occured.").into()),
+                }).map_err(|e| e.context("Service UserDeliveryAddress, update endpoint error occured.").into()),
         )
     }
 }

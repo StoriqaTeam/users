@@ -41,14 +41,13 @@ impl ReposFactoryImpl {
                 db_conn,
                 Box::new(SystemACL::default()) as Box<Acl<Resource, Action, Scope, FailureError, UserRole>>,
             ).list_for_user(id)
-                .and_then(|ref r| {
-                    if !r.is_empty() {
-                        self.roles_cache.add_roles(id, r);
-                    }
-                    Ok(r.clone())
-                })
-                .ok()
-                .unwrap_or_default()
+            .and_then(|ref r| {
+                if !r.is_empty() {
+                    self.roles_cache.add_roles(id, r);
+                }
+                Ok(r.clone())
+            }).ok()
+            .unwrap_or_default()
         }
     }
 

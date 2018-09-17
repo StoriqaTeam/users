@@ -41,6 +41,8 @@ extern crate uuid;
 extern crate validator;
 #[macro_use]
 extern crate validator_derive;
+#[macro_use]
+extern crate sentry;
 
 #[macro_use]
 pub mod macros;
@@ -50,6 +52,7 @@ pub mod errors;
 pub mod models;
 pub mod repos;
 pub mod schema;
+pub mod sentry_integration;
 pub mod services;
 
 use std::fs::File;
@@ -125,8 +128,7 @@ pub fn start_server(config: Config) {
             let app = Application::<Error>::new(controller);
 
             Ok(app)
-        })
-        .unwrap_or_else(|why| {
+        }).unwrap_or_else(|why| {
             error!("Http Server Initialization Error: {}", why);
             process::exit(1);
         });
@@ -137,8 +139,7 @@ pub fn start_server(config: Config) {
             .for_each(move |conn| {
                 handle_arc2.spawn(conn.map(|_| ()).map_err(|why| error!("Server Error: {:?}", why)));
                 Ok(())
-            })
-            .map_err(|_| ()),
+            }).map_err(|_| ()),
     );
 
     info!("Listening on http://{}, threads: {}", address, thread_count);

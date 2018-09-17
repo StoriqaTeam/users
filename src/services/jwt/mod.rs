@@ -120,12 +120,10 @@ trait ProfileService<T: Connection<Backend = Pg, TransactionManager = AnsiTransa
                         .context(Error::Parse)
                         .context(format!("Couldn't encode jwt: {:?}.", tokenpayload))
                         .into()
-                })
-                .into_future()
+                }).into_future()
                 .inspect(move |token| {
                     debug!("Token {} created successfully for id {}", token, id);
-                })
-                .and_then(move |token| future::ok(JWT { token, status })),
+                }).and_then(move |token| future::ok(JWT { token, status })),
         )
     }
 }
@@ -157,8 +155,7 @@ where
                     let profile_clone = profile.clone();
                     s.profile_status(profile, provider).map(|status| (status, profile_clone))
                 }
-            })
-            .and_then({
+            }).and_then({
                 let s = service.clone();
                 move |(status, profile)| -> ServiceFuture<(i32, UserStatus)> {
                     Box::new({
@@ -192,12 +189,10 @@ where
                         })
                     })
                 }
-            })
-            .and_then({
+            }).and_then({
                 let s = service.clone();
                 move |(id, status)| s.create_jwt(id, exp, status, secret, provider_clone)
-            })
-            .map_err(|e: FailureError| e.context("Service jwt, create_token endpoint error occured.").into());
+            }).map_err(|e: FailureError| e.context("Service jwt, create_token endpoint error occured.").into());
 
         Box::new(future)
     }
@@ -210,15 +205,13 @@ where
                     e.context("Failed to receive user info from provider. {}")
                         .context(Error::HttpClient)
                         .into()
-                })
-                .and_then(|val| {
+                }).and_then(|val| {
                     if val["email"].is_null() {
                         Err(Error::Validate(validation_errors!({"email": ["email" => "Email required but not provided"]})).into())
                     } else {
                         serde_json::from_value::<P>(val.clone()).map_err(|e| e.context(format!("Can not parse profile: {}", val)).into())
                     }
-                })
-                .map_err(|e: FailureError| e.context("Service jwt, get_profile endpoint error occured.").into()),
+                }).map_err(|e: FailureError| e.context("Service jwt, get_profile endpoint error occured.").into()),
         )
     }
 
@@ -252,8 +245,7 @@ where
                                 })
                             })
                         })
-                })
-                .map_err(|e: FailureError| e.context("Service jwt, profile_status endpoint error occured.").into())
+                }).map_err(|e: FailureError| e.context("Service jwt, profile_status endpoint error occured.").into())
         })
     }
 
@@ -271,14 +263,13 @@ where
                 saga_id: Uuid::new_v4().to_string(),
             },
         }).map_err(From::from)
-            .and_then(|body| {
-                self.http_client
-                    .request::<User>(Method::Post, url, Some(body), None)
-                    .wait()
-                    .map_err(|e| e.context(Error::HttpClient).into())
-            })
-            .map(|created_user| created_user.id.0)
-            .map_err(|e: FailureError| e.context("Service jwt, create_profile saga request failed.").into())
+        .and_then(|body| {
+            self.http_client
+                .request::<User>(Method::Post, url, Some(body), None)
+                .wait()
+                .map_err(|e| e.context(Error::HttpClient).into())
+        }).map(|created_user| created_user.id.0)
+        .map_err(|e: FailureError| e.context("Service jwt, create_profile saga request failed.").into())
     }
 
     fn update_profile(&self, conn: &T, profile: P) -> RepoResult<i32> {
@@ -300,8 +291,7 @@ where
                         .context(format!("User with email {} not found!", profile.get_email()))
                         .into())
                 }
-            })
-            .map_err(|e: FailureError| e.context("Service jwt, update_profile endpoint error occured.").into())
+            }).map_err(|e: FailureError| e.context("Service jwt, update_profile endpoint error occured.").into())
     }
 
     fn get_id(&self, profile: P, provider: Provider) -> ServiceFuture<i32> {
@@ -320,8 +310,7 @@ where
                                 .find_by_email_provider(profile.get_email(), provider)
                                 .map(|ident| ident.user_id.0)
                         })
-                })
-                .map_err(|e: FailureError| e.context("Service jwt, get_id endpoint error occured.").into())
+                }).map_err(|e: FailureError| e.context("Service jwt, get_id endpoint error occured.").into())
         })
     }
 }
