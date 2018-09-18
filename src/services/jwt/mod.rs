@@ -281,6 +281,11 @@ where
             .map(|user| (profile, user))
             .and_then(move |(profile, user)| {
                 if let Some(user) = user {
+                    if user.is_blocked {
+                        error!("User {} is blocked.", user.id);
+                        return Err(Error::Validate(validation_errors!({"email": ["email" => "Email is blocked"]})).into());
+                    }
+
                     let update_user = profile.merge_into_user(user.clone());
 
                     if update_user.is_empty() {
@@ -354,7 +359,10 @@ impl<
                                                 .map(|user| (new_ident, user))
                                                 .and_then(move |(new_ident, user)| {
                                                     if let Some(user) = user {
-                                                        if user.email_verified {
+                                                        if user.is_blocked {
+                                                            error!("User {} is blocked.", user.id);
+                                                            Err(Error::Validate(validation_errors!({"email": ["email" => "Email is blocked"]})).into())
+                                                        } else if user.email_verified {
                                                             let new_ident_clone = new_ident.clone();
                                                             ident_repo
                                                                 .find_by_email_provider(new_ident.email.clone(), Provider::Email)
