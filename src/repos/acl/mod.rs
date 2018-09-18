@@ -100,6 +100,8 @@ impl<T> Acl<Resource, Action, Scope, FailureError, T> for ApplicationAcl {
 mod tests {
     use std::time::SystemTime;
 
+    use stq_types::UserId;
+
     use repos::legacy_acl::{Acl, CheckScope};
 
     use models::*;
@@ -116,13 +118,14 @@ mod tests {
             first_name: None,
             last_name: None,
             middle_name: None,
-            gender: Gender::Male,
+            gender: None,
             avatar: None,
             birthdate: None,
             last_login_at: SystemTime::now(),
             created_at: SystemTime::now(),
             updated_at: SystemTime::now(),
             saga_id: "saga_id".to_string(),
+            is_blocked: false,
         }
     }
 
@@ -190,6 +193,8 @@ mod tests {
             id: 1,
             user_id: 1,
             role: Role::User,
+            created_at: SystemTime::now(),
+            updated_at: SystemTime::now(),
         };
 
         assert_eq!(acl.allows(Resource::UserRoles, Action::All, &s, Some(&resource)).unwrap(), true);
@@ -206,6 +211,8 @@ mod tests {
             id: 1,
             user_id: 1,
             role: Role::User,
+            created_at: SystemTime::now(),
+            updated_at: SystemTime::now(),
         };
 
         assert_eq!(acl.allows(Resource::UserRoles, Action::All, &s, Some(&resource)).unwrap(), false);

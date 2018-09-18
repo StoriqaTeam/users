@@ -1,5 +1,5 @@
 //! Models for managing Json Web Token
-use models::Provider;
+use stq_static_resources::Provider;
 
 /// Json Web Token created by provider user status
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]

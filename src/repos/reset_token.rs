@@ -6,8 +6,10 @@ use diesel::query_dsl::RunQueryDsl;
 use diesel::Connection;
 use failure::Fail;
 
+use stq_static_resources::TokenType;
+
 use super::types::RepoResult;
-use models::{ResetToken, TokenType};
+use models::ResetToken;
 use schema::reset_tokens::dsl::*;
 
 /// Identities repository, responsible for handling identities

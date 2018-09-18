@@ -11,7 +11,9 @@ RUN apt-get update && \
     apt-get install -y libclang1 clang
 
 # Install diesel client
-RUN cargo install diesel_cli
+RUN mkdir -p /usr/local/cargo/bin/ || true \
+  && wget -q https://s3.eu-central-1.amazonaws.com/dumpster.stq/diesel -O /usr/local/cargo/bin/diesel \
+  && chmod +x /usr/local/cargo/bin/diesel 
 
 # Utils for waiting for some service to be up before starting
 ADD wait_for_it.sh /utils/

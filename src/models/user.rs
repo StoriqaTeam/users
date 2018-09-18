@@ -1,11 +1,5 @@
 //! Models for working with users
 
-pub mod gender;
-pub mod user_id;
-
-pub use self::gender::Gender;
-pub use self::user_id::UserId;
-
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::time::SystemTime;
@@ -13,6 +7,9 @@ use std::time::SystemTime;
 use chrono::NaiveDate;
 use regex::Regex;
 use validator::{Validate, ValidationError};
+
+use stq_static_resources::Gender;
+use stq_types::UserId;
 
 use models::NewIdentity;
 use schema::users;
@@ -44,13 +41,14 @@ pub struct User {
     pub first_name: Option<String>,
     pub last_name: Option<String>,
     pub middle_name: Option<String>,
-    pub gender: Gender,
+    pub gender: Option<Gender>,
     pub birthdate: Option<NaiveDate>,
-    pub avatar: Option<String>,
     pub last_login_at: SystemTime,
     pub created_at: SystemTime,
     pub updated_at: SystemTime,
     pub saga_id: String,
+    pub avatar: Option<String>,
+    pub is_blocked: bool,
 }
 
 /// Payload for creating users
@@ -67,7 +65,7 @@ pub struct NewUser {
     pub last_name: Option<String>,
     #[validate(length(min = "1", message = "Middle name must not be empty"))]
     pub middle_name: Option<String>,
-    pub gender: Gender,
+    pub gender: Option<Gender>,
     pub birthdate: Option<NaiveDate>,
     pub last_login_at: SystemTime,
     pub saga_id: String,
@@ -111,7 +109,7 @@ impl From<NewIdentity> for NewUser {
             first_name: None,
             last_name: None,
             middle_name: None,
-            gender: Gender::Undefined,
+            gender: None,
             birthdate: None,
             last_login_at: SystemTime::now(),
             saga_id: identity.saga_id,

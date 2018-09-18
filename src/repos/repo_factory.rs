@@ -16,7 +16,6 @@ pub trait ReposFactory<C: Connection<Backend = Pg, TransactionManager = AnsiTran
     fn create_identities_repo<'a>(&self, db_conn: &'a C) -> Box<IdentitiesRepo + 'a>;
     fn create_reset_token_repo<'a>(&self, db_conn: &'a C) -> Box<ResetTokenRepo + 'a>;
     fn create_user_roles_repo<'a>(&self, db_conn: &'a C) -> Box<UserRolesRepo + 'a>;
-    fn create_users_delivery_address_repo<'a>(&self, db_conn: &'a C, user_id: Option<i32>) -> Box<UserDeliveryAddresssRepo + 'a>;
 }
 
 #[derive(Clone)]
@@ -93,11 +92,6 @@ impl<C: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 
             Box::new(SystemACL::default()) as Box<Acl<Resource, Action, Scope, FailureError, UserRole>>,
         )) as Box<UserRolesRepo>
     }
-
-    fn create_users_delivery_address_repo<'a>(&self, db_conn: &'a C, user_id: Option<i32>) -> Box<UserDeliveryAddresssRepo + 'a> {
-        let acl = self.get_acl(db_conn, user_id);
-        Box::new(UserDeliveryAddresssRepoImpl::new(db_conn, acl)) as Box<UserDeliveryAddresssRepo>
-    }
 }
 
 #[cfg(test)]
@@ -139,13 +133,15 @@ pub mod tests {
     use sha3::{Digest, Sha3_256};
     use tokio_core::reactor::Handle;
 
+    use stq_static_resources::{Provider, TokenType};
+    use stq_types::UserId;
+
     use config::Config;
     use models::*;
     use repos::identities::IdentitiesRepo;
     use repos::repo_factory::ReposFactory;
     use repos::reset_token::ResetTokenRepo;
     use repos::types::RepoResult;
-    use repos::user_delivery_address::*;
     use repos::user_roles::UserRolesRepo;
     use repos::users::UsersRepo;
     use services::jwt::JWTServiceImpl;
@@ -173,10 +169,6 @@ pub mod tests {
 
         fn create_user_roles_repo<'a>(&self, _db_conn: &'a C) -> Box<UserRolesRepo + 'a> {
             Box::new(UserRolesRepoMock::default()) as Box<UserRolesRepo>
-        }
-
-        fn create_users_delivery_address_repo<'a>(&self, _db_conn: &'a C, _user_id: Option<i32>) -> Box<UserDeliveryAddresssRepo + 'a> {
-            Box::new(UserDeliveryAddresssRepoMock::default()) as Box<UserDeliveryAddresssRepo>
         }
     }
 
@@ -341,6 +333,8 @@ pub mod tests {
                 id: 123,
                 user_id: payload.user_id,
                 role: payload.role,
+                created_at: SystemTime::now(),
+                updated_at: SystemTime::now(),
             })
         }
 
@@ -349,6 +343,8 @@ pub mod tests {
                 id: 123,
                 user_id: payload.user_id,
                 role: payload.role,
+                created_at: SystemTime::now(),
+                updated_at: SystemTime::now(),
             })
         }
 
@@ -357,47 +353,9 @@ pub mod tests {
                 id: 123,
                 user_id: user_id_arg,
                 role: Role::User,
+                created_at: SystemTime::now(),
+                updated_at: SystemTime::now(),
             })
-        }
-    }
-
-    #[derive(Clone, Default)]
-    pub struct UserDeliveryAddresssRepoMock;
-
-    impl UserDeliveryAddresssRepo for UserDeliveryAddresssRepoMock {
-        /// Returns list of user_delivery_address for a specific user
-        fn list_for_user(&self, user_id: i32) -> RepoResult<Vec<UserDeliveryAddress>> {
-            Ok(vec![UserDeliveryAddress {
-                user_id,
-                ..Default::default()
-            }])
-        }
-
-        /// Create a new user delivery address
-        fn create(&self, payload: NewUserDeliveryAddress) -> RepoResult<UserDeliveryAddress> {
-            Ok(UserDeliveryAddress {
-                user_id: payload.user_id,
-                administrative_area_level_1: payload.administrative_area_level_1,
-                administrative_area_level_2: payload.administrative_area_level_2,
-                country: payload.country,
-                locality: payload.locality,
-                political: payload.political,
-                postal_code: payload.postal_code,
-                route: payload.route,
-                street_number: payload.street_number,
-                is_priority: payload.is_priority,
-                ..Default::default()
-            })
-        }
-
-        /// Update a user delivery address
-        fn update(&self, id: i32, _payload: UpdateUserDeliveryAddress) -> RepoResult<UserDeliveryAddress> {
-            Ok(UserDeliveryAddress { id, ..Default::default() })
-        }
-
-        /// Delete user delivery address
-        fn delete(&self, id: i32) -> RepoResult<UserDeliveryAddress> {
-            Ok(UserDeliveryAddress { id, ..Default::default() })
         }
     }
 
@@ -444,13 +402,14 @@ pub mod tests {
             first_name: None,
             last_name: None,
             middle_name: None,
-            gender: Gender::Male,
+            gender: None,
             avatar: None,
             birthdate: None,
             last_login_at: SystemTime::now(),
             created_at: SystemTime::now(),
             updated_at: SystemTime::now(),
             saga_id: MOCK_SAGA_ID.to_string(),
+            is_blocked: false,
         }
     }
 

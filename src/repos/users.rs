@@ -10,12 +10,13 @@ use diesel::Connection;
 use failure::Error as FailureError;
 use failure::Fail;
 
-use repos::legacy_acl::*;
+use stq_types::UserId;
 
 use super::acl;
 use super::types::RepoResult;
 use models::authorization::*;
-use models::{NewUser, UpdateUser, User, UserId};
+use models::{NewUser, UpdateUser, User};
+use repos::legacy_acl::*;
 use schema::users::dsl::*;
 
 /// Users repository, responsible for handling users

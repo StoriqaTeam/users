@@ -3,7 +3,9 @@ use std::str;
 use std::str::FromStr;
 use std::time::SystemTime;
 
-use models::{Gender, NewUser, UpdateUser, User};
+use stq_static_resources::Gender;
+
+use models::{NewUser, UpdateUser, User};
 
 use uuid::Uuid;
 
@@ -26,7 +28,7 @@ impl From<GoogleProfile> for NewUser {
             first_name: Some(google_id.given_name),
             last_name: Some(google_id.family_name),
             middle_name: None,
-            gender: Gender::Undefined,
+            gender: Some(Gender::Undefined),
             birthdate: None,
             last_login_at: SystemTime::now(),
             saga_id: Uuid::new_v4().to_string(),
@@ -48,9 +50,9 @@ pub struct FacebookProfile {
 impl From<FacebookProfile> for NewUser {
     fn from(facebook_id: FacebookProfile) -> Self {
         let gender = if let Some(gender) = facebook_id.gender {
-            Gender::from_str(&gender).unwrap_or(Gender::Undefined)
+            Some(Gender::from_str(&gender).unwrap_or(Gender::Undefined))
         } else {
-            Gender::Undefined
+            None
         };
         NewUser {
             email: facebook_id.email,
@@ -100,7 +102,7 @@ impl IntoUser for FacebookProfile {
         } else {
             None
         };
-        let gender = if user.gender == Gender::Undefined {
+        let gender = if user.gender == None {
             self.gender.clone().map(|g| Gender::from_str(&g).unwrap_or(Gender::Undefined))
         } else {
             None
