@@ -129,6 +129,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
     /// Creates new user
     fn create(&self, payload: NewUser) -> RepoResult<User> {
         let query_user = diesel::insert_into(users).values(&payload);
+        acl::check(&*self.acl, Resource::Users, Action::Create, self, None)?;
         query_user
             .get_result::<User>(self.db_conn)
             .map_err(|e| e.context(format!("Create a new user {:?} error occured", payload)).into())
@@ -141,7 +142,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
         query
             .get_result(self.db_conn)
             .map_err(From::from)
-            .and_then(|user: User| acl::check(&*self.acl, Resource::Users, Action::Write, self, Some(&user)))
+            .and_then(|user: User| acl::check(&*self.acl, Resource::Users, Action::Update, self, Some(&user)))
             .and_then(|_| {
                 let filter = users.filter(id.eq(user_id_arg.clone())).filter(is_active.eq(true));
 
@@ -160,7 +161,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
         query
             .get_result(self.db_conn)
             .map_err(From::from)
-            .and_then(|user: User| acl::check(&*self.acl, Resource::Users, Action::Write, self, Some(&user)))
+            .and_then(|user: User| acl::check(&*self.acl, Resource::Users, Action::Delete, self, Some(&user)))
             .and_then(|_| {
                 let filter = users.filter(id.eq(user_id_arg.clone())).filter(is_active.eq(true));
                 let query = diesel::update(filter).set(is_active.eq(false));
@@ -183,12 +184,12 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static> CheckScope<Scope, User>
     for UsersRepoImpl<'a, T>
 {
-    fn is_in_scope(&self, user_id_arg: i32, scope: &Scope, obj: Option<&User>) -> bool {
+    fn is_in_scope(&self, user_id_arg: UserId, scope: &Scope, obj: Option<&User>) -> bool {
         match *scope {
             Scope::All => true,
             Scope::Owned => {
                 if let Some(user) = obj {
-                    user.id == UserId(user_id_arg)
+                    user.id == user_id_arg
                 } else {
                     false
                 }

@@ -15,7 +15,7 @@ pub enum Route {
     JWTFacebook,
     JWTRenew,
     UserRoles,
-    UserRole(i32),
+    UserRole(UserId),
     DefaultRole(UserId),
     PasswordChange,
     UserPasswordResetToken,
@@ -69,7 +69,7 @@ pub fn create_route_parser() -> RouteParser<Route> {
     router.add_route_with_params(r"^/user_roles/(\d+)$", |params| {
         params
             .get(0)
-            .and_then(|string_id| string_id.parse::<i32>().ok())
+            .and_then(|string_id| string_id.parse::<UserId>().ok())
             .map(Route::UserRole)
     });
 

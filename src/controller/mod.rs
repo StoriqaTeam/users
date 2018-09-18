@@ -30,12 +30,12 @@ use stq_http::controller::ControllerFuture;
 use stq_http::request_util::parse_body;
 use stq_http::request_util::serialize_future;
 use stq_router::RouteParser;
+use stq_types::UserId;
 
 use self::routes::Route;
 use config::Config;
 use errors::Error;
 use models;
-use repos::acl::RolesCacheImpl;
 use repos::repo_factory::*;
 use services::jwt::{JWTService, JWTServiceImpl};
 use services::system::{SystemService, SystemServiceImpl};
@@ -54,7 +54,6 @@ where
     pub route_parser: Arc<RouteParser<Route>>,
     pub config: Config,
     pub client_handle: ClientHandle,
-    pub roles_cache: RolesCacheImpl,
     pub repo_factory: F,
     pub jwt_private_key: Vec<u8>,
 }
@@ -71,7 +70,6 @@ impl<
         cpu_pool: CpuPool,
         client_handle: ClientHandle,
         config: Config,
-        roles_cache: RolesCacheImpl,
         repo_factory: F,
         jwt_private_key: Vec<u8>,
     ) -> Self {
@@ -82,7 +80,6 @@ impl<
             cpu_pool,
             client_handle,
             config,
-            roles_cache,
             repo_factory,
             jwt_private_key,
         }
@@ -99,9 +96,11 @@ impl<
     fn call(&self, req: Request) -> ControllerFuture {
         let headers = req.headers().clone();
         let auth_header = headers.get::<Authorization<String>>();
-        let user_id = auth_header.map(move |auth| auth.0.clone()).and_then(|id| i32::from_str(&id).ok());
+        let user_id = auth_header
+            .map(|auth| auth.0.clone())
+            .and_then(|id| i32::from_str(&id).ok())
+            .map(UserId);
 
-        let cached_roles = self.roles_cache.clone();
         let system_service = SystemServiceImpl::default();
         let users_service = UsersServiceImpl::new(
             self.db_pool.clone(),
@@ -118,8 +117,7 @@ impl<
             self.repo_factory.clone(),
             self.jwt_private_key.clone(),
         );
-        let user_roles_service =
-            UserRolesServiceImpl::new(self.db_pool.clone(), self.cpu_pool.clone(), cached_roles, self.repo_factory.clone());
+        let user_roles_service = UserRolesServiceImpl::new(self.db_pool.clone(), self.cpu_pool.clone(), user_id, self.repo_factory.clone());
 
         let path = req.path().to_string();
 
@@ -335,13 +333,13 @@ impl<
             // POST /roles/default/<user_id>
             (&Post, Some(Route::DefaultRole(user_id))) => {
                 debug!("Received request to add default role for user {}", user_id);
-                serialize_future(user_roles_service.create_default(user_id.0))
+                serialize_future(user_roles_service.create_default(user_id))
             }
 
             // DELETE /roles/default/<user_id>
             (&Delete, Some(Route::DefaultRole(user_id))) => {
                 debug!("Received request to delete default role for user {}", user_id);
-                serialize_future(user_roles_service.delete_default(user_id.0))
+                serialize_future(user_roles_service.delete_default(user_id))
             }
 
             // POST /users/password_change

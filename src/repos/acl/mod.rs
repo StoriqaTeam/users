@@ -14,8 +14,9 @@ use errors::Error;
 use failure::Error as FailureError;
 use failure::Fail;
 
-use super::legacy_acl::{Acl, CheckScope};
+use stq_types::{UserId, UsersRole};
 
+use super::legacy_acl::{Acl, CheckScope};
 use models::authorization::*;
 
 pub fn check<T>(
@@ -39,29 +40,27 @@ pub fn check<T>(
 /// ApplicationAcl contains main logic for manipulation with recources
 #[derive(Clone)]
 pub struct ApplicationAcl {
-    acls: Rc<HashMap<Role, Vec<Permission>>>,
-    roles: Vec<Role>,
-    user_id: i32,
+    acls: Rc<HashMap<UsersRole, Vec<Permission>>>,
+    roles: Vec<UsersRole>,
+    user_id: UserId,
 }
 
 impl ApplicationAcl {
-    pub fn new(roles: Vec<Role>, user_id: i32) -> Self {
+    pub fn new(roles: Vec<UsersRole>, user_id: UserId) -> Self {
         let mut hash = ::std::collections::HashMap::new();
         hash.insert(
-            Role::Superuser,
+            UsersRole::Superuser,
             vec![
-                permission!(Resource::Users),
-                permission!(Resource::UserRoles),
-                permission!(Resource::UserDeliveryAddresses),
+                permission!(Resource::Users, Action::Read), 
+                permission!(Resource::Users, Action::Create), 
+                permission!(Resource::UserRoles)
             ],
         );
         hash.insert(
-            Role::User,
+            UsersRole::User,
             vec![
                 permission!(Resource::Users, Action::Read),
                 permission!(Resource::Users, Action::All, Scope::Owned),
-                permission!(Resource::UserDeliveryAddresses, Action::Read),
-                permission!(Resource::UserDeliveryAddresses, Action::All, Scope::Owned),
                 permission!(Resource::UserRoles, Action::Read, Scope::Owned),
             ],
         );
@@ -100,7 +99,7 @@ impl<T> Acl<Resource, Action, Scope, FailureError, T> for ApplicationAcl {
 mod tests {
     use std::time::SystemTime;
 
-    use stq_types::UserId;
+    use stq_types::{UserId, UsersRole};
 
     use repos::legacy_acl::{Acl, CheckScope};
 
@@ -133,12 +132,12 @@ mod tests {
     struct ScopeChecker;
 
     impl CheckScope<Scope, User> for ScopeChecker {
-        fn is_in_scope(&self, user_id: i32, scope: &Scope, obj: Option<&User>) -> bool {
+        fn is_in_scope(&self, user_id: UserId, scope: &Scope, obj: Option<&User>) -> bool {
             match *scope {
                 Scope::All => true,
                 Scope::Owned => {
                     if let Some(user) = obj {
-                        user.id == UserId(user_id)
+                        user.id == user_id
                     } else {
                         false
                     }
@@ -148,7 +147,7 @@ mod tests {
     }
 
     impl CheckScope<Scope, UserRole> for ScopeChecker {
-        fn is_in_scope(&self, user_id: i32, scope: &Scope, obj: Option<&UserRole>) -> bool {
+        fn is_in_scope(&self, user_id: UserId, scope: &Scope, obj: Option<&UserRole>) -> bool {
             match *scope {
                 Scope::All => true,
                 Scope::Owned => {
@@ -164,59 +163,59 @@ mod tests {
 
     #[test]
     fn test_super_user_for_users() {
-        let acl = ApplicationAcl::new(vec![Role::Superuser], 1232);
+        let acl = ApplicationAcl::new(vec![UsersRole::Superuser], UserId(1232));
         let s = ScopeChecker::default();
         let resource = create_user();
 
-        assert_eq!(acl.allows(Resource::Users, Action::All, &s, Some(&resource)).unwrap(), true);
-        assert_eq!(acl.allows(Resource::Users, Action::Read, &s, Some(&resource)).unwrap(), true);
-        assert_eq!(acl.allows(Resource::Users, Action::Write, &s, Some(&resource)).unwrap(), true);
+        assert_eq!(acl.allows(Resource::Users, Action::All, &s, Some(&resource)).unwrap(), false, "ACL allows all actions on user.");
+        assert_eq!(acl.allows(Resource::Users, Action::Read, &s, Some(&resource)).unwrap(), true, "ACL does not allow read action on user.");
+        assert_eq!(acl.allows(Resource::Users, Action::Create, &s, Some(&resource)).unwrap(), true, "ACL allows create actions on user.");
     }
 
     #[test]
     fn test_ordinary_user_for_users() {
-        let acl = ApplicationAcl::new(vec![Role::User], 2);
+        let acl = ApplicationAcl::new(vec![UsersRole::User], UserId(2));
         let s = ScopeChecker::default();
         let resource = create_user();
 
         assert_eq!(acl.allows(Resource::Users, Action::All, &s, Some(&resource)).unwrap(), false);
         assert_eq!(acl.allows(Resource::Users, Action::Read, &s, Some(&resource)).unwrap(), true);
-        assert_eq!(acl.allows(Resource::Users, Action::Write, &s, Some(&resource)).unwrap(), false);
+        assert_eq!(acl.allows(Resource::Users, Action::Create, &s, Some(&resource)).unwrap(), false);
     }
 
     #[test]
     fn test_super_user_for_user_roles() {
-        let acl = ApplicationAcl::new(vec![Role::Superuser], 1232);
+        let acl = ApplicationAcl::new(vec![UsersRole::Superuser], UserId(1232));
         let s = ScopeChecker::default();
 
         let resource = UserRole {
             id: 1,
-            user_id: 1,
-            role: Role::User,
+            user_id: UserId(1),
+            role: UsersRole::User,
             created_at: SystemTime::now(),
             updated_at: SystemTime::now(),
         };
 
         assert_eq!(acl.allows(Resource::UserRoles, Action::All, &s, Some(&resource)).unwrap(), true);
         assert_eq!(acl.allows(Resource::UserRoles, Action::Read, &s, Some(&resource)).unwrap(), true);
-        assert_eq!(acl.allows(Resource::UserRoles, Action::Write, &s, Some(&resource)).unwrap(), true);
+        assert_eq!(acl.allows(Resource::UserRoles, Action::Create, &s, Some(&resource)).unwrap(), true);
     }
 
     #[test]
     fn test_user_for_user_roles() {
-        let acl = ApplicationAcl::new(vec![Role::User], 2);
+        let acl = ApplicationAcl::new(vec![UsersRole::User], UserId(2));
         let s = ScopeChecker::default();
 
         let resource = UserRole {
             id: 1,
-            user_id: 1,
-            role: Role::User,
+            user_id: UserId(1),
+            role: UsersRole::User,
             created_at: SystemTime::now(),
             updated_at: SystemTime::now(),
         };
 
         assert_eq!(acl.allows(Resource::UserRoles, Action::All, &s, Some(&resource)).unwrap(), false);
         assert_eq!(acl.allows(Resource::UserRoles, Action::Read, &s, Some(&resource)).unwrap(), false);
-        assert_eq!(acl.allows(Resource::UserRoles, Action::Write, &s, Some(&resource)).unwrap(), false);
+        assert_eq!(acl.allows(Resource::UserRoles, Action::Create, &s, Some(&resource)).unwrap(), false);
     }
 }

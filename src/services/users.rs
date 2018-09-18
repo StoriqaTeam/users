@@ -66,7 +66,7 @@ pub struct UsersServiceImpl<
     pub db_pool: Pool<M>,
     pub cpu_pool: CpuPool,
     pub http_client: ClientHandle,
-    user_id: Option<i32>,
+    user_id: Option<UserId>,
     pub repo_factory: F,
 }
 
@@ -76,7 +76,7 @@ impl<
         F: ReposFactory<T>,
     > UsersServiceImpl<T, M, F>
 {
-    pub fn new(db_pool: Pool<M>, cpu_pool: CpuPool, http_client: ClientHandle, user_id: Option<i32>, repo_factory: F) -> Self {
+    pub fn new(db_pool: Pool<M>, cpu_pool: CpuPool, http_client: ClientHandle, user_id: Option<UserId>, repo_factory: F) -> Self {
         Self {
             db_pool,
             cpu_pool,
@@ -132,7 +132,7 @@ impl<
                             .map_err(|e| e.context(Error::Connection).into())
                             .and_then(move |conn| {
                                 let users_repo = repo_factory.create_users_repo(&conn, current_uid);
-                                users_repo.find(UserId(id))
+                                users_repo.find(id)
                             })
                     }).map_err(|e: FailureError| e.context("Service users, current endpoint error occured.").into()),
             )
@@ -385,7 +385,7 @@ impl<
             Some(uid) => {
                 let db_clone = self.db_pool.clone();
                 let repo_factory = self.repo_factory.clone();
-                let current_uid = UserId(uid);
+                let current_uid = uid;
 
                 debug!("Updating user password {}", &current_uid);
 
@@ -599,7 +599,7 @@ pub mod tests {
     fn test_get_user() {
         let mut core = Core::new().unwrap();
         let handle = Arc::new(core.handle());
-        let service = create_users_service(Some(1), handle);
+        let service = create_users_service(Some(UserId(1)), handle);
         let work = service.get(UserId(1));
         let result = core.run(work).unwrap();
         assert_eq!(result.unwrap().id, UserId(1));
@@ -609,7 +609,7 @@ pub mod tests {
     fn test_current_user() {
         let mut core = Core::new().unwrap();
         let handle = Arc::new(core.handle());
-        let service = create_users_service(Some(1), handle);
+        let service = create_users_service(Some(UserId(1)), handle);
         let work = service.current();
         let result = core.run(work).unwrap();
         assert_eq!(result.unwrap().email, MOCK_EMAIL.to_string());
@@ -629,7 +629,7 @@ pub mod tests {
     fn test_list() {
         let mut core = Core::new().unwrap();
         let handle = Arc::new(core.handle());
-        let service = create_users_service(Some(1), handle);
+        let service = create_users_service(Some(UserId(1)), handle);
         let work = service.list(1, 5);
         let result = core.run(work).unwrap();
         assert_eq!(result.len(), 5);
@@ -639,7 +639,7 @@ pub mod tests {
     fn test_create_allready_existed() {
         let mut core = Core::new().unwrap();
         let handle = Arc::new(core.handle());
-        let service = create_users_service(Some(1), handle);
+        let service = create_users_service(Some(UserId(1)), handle);
         let new_ident = create_new_identity(
             MOCK_EMAIL.to_string(),
             MOCK_PASSWORD.to_string(),
@@ -655,7 +655,7 @@ pub mod tests {
     fn test_create_user() {
         let mut core = Core::new().unwrap();
         let handle = Arc::new(core.handle());
-        let service = create_users_service(Some(1), handle);
+        let service = create_users_service(Some(UserId(1)), handle);
         let new_ident = create_new_identity(
             "new_user@mail.com".to_string(),
             MOCK_PASSWORD.to_string(),
@@ -671,7 +671,7 @@ pub mod tests {
     fn test_update() {
         let mut core = Core::new().unwrap();
         let handle = Arc::new(core.handle());
-        let service = create_users_service(Some(1), handle);
+        let service = create_users_service(Some(UserId(1)), handle);
         let new_user = create_update_user(MOCK_EMAIL.to_string());
         let work = service.update(UserId(1), new_user);
         let result = core.run(work).unwrap();
@@ -683,7 +683,7 @@ pub mod tests {
     fn test_deactivate() {
         let mut core = Core::new().unwrap();
         let handle = Arc::new(core.handle());
-        let service = create_users_service(Some(1), handle);
+        let service = create_users_service(Some(UserId(1)), handle);
         let work = service.deactivate(UserId(1));
         let result = core.run(work).unwrap();
         assert_eq!(result.id, UserId(1));
