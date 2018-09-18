@@ -1,12 +1,10 @@
 //! Models for password reset
-pub mod token_type;
-
-pub use self::token_type::TokenType;
-
 use std::fmt;
 use std::time::SystemTime;
 
 use validator::Validate;
+
+use stq_static_resources::TokenType;
 
 use schema::reset_tokens;
 
@@ -15,8 +13,8 @@ use schema::reset_tokens;
 pub struct ResetToken {
     pub token: String,
     pub email: String,
-    pub token_type: TokenType,
     pub created_at: SystemTime,
+    pub token_type: TokenType,
 }
 
 #[derive(Serialize, Deserialize, Validate, Debug)]

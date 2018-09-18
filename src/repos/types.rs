@@ -1,8 +1,8 @@
 use diesel::pg::PgConnection;
+use diesel::r2d2::ConnectionManager;
 use failure::Error as FailureError;
 use futures::future::Future;
 use r2d2;
-use r2d2_diesel::ConnectionManager;
 
 /// Repos layer Future
 pub type RepoFuture<T> = Box<Future<Item = T, Error = FailureError>>;

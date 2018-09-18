@@ -20,11 +20,13 @@ use serde_json;
 use stq_http::client::ClientHandle;
 use uuid::Uuid;
 
+use stq_static_resources::Provider;
+
 use self::profile::{Email, FacebookProfile, GoogleProfile, IntoUser};
 use super::util::password_verify;
 use config::{Config, OAuth, JWT as JWTConfig};
 use errors::Error;
-use models::{self, JWTPayload, NewEmailIdentity, NewIdentity, NewUser, Provider, ProviderOauth, User, UserStatus, JWT};
+use models::{self, JWTPayload, NewEmailIdentity, NewIdentity, NewUser, ProviderOauth, User, UserStatus, JWT};
 use repos::repo_factory::ReposFactory;
 use repos::types::RepoResult;
 use services::types::ServiceFuture;

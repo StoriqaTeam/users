@@ -1,0 +1,2 @@
+ALTER TABLE identities ALTER COLUMN saga_id DROP NOT NULL;
+ALTER TABLE identities ALTER COLUMN provider DROP NOT NULL;

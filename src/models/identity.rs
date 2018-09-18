@@ -1,19 +1,16 @@
 //! Models for working with identities
-
-pub mod provider;
-
-pub use self::provider::Provider;
+use std::fmt;
 
 use uuid::Uuid;
 use validator::Validate;
 
-use models::UserId;
+use stq_static_resources::Provider;
+use stq_types::UserId;
+
 use schema::identities;
 
-use std::fmt;
-
 /// Payload for creating identity for users
-#[derive(Debug, Serialize, Deserialize, Validate, Insertable, Queryable, Clone)]
+#[derive(Debug, Serialize, Deserialize, Validate, Queryable, Insertable, Clone)]
 #[table_name = "identities"]
 pub struct Identity {
     pub user_id: UserId,
@@ -64,7 +61,7 @@ impl From<NewEmailIdentity> for NewIdentity {
         Self {
             email: v.email,
             password: Some(v.password),
-            provider: Provider::UnverifiedEmail,
+            provider: Provider::Email,
             saga_id: Uuid::new_v4().to_string(),
         }
     }

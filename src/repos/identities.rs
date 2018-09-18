@@ -10,9 +10,11 @@ use diesel::Connection;
 use failure::Error as FailureError;
 use failure::Fail;
 
+use stq_static_resources::Provider;
+use stq_types::UserId;
+
 use super::types::RepoResult;
-use models::UserId;
-use models::{Identity, Provider, UpdateIdentity};
+use models::{Identity, UpdateIdentity};
 use schema::identities::dsl::*;
 
 /// Identities repository, responsible for handling identities

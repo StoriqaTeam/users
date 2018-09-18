@@ -1,6 +1,5 @@
-use models::UserId;
-
 use stq_router::RouteParser;
+use stq_types::UserId;
 
 /// List of all routes with params for the app
 #[derive(Clone, Debug, PartialEq)]
@@ -21,8 +20,6 @@ pub enum Route {
     PasswordChange,
     UserPasswordResetToken,
     UserEmailVerifyToken,
-    UserDeliveryAddresses,
-    UserDeliveryAddress(i32),
 }
 
 pub fn create_route_parser() -> RouteParser<Route> {
@@ -92,17 +89,6 @@ pub fn create_route_parser() -> RouteParser<Route> {
 
     // User email verification route
     router.add_route(r"^/users/email_verify_token$", || Route::UserEmailVerifyToken);
-
-    // User delivery addresses route
-    router.add_route(r"^/users/delivery_addresses$", || Route::UserDeliveryAddresses);
-
-    // User delivery addresses/:id route
-    router.add_route_with_params(r"^/users/delivery_addresses/(\d+)$", |params| {
-        params
-            .get(0)
-            .and_then(|string_id| string_id.parse::<i32>().ok())
-            .map(Route::UserDeliveryAddress)
-    });
 
     router
 }

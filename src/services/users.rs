@@ -15,13 +15,15 @@ use r2d2::{ManageConnection, Pool};
 use uuid::Uuid;
 
 use stq_http::client::ClientHandle;
+use stq_static_resources::{Provider, TokenType};
+use stq_types::UserId;
 
 use super::types::ServiceFuture;
 use super::util::{password_create, password_verify};
 use errors::Error;
-use models::{ChangeIdentityPassword, NewIdentity, Provider, UpdateIdentity};
-use models::{NewUser, UpdateUser, User, UserId};
-use models::{ResetToken, TokenType};
+use models::ResetToken;
+use models::{ChangeIdentityPassword, NewIdentity, UpdateIdentity};
+use models::{NewUser, UpdateUser, User};
 use repos::repo_factory::ReposFactory;
 
 pub trait UsersService {
@@ -584,11 +586,13 @@ impl<
 pub mod tests {
 
     use std::sync::Arc;
+
     use tokio_core::reactor::Core;
 
-    use repos::repo_factory::tests::*;
+    use stq_static_resources::Provider;
+    use stq_types::UserId;
 
-    use models::*;
+    use repos::repo_factory::tests::*;
     use services::users::UsersService;
 
     #[test]

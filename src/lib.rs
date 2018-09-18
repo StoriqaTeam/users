@@ -25,7 +25,6 @@ extern crate lazy_static;
 #[macro_use]
 extern crate log;
 extern crate r2d2;
-extern crate r2d2_diesel;
 extern crate rand;
 extern crate regex;
 extern crate serde;
@@ -33,9 +32,6 @@ extern crate serde;
 extern crate serde_derive;
 extern crate serde_json;
 extern crate sha3;
-extern crate stq_http;
-extern crate stq_logging;
-extern crate stq_router;
 extern crate tokio_core;
 extern crate uuid;
 extern crate validator;
@@ -43,6 +39,12 @@ extern crate validator;
 extern crate validator_derive;
 #[macro_use]
 extern crate sentry;
+
+extern crate stq_http;
+extern crate stq_logging;
+extern crate stq_router;
+extern crate stq_static_resources;
+extern crate stq_types;
 
 #[macro_use]
 pub mod macros;
@@ -61,11 +63,11 @@ use std::process;
 use std::sync::Arc;
 
 use diesel::pg::PgConnection;
+use diesel::r2d2::ConnectionManager;
 use futures::future;
 use futures::{Future, Stream};
 use futures_cpupool::CpuPool;
 use hyper::server::Http;
-use r2d2_diesel::ConnectionManager;
 use tokio_core::reactor::Core;
 
 use stq_http::controller::Application;
