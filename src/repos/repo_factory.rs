@@ -228,6 +228,10 @@ pub mod tests {
             }
             Ok(users)
         }
+        fn set_block_status(&self, user_id_arg: UserId, _is_blocked_arg: bool) -> RepoResult<User> {
+            let user = create_user(user_id_arg, MOCK_EMAIL.to_string());
+            Ok(user)
+        }
     }
 
     #[derive(Clone, Default)]

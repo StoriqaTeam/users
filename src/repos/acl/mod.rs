@@ -53,6 +53,8 @@ impl ApplicationAcl {
             vec![
                 permission!(Resource::Users, Action::Read),
                 permission!(Resource::Users, Action::Create),
+                permission!(Resource::Users, Action::Block),
+                permission!(Resource::Users, Action::Delete),
                 permission!(Resource::UserRoles),
             ],
         );
@@ -60,7 +62,15 @@ impl ApplicationAcl {
             UsersRole::User,
             vec![
                 permission!(Resource::Users, Action::Read),
-                permission!(Resource::Users, Action::All, Scope::Owned),
+                permission!(Resource::Users, Action::Update, Scope::Owned),
+                permission!(Resource::UserRoles, Action::Read, Scope::Owned),
+            ],
+        );
+        hash.insert(
+            UsersRole::Moderator,
+            vec![
+                permission!(Resource::Users, Action::Read),
+                permission!(Resource::Users, Action::Block),
                 permission!(Resource::UserRoles, Action::Read, Scope::Owned),
             ],
         );
@@ -106,9 +116,9 @@ mod tests {
     use models::*;
     use repos::*;
 
-    fn create_user() -> User {
+    fn create_user(id: UserId) -> User {
         User {
-            id: UserId(1),
+            id,
             email: "example@mail.com".to_string(),
             email_verified: false,
             phone: None,
@@ -165,34 +175,115 @@ mod tests {
     fn test_super_user_for_users() {
         let acl = ApplicationAcl::new(vec![UsersRole::Superuser], UserId(1232));
         let s = ScopeChecker::default();
-        let resource = create_user();
+        let resource = create_user(UserId(1));
 
         assert_eq!(
             acl.allows(Resource::Users, Action::All, &s, Some(&resource)).unwrap(),
             false,
-            "ACL allows all actions on user."
+            "ACL allows all actions on user for superuser."
         );
         assert_eq!(
             acl.allows(Resource::Users, Action::Read, &s, Some(&resource)).unwrap(),
             true,
-            "ACL does not allow read action on user."
+            "ACL does not allow read action on user for superuser."
         );
         assert_eq!(
             acl.allows(Resource::Users, Action::Create, &s, Some(&resource)).unwrap(),
             true,
-            "ACL allows create actions on user."
+            "ACL does not allow  create actions on user for superuser."
+        );
+        assert_eq!(
+            acl.allows(Resource::Users, Action::Update, &s, Some(&resource)).unwrap(),
+            false,
+            "ACL allows update actions on user for superuser."
+        );
+        assert_eq!(
+            acl.allows(Resource::Users, Action::Delete, &s, Some(&resource)).unwrap(),
+            true,
+            "ACL does not allow  delete actions on user for superuser."
+        );
+        assert_eq!(
+            acl.allows(Resource::Users, Action::Block, &s, Some(&resource)).unwrap(),
+            true,
+            "ACL does not allow block actions on user for superuser."
         );
     }
 
     #[test]
     fn test_ordinary_user_for_users() {
-        let acl = ApplicationAcl::new(vec![UsersRole::User], UserId(2));
+        let user_id = UserId(2);
+        let acl = ApplicationAcl::new(vec![UsersRole::User], user_id);
         let s = ScopeChecker::default();
-        let resource = create_user();
+        let resource = create_user(user_id);
 
-        assert_eq!(acl.allows(Resource::Users, Action::All, &s, Some(&resource)).unwrap(), false);
-        assert_eq!(acl.allows(Resource::Users, Action::Read, &s, Some(&resource)).unwrap(), true);
-        assert_eq!(acl.allows(Resource::Users, Action::Create, &s, Some(&resource)).unwrap(), false);
+        assert_eq!(
+            acl.allows(Resource::Users, Action::All, &s, Some(&resource)).unwrap(),
+            false,
+            "ACL allows all actions on user for ordinary_user."
+        );
+        assert_eq!(
+            acl.allows(Resource::Users, Action::Read, &s, Some(&resource)).unwrap(),
+            true,
+            "ACL does not allow read action on user for ordinary_user."
+        );
+        assert_eq!(
+            acl.allows(Resource::Users, Action::Create, &s, Some(&resource)).unwrap(),
+            false,
+            "ACL allows create actions on user for ordinary_user."
+        );
+        assert_eq!(
+            acl.allows(Resource::Users, Action::Update, &s, Some(&resource)).unwrap(),
+            true,
+            "ACL does not allow update actions on user for ordinary_user."
+        );
+        assert_eq!(
+            acl.allows(Resource::Users, Action::Delete, &s, Some(&resource)).unwrap(),
+            false,
+            "ACL allows delete actions on user for ordinary_user."
+        );
+        assert_eq!(
+            acl.allows(Resource::Users, Action::Block, &s, Some(&resource)).unwrap(),
+            false,
+            "ACL allows block actions on user for ordinary_user."
+        );
+    }
+
+    #[test]
+    fn test_moderator_for_users() {
+        let acl = ApplicationAcl::new(vec![UsersRole::Moderator], UserId(32));
+        let s = ScopeChecker::default();
+        let resource = create_user(UserId(1));
+
+        assert_eq!(
+            acl.allows(Resource::Users, Action::All, &s, Some(&resource)).unwrap(),
+            false,
+            "ACL allows all actions on user for moderator."
+        );
+        assert_eq!(
+            acl.allows(Resource::Users, Action::Read, &s, Some(&resource)).unwrap(),
+            true,
+            "ACL does not allow read action on user for moderator."
+        );
+        assert_eq!(
+            acl.allows(Resource::Users, Action::Create, &s, Some(&resource)).unwrap(),
+            false,
+            "ACL allows create actions on user for moderator."
+        );
+        assert_eq!(
+            acl.allows(Resource::Users, Action::Update, &s, Some(&resource)).unwrap(),
+            false,
+            "ACL allows update actions on user for moderator."
+        );
+        assert_eq!(
+            acl.allows(Resource::Users, Action::Delete, &s, Some(&resource)).unwrap(),
+            false,
+            "ACL allows delete actions on user for moderator."
+        );
+        assert_eq!(
+            acl.allows(Resource::Users, Action::Block, &s, Some(&resource)).unwrap(),
+            true,
+            "ACL does not allow block actions on user for moderator."
+        );
     }
 
     #[test]

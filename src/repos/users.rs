@@ -47,6 +47,9 @@ pub trait UsersRepo {
     /// Deactivates specific user
     fn deactivate(&self, user_id: UserId) -> RepoResult<User>;
 
+    /// Set block status of specific user
+    fn set_block_status(&self, user_id: UserId, is_blocked_arg: bool) -> RepoResult<User>;
+
     /// Deletes specific user
     fn delete_by_saga_id(&self, saga_id_arg: String) -> RepoResult<User>;
 
@@ -173,6 +176,25 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
             }).map_err(|e: FailureError| e.context(format!("Deactivates user {:?} error occured", user_id_arg)).into())
     }
 
+    /// Set block status of specific user
+    fn set_block_status(&self, user_id_arg: UserId, is_blocked_arg: bool) -> RepoResult<User> {
+        let query = users.find(user_id_arg.clone());
+
+        query
+            .get_result(self.db_conn)
+            .map_err(From::from)
+            .and_then(|user: User| acl::check(&*self.acl, Resource::Users, Action::Block, self, Some(&user)))
+            .and_then(|_| {
+                let filter = users.filter(id.eq(user_id_arg.clone()));
+                let query = diesel::update(filter).set(is_blocked.eq(is_blocked_arg));
+
+                query.get_result(self.db_conn).map_err(From::from)
+            }).map_err(|e: FailureError| {
+                e.context(format!("Set Block status for user {:?} error occured", user_id_arg))
+                    .into()
+            })
+    }
+
     /// Deletes specific user by saga id
     fn delete_by_saga_id(&self, saga_id_arg: String) -> RepoResult<User> {
         let filtered = users.filter(saga_id.eq(saga_id_arg.clone()));
@@ -194,10 +216,10 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
             query = query.filter(phone.eq(term_phone));
         }
         if let Some(term_first_name) = term.first_name {
-            query = query.filter(first_name.like(format!("{}%",term_first_name)));
+            query = query.filter(first_name.like(format!("{}%", term_first_name)));
         }
         if let Some(term_last_name) = term.last_name {
-            query = query.filter(last_name.like(format!("{}%",term_last_name)));
+            query = query.filter(last_name.like(format!("{}%", term_last_name)));
         }
         if let Some(term_is_blocked) = term.is_blocked {
             query = query.filter(is_blocked.eq(term_is_blocked));

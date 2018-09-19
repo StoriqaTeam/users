@@ -7,6 +7,8 @@ pub enum Route {
     Healthcheck,
     Users,
     User(UserId),
+    UserBlock(UserId),
+    UserUnblock(UserId),
     UserBySagaId(String),
     UsersSearch,
     UserByEmail,
@@ -53,6 +55,22 @@ pub fn create_route_parser() -> RouteParser<Route> {
             .get(0)
             .and_then(|string_id| string_id.parse::<UserId>().ok())
             .map(Route::User)
+    });
+
+    // Users/:id/block route
+    router.add_route_with_params(r"^/users/(\d+)/block$", |params| {
+        params
+            .get(0)
+            .and_then(|string_id| string_id.parse::<UserId>().ok())
+            .map(Route::UserBlock)
+    });
+
+    // Users/:id/unblock route
+    router.add_route_with_params(r"^/users/(\d+)/unblock$", |params| {
+        params
+            .get(0)
+            .and_then(|string_id| string_id.parse::<UserId>().ok())
+            .map(Route::UserUnblock)
     });
 
     // Users/:id route

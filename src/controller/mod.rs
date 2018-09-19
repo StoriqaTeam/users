@@ -225,6 +225,18 @@ impl<
                     }),
             ),
 
+            // POST /users/<user_id>/block
+            (&Post, Some(Route::UserBlock(user_id))) => {
+                debug!("Received request to block user {}", user_id);
+                serialize_future(users_service.set_block_status(user_id, true))
+            }
+
+            // POST /users/<user_id>/unblock
+            (&Post, Some(Route::UserUnblock(user_id))) => {
+                debug!("Received request to unblock user {}", user_id);
+                serialize_future(users_service.set_block_status(user_id, false))
+            }
+
             // DELETE /users/<user_id>
             (&Delete, Some(Route::User(user_id))) => {
                 debug!("Received request to deactivate user {}", user_id);

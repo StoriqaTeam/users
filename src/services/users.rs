@@ -57,6 +57,8 @@ pub trait UsersService {
     fn find_by_email(&self, email: String) -> ServiceFuture<Option<User>>;
     /// Search users limited by `from` and `count` parameters
     fn search(&self, from: i32, count: i64, term: UsersSearchTerms) -> ServiceFuture<Vec<User>>;
+    /// Set block status for specific user
+    fn set_block_status(&self, user_id: UserId, is_blocked: bool) -> ServiceFuture<User>;
 }
 
 /// Users services, responsible for User-related CRUD operations
@@ -184,6 +186,27 @@ impl<
                             users_repo.deactivate(user_id)
                         })
                 }).map_err(|e: FailureError| e.context("Service users, deactivate endpoint error occured.").into()),
+        )
+    }
+
+    /// Set block status for specific user
+    fn set_block_status(&self, user_id: UserId, is_blocked: bool) -> ServiceFuture<User> {
+        let db_clone = self.db_pool.clone();
+        let current_uid = self.user_id;
+        let repo_factory = self.repo_factory.clone();
+        debug!("Set block status {} for user {}", is_blocked, &user_id);
+
+        Box::new(
+            self.cpu_pool
+                .spawn_fn(move || {
+                    db_clone
+                        .get()
+                        .map_err(|e| e.context(Error::Connection).into())
+                        .and_then(move |conn| {
+                            let users_repo = repo_factory.create_users_repo(&conn, current_uid);
+                            users_repo.set_block_status(user_id, is_blocked)
+                        })
+                }).map_err(|e: FailureError| e.context("Service users, set_block_status endpoint error occured.").into()),
         )
     }
 
