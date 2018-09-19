@@ -8,6 +8,7 @@ pub enum Route {
     Users,
     User(UserId),
     UserBySagaId(String),
+    UsersSearch,
     UserByEmail,
     Current,
     JWTEmail,
@@ -89,6 +90,9 @@ pub fn create_route_parser() -> RouteParser<Route> {
 
     // User email verification route
     router.add_route(r"^/users/email_verify_token$", || Route::UserEmailVerifyToken);
+
+    // Users Routes
+    router.add_route(r"^/users/search$", || Route::UsersSearch);
 
     router
 }

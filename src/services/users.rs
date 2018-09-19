@@ -23,7 +23,7 @@ use super::util::{password_create, password_verify};
 use errors::Error;
 use models::ResetToken;
 use models::{ChangeIdentityPassword, NewIdentity, UpdateIdentity};
-use models::{NewUser, UpdateUser, User};
+use models::{NewUser, UpdateUser, User, UsersSearchTerms};
 use repos::repo_factory::ReposFactory;
 
 pub trait UsersService {
@@ -55,6 +55,8 @@ pub trait UsersService {
     fn reset_token_create() -> String;
     /// Find by email
     fn find_by_email(&self, email: String) -> ServiceFuture<Option<User>>;
+    /// Search users limited by `from` and `count` parameters
+    fn search(&self, from: i32, count: i64, term: UsersSearchTerms) -> ServiceFuture<Vec<User>>;
 }
 
 /// Users services, responsible for User-related CRUD operations
@@ -578,6 +580,28 @@ impl<
                             users_repo.find_by_email(email)
                         })
                 }).map_err(|e: FailureError| e.context("Service users, find by email endpoint error occured.").into()),
+        )
+    }
+
+    /// Search users limited by `from` and `count` parameters
+    fn search(&self, from: i32, count: i64, term: UsersSearchTerms) -> ServiceFuture<Vec<User>> {
+        let db_clone = self.db_pool.clone();
+        let current_uid = self.user_id;
+        let repo_factory = self.repo_factory.clone();
+
+        debug!("Searching for {} users starting from {} with payload: {:?}", count, from, term);
+
+        Box::new(
+            self.cpu_pool
+                .spawn_fn(move || {
+                    db_clone
+                        .get()
+                        .map_err(|e| e.context(Error::Connection).into())
+                        .and_then(move |conn| {
+                            let users_repo = repo_factory.create_users_repo(&conn, current_uid);
+                            users_repo.search(from, count, term)
+                        })
+                }).map_err(|e: FailureError| e.context("Service users, search endpoint error occured.").into()),
         )
     }
 }

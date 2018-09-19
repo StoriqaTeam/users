@@ -15,7 +15,7 @@ use stq_types::UserId;
 use super::acl;
 use super::types::RepoResult;
 use models::authorization::*;
-use models::{NewUser, UpdateUser, User};
+use models::{NewUser, UpdateUser, User, UsersSearchTerms};
 use repos::legacy_acl::*;
 use schema::users::dsl::*;
 
@@ -49,6 +49,9 @@ pub trait UsersRepo {
 
     /// Deletes specific user
     fn delete_by_saga_id(&self, saga_id_arg: String) -> RepoResult<User>;
+
+    /// Search users limited by `from` and `count` parameters
+    fn search(&self, from: i32, count: i64, term: UsersSearchTerms) -> RepoResult<Vec<User>>;
 }
 
 impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static> UsersRepoImpl<'a, T> {
@@ -178,6 +181,41 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
             e.context(format!("Delete specific user by saga id {:?} error occured", saga_id_arg))
                 .into()
         })
+    }
+
+    /// Search users limited by `from` and `count` parameters
+    fn search(&self, from: i32, count: i64, term: UsersSearchTerms) -> RepoResult<Vec<User>> {
+        let mut query = users.filter(id.ge(from)).order(id).limit(count).into_boxed();
+
+        if let Some(term_email) = term.email {
+            query = query.filter(email.eq(term_email));
+        }
+        if let Some(term_phone) = term.phone {
+            query = query.filter(phone.eq(term_phone));
+        }
+        if let Some(term_first_name) = term.first_name {
+            query = query.filter(first_name.like(format!("{}%",term_first_name)));
+        }
+        if let Some(term_last_name) = term.last_name {
+            query = query.filter(last_name.like(format!("{}%",term_last_name)));
+        }
+        if let Some(term_is_blocked) = term.is_blocked {
+            query = query.filter(is_blocked.eq(term_is_blocked));
+        }
+
+        query
+            .get_results(self.db_conn)
+            .map_err(From::from)
+            .and_then(|users_res: Vec<User>| {
+                for user in &users_res {
+                    acl::check(&*self.acl, Resource::Users, Action::Read, self, Some(&user))?;
+                }
+
+                Ok(users_res)
+            }).map_err(|e: FailureError| {
+                e.context(format!("search for users, limited by {} and {} error occured", from, count))
+                    .into()
+            })
     }
 }
 

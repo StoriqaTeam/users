@@ -116,3 +116,13 @@ impl From<NewIdentity> for NewUser {
         }
     }
 }
+
+/// Payload for searching for user
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UsersSearchTerms {
+    pub email: Option<String>,
+    pub phone: Option<String>,
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+    pub is_blocked: Option<bool>,
+}

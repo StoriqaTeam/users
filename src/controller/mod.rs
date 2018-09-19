@@ -431,6 +431,29 @@ impl<
                 }
             }
 
+            // POST /users/search
+            (&Post, Some(Route::UsersSearch)) => {
+                if let (Some(offset), Some(count)) = parse_query!(req.query().unwrap_or_default(), "offset" => i32, "count" => i64) {
+                    debug!("Received request to search {} users starting from {}", count, offset);
+                    serialize_future(
+                        parse_body::<models::UsersSearchTerms>(req.body())
+                            .map_err(|e| {
+                                e.context("Parsing body // POST /users/search in UsersSearchTerms failed!")
+                                    .context(Error::Parse)
+                                    .into()
+                            }).inspect(|payload| {
+                                debug!("Received request to search for user whith payload {:?}", payload);
+                            }).and_then(move |payload| users_service.search(offset, count, payload)),
+                    )
+                } else {
+                    Box::new(future::err(
+                        format_err!("Parsing query parameters // POST /users/search failed!")
+                            .context(Error::Parse)
+                            .into(),
+                    ))
+                }
+            }
+
             // Fallback
             (m, _) => Box::new(future::err(
                 format_err!("Request to non existing endpoint in users microservice! {:?} {:?}", m, path)
