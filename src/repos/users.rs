@@ -36,7 +36,7 @@ pub trait UsersRepo {
     fn find_by_email(&self, email_arg: String) -> RepoResult<Option<User>>;
 
     /// Returns list of users, limited by `from` and `count` parameters
-    fn list(&self, from: i32, count: i64) -> RepoResult<Vec<User>>;
+    fn list(&self, from: UserId, count: i64) -> RepoResult<Vec<User>>;
 
     /// Creates new user
     fn create(&self, payload: NewUser) -> RepoResult<User>;
@@ -54,7 +54,7 @@ pub trait UsersRepo {
     fn delete_by_saga_id(&self, saga_id_arg: String) -> RepoResult<User>;
 
     /// Search users limited by `from` and `count` parameters
-    fn search(&self, from: i32, count: i64, term: UsersSearchTerms) -> RepoResult<Vec<User>>;
+    fn search(&self, from: UserId, count: i64, term: UsersSearchTerms) -> RepoResult<Vec<User>>;
 }
 
 impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static> UsersRepoImpl<'a, T> {
@@ -114,7 +114,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
     }
 
     /// Returns list of users, limited by `from` and `count` parameters
-    fn list(&self, from: i32, count: i64) -> RepoResult<Vec<User>> {
+    fn list(&self, from: UserId, count: i64) -> RepoResult<Vec<User>> {
         let query = users.filter(is_active.eq(true)).filter(id.ge(from)).order(id).limit(count);
 
         query
@@ -206,8 +206,8 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
     }
 
     /// Search users limited by `from` and `count` parameters
-    fn search(&self, from: i32, count: i64, term: UsersSearchTerms) -> RepoResult<Vec<User>> {
-        let mut query = users.filter(id.ge(from)).order(id).limit(count).into_boxed();
+    fn search(&self, from: UserId, count: i64, term: UsersSearchTerms) -> RepoResult<Vec<User>> {
+        let mut query = users.filter(id.ge(from)).into_boxed();
 
         if let Some(term_email) = term.email {
             query = query.filter(email.eq(term_email));
@@ -224,6 +224,8 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
         if let Some(term_is_blocked) = term.is_blocked {
             query = query.filter(is_blocked.eq(term_is_blocked));
         }
+
+        query = query.order(id).limit(count);
 
         query
             .get_results(self.db_conn)

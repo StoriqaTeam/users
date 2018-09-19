@@ -32,7 +32,7 @@ pub trait UsersService {
     /// Returns current user
     fn current(&self) -> ServiceFuture<Option<User>>;
     /// Lists users limited by `from` and `count` parameters
-    fn list(&self, from: i32, count: i64) -> ServiceFuture<Vec<User>>;
+    fn list(&self, from: UserId, count: i64) -> ServiceFuture<Vec<User>>;
     /// Deactivates specific user
     fn deactivate(&self, user_id: UserId) -> ServiceFuture<User>;
     /// Deletes user by saga id
@@ -56,7 +56,7 @@ pub trait UsersService {
     /// Find by email
     fn find_by_email(&self, email: String) -> ServiceFuture<Option<User>>;
     /// Search users limited by `from` and `count` parameters
-    fn search(&self, from: i32, count: i64, term: UsersSearchTerms) -> ServiceFuture<Vec<User>>;
+    fn search(&self, from: UserId, count: i64, term: UsersSearchTerms) -> ServiceFuture<Vec<User>>;
     /// Set block status for specific user
     fn set_block_status(&self, user_id: UserId, is_blocked: bool) -> ServiceFuture<User>;
 }
@@ -146,7 +146,7 @@ impl<
     }
 
     /// Lists users limited by `from` and `count` parameters
-    fn list(&self, from: i32, count: i64) -> ServiceFuture<Vec<User>> {
+    fn list(&self, from: UserId, count: i64) -> ServiceFuture<Vec<User>> {
         let db_clone = self.db_pool.clone();
         let current_uid = self.user_id;
         let repo_factory = self.repo_factory.clone();
@@ -607,7 +607,7 @@ impl<
     }
 
     /// Search users limited by `from` and `count` parameters
-    fn search(&self, from: i32, count: i64, term: UsersSearchTerms) -> ServiceFuture<Vec<User>> {
+    fn search(&self, from: UserId, count: i64, term: UsersSearchTerms) -> ServiceFuture<Vec<User>> {
         let db_clone = self.db_pool.clone();
         let current_uid = self.user_id;
         let repo_factory = self.repo_factory.clone();
@@ -677,7 +677,7 @@ pub mod tests {
         let mut core = Core::new().unwrap();
         let handle = Arc::new(core.handle());
         let service = create_users_service(Some(UserId(1)), handle);
-        let work = service.list(1, 5);
+        let work = service.list(UserId(1), 5);
         let result = core.run(work).unwrap();
         assert_eq!(result.len(), 5);
     }
