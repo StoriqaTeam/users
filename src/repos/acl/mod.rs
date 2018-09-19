@@ -51,9 +51,9 @@ impl ApplicationAcl {
         hash.insert(
             UsersRole::Superuser,
             vec![
-                permission!(Resource::Users, Action::Read), 
-                permission!(Resource::Users, Action::Create), 
-                permission!(Resource::UserRoles)
+                permission!(Resource::Users, Action::Read),
+                permission!(Resource::Users, Action::Create),
+                permission!(Resource::UserRoles),
             ],
         );
         hash.insert(
@@ -167,9 +167,21 @@ mod tests {
         let s = ScopeChecker::default();
         let resource = create_user();
 
-        assert_eq!(acl.allows(Resource::Users, Action::All, &s, Some(&resource)).unwrap(), false, "ACL allows all actions on user.");
-        assert_eq!(acl.allows(Resource::Users, Action::Read, &s, Some(&resource)).unwrap(), true, "ACL does not allow read action on user.");
-        assert_eq!(acl.allows(Resource::Users, Action::Create, &s, Some(&resource)).unwrap(), true, "ACL allows create actions on user.");
+        assert_eq!(
+            acl.allows(Resource::Users, Action::All, &s, Some(&resource)).unwrap(),
+            false,
+            "ACL allows all actions on user."
+        );
+        assert_eq!(
+            acl.allows(Resource::Users, Action::Read, &s, Some(&resource)).unwrap(),
+            true,
+            "ACL does not allow read action on user."
+        );
+        assert_eq!(
+            acl.allows(Resource::Users, Action::Create, &s, Some(&resource)).unwrap(),
+            true,
+            "ACL allows create actions on user."
+        );
     }
 
     #[test]
