@@ -191,9 +191,9 @@ pub mod tests {
             Ok(Some(user))
         }
 
-        fn list(&self, from: i32, count: i64) -> RepoResult<Vec<User>> {
+        fn list(&self, from: UserId, count: i64) -> RepoResult<Vec<User>> {
             let mut users = vec![];
-            for i in from..(from + count as i32) {
+            for i in from.0..(from.0 + count as i32) {
                 let user = create_user(UserId(i), MOCK_EMAIL.to_string());
                 users.push(user);
             }
@@ -220,9 +220,9 @@ pub mod tests {
             let user = create_user(UserId(1), MOCK_EMAIL.to_string());
             Ok(user)
         }
-        fn search(&self, from: i32, count: i64, _term: UsersSearchTerms) -> RepoResult<Vec<User>> {
+        fn search(&self, from: UserId, count: i64, _term: UsersSearchTerms) -> RepoResult<Vec<User>> {
             let mut users = vec![];
-            for i in from..(from + count as i32) {
+            for i in from.0..(from.0 + count as i32) {
                 let user = create_user(UserId(i), MOCK_EMAIL.to_string());
                 users.push(user);
             }

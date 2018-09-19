@@ -156,7 +156,7 @@ impl<
 
             // GET /users
             (&Get, Some(Route::Users)) => {
-                if let (Some(offset), Some(count)) = parse_query!(req.query().unwrap_or_default(), "offset" => i32, "count" => i64) {
+                if let (Some(offset), Some(count)) = parse_query!(req.query().unwrap_or_default(), "offset" => UserId, "count" => i64) {
                     debug!("Received request to get {} users starting from {}", count, offset);
                     serialize_future(users_service.list(offset, count))
                 } else {
@@ -445,7 +445,7 @@ impl<
 
             // POST /users/search
             (&Post, Some(Route::UsersSearch)) => {
-                if let (Some(offset), Some(count)) = parse_query!(req.query().unwrap_or_default(), "offset" => i32, "count" => i64) {
+                if let (Some(offset), Some(count)) = parse_query!(req.query().unwrap_or_default(), "offset" => UserId, "count" => i64) {
                     debug!("Received request to search {} users starting from {}", count, offset);
                     serialize_future(
                         parse_body::<models::UsersSearchTerms>(req.body())
