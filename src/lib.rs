@@ -121,7 +121,6 @@ pub fn start_server(config: Config) {
                 cpu_pool.clone(),
                 client_handle.clone(),
                 config.clone(),
-                roles_cache.clone(),
                 repo_factory.clone(),
                 jwt_private_key.clone(),
             );

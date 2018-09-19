@@ -8,7 +8,9 @@ use std::fmt;
 pub enum Action {
     All,
     Read,
-    Write,
+    Create,
+    Update,
+    Delete,
 }
 
 impl fmt::Display for Action {
@@ -16,7 +18,9 @@ impl fmt::Display for Action {
         match *self {
             Action::All => write!(f, "all"),
             Action::Read => write!(f, "read"),
-            Action::Write => write!(f, "write"),
+            Action::Create => write!(f, "create"),
+            Action::Update => write!(f, "update"),
+            Action::Delete => write!(f, "delete"),
         }
     }
 }

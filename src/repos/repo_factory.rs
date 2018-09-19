@@ -3,19 +3,21 @@ use diesel::pg::Pg;
 use diesel::Connection;
 use failure::Error as FailureError;
 
-use repos::legacy_acl::{Acl, SystemACL, UnauthorizedACL};
+use stq_types::{UserId, UsersRole};
 
 use models::*;
+use repos::legacy_acl::{Acl, SystemACL, UnauthorizedACL};
 use repos::*;
 
 pub trait ReposFactory<C: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static>:
     Clone + Send + Sync + 'static
 {
-    fn create_users_repo<'a>(&self, db_conn: &'a C, user_id: Option<i32>) -> Box<UsersRepo + 'a>;
+    fn create_users_repo<'a>(&self, db_conn: &'a C, user_id: Option<UserId>) -> Box<UsersRepo + 'a>;
     fn create_users_repo_with_sys_acl<'a>(&self, db_conn: &'a C) -> Box<UsersRepo + 'a>;
     fn create_identities_repo<'a>(&self, db_conn: &'a C) -> Box<IdentitiesRepo + 'a>;
     fn create_reset_token_repo<'a>(&self, db_conn: &'a C) -> Box<ResetTokenRepo + 'a>;
-    fn create_user_roles_repo<'a>(&self, db_conn: &'a C) -> Box<UserRolesRepo + 'a>;
+    fn create_user_roles_repo_with_sys_acl<'a>(&self, db_conn: &'a C) -> Box<UserRolesRepo + 'a>;
+    fn create_user_roles_repo<'a>(&self, db_conn: &'a C, user_id: Option<UserId>) -> Box<UserRolesRepo + 'a>;
 }
 
 #[derive(Clone)]
@@ -30,30 +32,19 @@ impl ReposFactoryImpl {
 
     pub fn get_roles<'a, C: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static>(
         &self,
-        id: i32,
+        id: UserId,
         db_conn: &'a C,
-    ) -> Vec<Role> {
-        if self.roles_cache.contains(id) {
-            self.roles_cache.get(id)
-        } else {
-            UserRolesRepoImpl::new(
-                db_conn,
-                Box::new(SystemACL::default()) as Box<Acl<Resource, Action, Scope, FailureError, UserRole>>,
-            ).list_for_user(id)
-            .and_then(|ref r| {
-                if !r.is_empty() {
-                    self.roles_cache.add_roles(id, r);
-                }
-                Ok(r.clone())
-            }).ok()
+    ) -> Vec<UsersRole> {
+        self.create_user_roles_repo_with_sys_acl(db_conn)
+            .list_for_user(id)
+            .ok()
             .unwrap_or_default()
-        }
     }
 
     fn get_acl<'a, T, C: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static>(
         &self,
         db_conn: &'a C,
-        user_id: Option<i32>,
+        user_id: Option<UserId>,
     ) -> Box<Acl<Resource, Action, Scope, FailureError, T>> {
         user_id.map_or(
             Box::new(UnauthorizedACL::default()) as Box<Acl<Resource, Action, Scope, FailureError, T>>,
@@ -66,7 +57,7 @@ impl ReposFactoryImpl {
 }
 
 impl<C: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static> ReposFactory<C> for ReposFactoryImpl {
-    fn create_users_repo<'a>(&self, db_conn: &'a C, user_id: Option<i32>) -> Box<UsersRepo + 'a> {
+    fn create_users_repo<'a>(&self, db_conn: &'a C, user_id: Option<UserId>) -> Box<UsersRepo + 'a> {
         let acl = self.get_acl(db_conn, user_id);
         Box::new(UsersRepoImpl::new(db_conn, acl)) as Box<UsersRepo>
     }
@@ -86,11 +77,17 @@ impl<C: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 
         Box::new(ResetTokenRepoImpl::new(db_conn)) as Box<ResetTokenRepo>
     }
 
-    fn create_user_roles_repo<'a>(&self, db_conn: &'a C) -> Box<UserRolesRepo + 'a> {
+    fn create_user_roles_repo_with_sys_acl<'a>(&self, db_conn: &'a C) -> Box<UserRolesRepo + 'a> {
         Box::new(UserRolesRepoImpl::new(
             db_conn,
             Box::new(SystemACL::default()) as Box<Acl<Resource, Action, Scope, FailureError, UserRole>>,
+            self.roles_cache.clone(),
         )) as Box<UserRolesRepo>
+    }
+
+    fn create_user_roles_repo<'a>(&self, db_conn: &'a C, user_id: Option<UserId>) -> Box<UserRolesRepo + 'a> {
+        let acl = self.get_acl(db_conn, user_id);
+        Box::new(UserRolesRepoImpl::new(db_conn, acl, self.roles_cache.clone())) as Box<UserRolesRepo>
     }
 }
 
@@ -134,7 +131,7 @@ pub mod tests {
     use tokio_core::reactor::Handle;
 
     use stq_static_resources::{Provider, TokenType};
-    use stq_types::UserId;
+    use stq_types::{UserId, UsersRole};
 
     use config::Config;
     use models::*;
@@ -151,7 +148,7 @@ pub mod tests {
     pub struct ReposFactoryMock;
 
     impl<C: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static> ReposFactory<C> for ReposFactoryMock {
-        fn create_users_repo<'a>(&self, _db_conn: &'a C, _user_id: Option<i32>) -> Box<UsersRepo + 'a> {
+        fn create_users_repo<'a>(&self, _db_conn: &'a C, _user_id: Option<UserId>) -> Box<UsersRepo + 'a> {
             Box::new(UsersRepoMock::default()) as Box<UsersRepo>
         }
 
@@ -167,7 +164,11 @@ pub mod tests {
             Box::new(ResetTokenRepoMock::default()) as Box<ResetTokenRepo>
         }
 
-        fn create_user_roles_repo<'a>(&self, _db_conn: &'a C) -> Box<UserRolesRepo + 'a> {
+        fn create_user_roles_repo<'a>(&self, _db_conn: &'a C, _user_id: Option<UserId>) -> Box<UserRolesRepo + 'a> {
+            Box::new(UserRolesRepoMock::default()) as Box<UserRolesRepo>
+        }
+
+        fn create_user_roles_repo_with_sys_acl<'a>(&self, _db_conn: &'a C) -> Box<UserRolesRepo + 'a> {
             Box::new(UserRolesRepoMock::default()) as Box<UserRolesRepo>
         }
     }
@@ -321,10 +322,10 @@ pub mod tests {
     pub struct UserRolesRepoMock;
 
     impl UserRolesRepo for UserRolesRepoMock {
-        fn list_for_user(&self, user_id_value: i32) -> RepoResult<Vec<Role>> {
-            Ok(match user_id_value {
-                1 => vec![Role::Superuser],
-                _ => vec![Role::User],
+        fn list_for_user(&self, user_id_value: UserId) -> RepoResult<Vec<UsersRole>> {
+            Ok(match user_id_value.0 {
+                1 => vec![UsersRole::Superuser],
+                _ => vec![UsersRole::User],
             })
         }
 
@@ -348,11 +349,11 @@ pub mod tests {
             })
         }
 
-        fn delete_by_user_id(&self, user_id_arg: i32) -> RepoResult<UserRole> {
+        fn delete_by_user_id(&self, user_id_arg: UserId) -> RepoResult<UserRole> {
             Ok(UserRole {
                 id: 123,
                 user_id: user_id_arg,
-                role: Role::User,
+                role: UsersRole::User,
                 created_at: SystemTime::now(),
                 updated_at: SystemTime::now(),
             })
@@ -360,7 +361,7 @@ pub mod tests {
     }
 
     pub fn create_users_service(
-        user_id: Option<i32>,
+        user_id: Option<UserId>,
         handle: Arc<Handle>,
     ) -> UsersServiceImpl<MockConnection, MockConnectionManager, ReposFactoryMock> {
         let manager = MockConnectionManager::default();
