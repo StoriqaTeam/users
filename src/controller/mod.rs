@@ -312,46 +312,23 @@ impl<
                     }),
             ),
 
-            // GET /user_roles/<user_id>
-            (&Get, Some(Route::UserRole(user_id))) => {
-                debug!("Received request to get roles for user {}", user_id);
-                serialize_future(user_roles_service.get_roles(user_id))
+            (Get, Some(Route::RolesByUserId { user_id })) => {
+                debug!("Received request to get roles by user id {}", user_id);
+                serialize_future({ user_roles_service.get_roles(user_id) })
             }
-
-            // POST /user_roles
-            (&Post, Some(Route::UserRoles)) => serialize_future(
-                parse_body::<models::NewUserRole>(req.body())
-                    .map_err(|e| {
-                        e.context("Parsing body // POST /user_roles in NewUserRole failed!")
-                            .context(Error::Parse)
-                            .into()
-                    }).inspect(|payload| {
-                        debug!("Received request to create role: {:?}", payload);
-                    }).and_then(move |new_role| user_roles_service.create(new_role)),
-            ),
-
-            // DELETE /user_roles/<user_role_id>
-            (&Delete, Some(Route::UserRoles)) => serialize_future(
-                parse_body::<models::OldUserRole>(req.body())
-                    .map_err(|e| {
-                        e.context("Parsing body // DELETE /user_roles/<user_role_id> in OldUserRole failed!")
-                            .context(Error::Parse)
-                            .into()
-                    }).inspect(|payload| {
-                        debug!("Received request to remove role: {:?}", payload);
-                    }).and_then(move |old_role| user_roles_service.delete(old_role)),
-            ),
-
-            // POST /roles/default/<user_id>
-            (&Post, Some(Route::DefaultRole(user_id))) => {
-                debug!("Received request to add default role for user {}", user_id);
-                serialize_future(user_roles_service.create_default(user_id))
+            (Post, Some(Route::Roles)) => serialize_future({
+                parse_body::<models::NewUserRole>(req.body()).and_then(move |data| {
+                    debug!("Received request to create role {:?}", data);
+                    user_roles_service.create(data)
+                })
+            }),
+            (Delete, Some(Route::RolesByUserId { user_id })) => {
+                debug!("Received request to delete role by user id {}", user_id);
+                serialize_future({ user_roles_service.delete_by_user_id(user_id) })
             }
-
-            // DELETE /roles/default/<user_id>
-            (&Delete, Some(Route::DefaultRole(user_id))) => {
-                debug!("Received request to delete default role for user {}", user_id);
-                serialize_future(user_roles_service.delete_default(user_id))
+            (Delete, Some(Route::RoleById { id })) => {
+                debug!("Received request to delete role by id {}", id);
+                serialize_future({ user_roles_service.delete_by_id(id) })
             }
 
             // POST /users/password_change

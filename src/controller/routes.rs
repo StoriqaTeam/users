@@ -1,5 +1,5 @@
 use stq_router::RouteParser;
-use stq_types::UserId;
+use stq_types::{RoleId, UserId};
 
 /// List of all routes with params for the app
 #[derive(Clone, Debug, PartialEq)]
@@ -17,8 +17,9 @@ pub enum Route {
     JWTGoogle,
     JWTFacebook,
     JWTRenew,
-    UserRoles,
-    UserRole(UserId),
+    Roles,
+    RoleById { id: RoleId },
+    RolesByUserId { user_id: UserId },
     DefaultRole(UserId),
     PasswordChange,
     UserPasswordResetToken,
@@ -81,23 +82,18 @@ pub fn create_route_parser() -> RouteParser<Route> {
             .map(Route::UserBySagaId)
     });
 
-    // User Routes
-    router.add_route(r"^/user_roles$", || Route::UserRoles);
-
-    // Users/:id route
-    router.add_route_with_params(r"^/user_roles/(\d+)$", |params| {
+    router.add_route(r"^/roles$", || Route::Roles);
+    router.add_route_with_params(r"^/roles/by-user-id/(\d+)$", |params| {
         params
             .get(0)
-            .and_then(|string_id| string_id.parse::<UserId>().ok())
-            .map(Route::UserRole)
+            .and_then(|string_id| string_id.parse().ok())
+            .map(|user_id| Route::RolesByUserId { user_id })
     });
-
-    // roles/default/:id route
-    router.add_route_with_params(r"^/roles/default/(\d+)$", |params| {
+    router.add_route_with_params(r"^/roles/by-id/([a-zA-Z0-9-]+)$", |params| {
         params
             .get(0)
-            .and_then(|string_id| string_id.parse::<UserId>().ok())
-            .map(Route::DefaultRole)
+            .and_then(|string_id| string_id.parse().ok())
+            .map(|id| Route::RoleById { id })
     });
 
     // /users/password_change route
