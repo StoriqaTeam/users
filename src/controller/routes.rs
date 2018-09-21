@@ -20,7 +20,6 @@ pub enum Route {
     Roles,
     RoleById { id: RoleId },
     RolesByUserId { user_id: UserId },
-    DefaultRole(UserId),
     PasswordChange,
     UserPasswordResetToken,
     UserEmailVerifyToken,
