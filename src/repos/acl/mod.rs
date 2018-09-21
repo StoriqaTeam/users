@@ -71,7 +71,7 @@ impl ApplicationAcl {
             vec![
                 permission!(Resource::Users, Action::Read),
                 permission!(Resource::Users, Action::Block),
-                permission!(Resource::UserRoles, Action::Read, Scope::Owned),
+                permission!(Resource::UserRoles, Action::Read),
             ],
         );
 
@@ -291,36 +291,106 @@ mod tests {
         let acl = ApplicationAcl::new(vec![UsersRole::Superuser], UserId(1232));
         let s = ScopeChecker::default();
 
-        let resource = UserRole {
-            id: RoleId::new(),
-            user_id: UserId(1),
-            name: UsersRole::User,
-            data: None,
-            created_at: SystemTime::now(),
-            updated_at: SystemTime::now(),
-        };
-
-        assert_eq!(acl.allows(Resource::UserRoles, Action::All, &s, Some(&resource)).unwrap(), true);
-        assert_eq!(acl.allows(Resource::UserRoles, Action::Read, &s, Some(&resource)).unwrap(), true);
-        assert_eq!(acl.allows(Resource::UserRoles, Action::Create, &s, Some(&resource)).unwrap(), true);
+        assert_eq!(
+            acl.allows(Resource::UserRoles, Action::All, &s, None::<&UserRole>).unwrap(),
+            true,
+            "ACL does not allow all actions on user roles for superuser."
+        );
+        assert_eq!(
+            acl.allows(Resource::UserRoles, Action::Read, &s, None::<&UserRole>).unwrap(),
+            true,
+            "ACL does not allow read action on user roles for superuser."
+        );
+        assert_eq!(
+            acl.allows(Resource::UserRoles, Action::Create, &s, None::<&UserRole>).unwrap(),
+            true,
+            "ACL does not allow  create actions on user roles for superuser."
+        );
+        assert_eq!(
+            acl.allows(Resource::UserRoles, Action::Delete, &s, None::<&UserRole>).unwrap(),
+            true,
+            "ACL does not allow  delete actions on user roles for superuser."
+        );
     }
 
     #[test]
-    fn test_user_for_user_roles() {
-        let acl = ApplicationAcl::new(vec![UsersRole::User], UserId(2));
+    fn test_ordinary_user_for_user_roles() {
+        let user_id = UserId(2);
+        let acl = ApplicationAcl::new(vec![UsersRole::User], user_id);
         let s = ScopeChecker::default();
-
         let resource = UserRole {
             id: RoleId::new(),
-            user_id: UserId(1),
+            user_id,
+            name: UsersRole::User,
+            data: None,
+            created_at: SystemTime::now(),
+            updated_at: SystemTime::now(),
+        };
+        assert_eq!(
+            acl.allows(Resource::UserRoles, Action::All, &s, Some(&resource)).unwrap(),
+            false,
+            "ACL allows all actions on user roles for ordinary_user."
+        );
+        assert_eq!(
+            acl.allows(Resource::UserRoles, Action::Read, &s, Some(&resource)).unwrap(),
+            true,
+            "ACL does not allow read action on user roles for ordinary_user."
+        );
+        assert_eq!(
+            acl.allows(Resource::UserRoles, Action::Create, &s, Some(&resource)).unwrap(),
+            false,
+            "ACL allows create actions on user roles for ordinary_user."
+        );
+        assert_eq!(
+            acl.allows(Resource::UserRoles, Action::Delete, &s, Some(&resource)).unwrap(),
+            false,
+            "ACL allows delete actions on user roles for ordinary_user."
+        );
+        assert_eq!(
+            acl.allows(Resource::UserRoles, Action::Read, &s, None::<&UserRole>).unwrap(),
+            false,
+            "ACL allows read actions on all user roles for ordinary_user."
+        );
+    }
+
+    #[test]
+    fn test_moderator_for_user_roles() {
+        let user_id = UserId(2);
+        let acl = ApplicationAcl::new(vec![UsersRole::Moderator], user_id);
+        let s = ScopeChecker::default();
+        let resource = UserRole {
+            id: RoleId::new(),
+            user_id,
             name: UsersRole::User,
             data: None,
             created_at: SystemTime::now(),
             updated_at: SystemTime::now(),
         };
 
-        assert_eq!(acl.allows(Resource::UserRoles, Action::All, &s, Some(&resource)).unwrap(), false);
-        assert_eq!(acl.allows(Resource::UserRoles, Action::Read, &s, Some(&resource)).unwrap(), false);
-        assert_eq!(acl.allows(Resource::UserRoles, Action::Create, &s, Some(&resource)).unwrap(), false);
+        assert_eq!(
+            acl.allows(Resource::UserRoles, Action::All, &s, Some(&resource)).unwrap(),
+            false,
+            "ACL allows all actions on user roles for moderator."
+        );
+        assert_eq!(
+            acl.allows(Resource::UserRoles, Action::Read, &s, Some(&resource)).unwrap(),
+            true,
+            "ACL does not allow read action on user roles for moderator."
+        );
+        assert_eq!(
+            acl.allows(Resource::UserRoles, Action::Create, &s, Some(&resource)).unwrap(),
+            false,
+            "ACL allows create actions on user roles for moderator."
+        );
+        assert_eq!(
+            acl.allows(Resource::UserRoles, Action::Delete, &s, Some(&resource)).unwrap(),
+            false,
+            "ACL allows delete actions on user roles for moderator."
+        );
+        assert_eq!(
+            acl.allows(Resource::UserRoles, Action::Read, &s, None::<&UserRole>).unwrap(),
+            true,
+            "ACL does not allow read actions on all user roles for moderator."
+        );
     }
 }
