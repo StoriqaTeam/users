@@ -12,8 +12,8 @@ RUN apt-get update && \
 
 # Install diesel client
 RUN mkdir -p /usr/local/cargo/bin/ || true \
-  && wget -q https://s3.eu-central-1.amazonaws.com/dumpster.stq/diesel -O /usr/local/cargo/bin/diesel \
-  && chmod +x /usr/local/cargo/bin/diesel 
+  && wget -q https://s3.eu-central-1.amazonaws.com/dumpster.stq/diesel -O /usr/local/bin/diesel \
+  && chmod +x /usr/local/bin/diesel 
 
 # Utils for waiting for some service to be up before starting
 ADD wait_for_it.sh /utils/
