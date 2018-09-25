@@ -61,7 +61,7 @@ impl ApplicationAcl {
         hash.insert(
             UsersRole::User,
             vec![
-                permission!(Resource::Users, Action::Read),
+                permission!(Resource::Users, Action::Read, Scope::Owned),
                 permission!(Resource::Users, Action::Update, Scope::Owned),
                 permission!(Resource::UserRoles, Action::Read, Scope::Owned),
             ],
