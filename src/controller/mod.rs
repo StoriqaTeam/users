@@ -40,7 +40,6 @@ use services::users::UsersService;
 use services::Service;
 
 /// Controller handles route parsing and calling `Service` layer
-/// Controller handles route parsing and calling `Service` layer
 pub struct ControllerImpl<T, M, F>
 where
     T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,

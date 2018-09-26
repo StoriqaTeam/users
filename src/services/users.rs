@@ -9,7 +9,7 @@ use diesel::Connection;
 use failure::Error as FailureError;
 use failure::Fail;
 use futures::future;
-use r2d2::{ManageConnection};
+use r2d2::ManageConnection;
 use uuid::Uuid;
 
 use stq_static_resources::{Provider, TokenType};
