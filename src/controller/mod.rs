@@ -276,6 +276,12 @@ impl<
                     service.create_user_role(data)
                 })
             }),
+            (Delete, Some(Route::Roles)) => serialize_future({
+                parse_body::<models::RemoveUserRole>(req.body()).and_then(move |data| {
+                    debug!("Received request to remove role {:?}", data);
+                    service.delete_user_role(data)
+                })
+            }),
             (Delete, Some(Route::RolesByUserId { user_id })) => {
                 debug!("Received request to delete role by user id {}", user_id);
                 serialize_future({ service.delete_user_role_by_user_id(user_id) })
