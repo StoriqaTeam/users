@@ -25,3 +25,9 @@ pub struct NewUserRole {
     pub name: UsersRole,
     pub data: Option<serde_json::Value>,
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RemoveUserRole {
+    pub user_id: UserId,
+    pub name: UsersRole,
+}

@@ -373,6 +373,17 @@ pub mod tests {
                 updated_at: SystemTime::now(),
             })
         }
+
+        fn delete_user_role(&self, user_id: UserId, name: UsersRole) -> RepoResult<UserRole> {
+            Ok(UserRole {
+                id: RoleId::new(),
+                user_id,
+                name,
+                data: None,
+                created_at: SystemTime::now(),
+                updated_at: SystemTime::now(),
+            })
+        }
     }
 
     pub fn create_service(
