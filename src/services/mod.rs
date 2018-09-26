@@ -2,8 +2,9 @@
 //! validation, authorization, etc.
 
 pub mod jwt;
-pub mod system;
 pub mod types;
 pub mod user_roles;
 pub mod users;
 pub mod util;
+
+pub use self::types::Service;

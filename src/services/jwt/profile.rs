@@ -138,3 +138,13 @@ impl IntoUser for GoogleProfile {
         }
     }
 }
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ProfileStatus {
+    // New user, new identity
+    NewUser,
+    // User exists with other identities
+    NewIdentity,
+    // User and identity for this email exist
+    ExistingProfile,
+}

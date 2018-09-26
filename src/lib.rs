@@ -73,6 +73,7 @@ use tokio_core::reactor::Core;
 use stq_http::controller::Application;
 
 use config::Config;
+use controller::context::StaticContext;
 use errors::Error;
 use repos::acl::RolesCacheImpl;
 use repos::repo_factory::ReposFactoryImpl;
@@ -114,18 +115,12 @@ pub fn start_server(config: Config) {
     let mut jwt_private_key: Vec<u8> = Vec::new();
     f.read_to_end(&mut jwt_private_key).unwrap();
 
+    let context = StaticContext::new(db_pool, cpu_pool, client_handle, Arc::new(config), repo_factory, jwt_private_key);
+
     let serve = Http::new()
         .serve_addr_handle(&address, &handle, move || {
-            let controller = controller::ControllerImpl::new(
-                db_pool.clone(),
-                cpu_pool.clone(),
-                client_handle.clone(),
-                config.clone(),
-                repo_factory.clone(),
-                jwt_private_key.clone(),
-            );
-
             // Prepare application
+            let controller = controller::ControllerImpl::new(context.clone());
             let app = Application::<Error>::new(controller);
 
             Ok(app)
