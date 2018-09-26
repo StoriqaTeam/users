@@ -10,26 +10,24 @@ use failure::Error as FailureError;
 use failure::Fail;
 use futures::future;
 use futures::{Future, IntoFuture};
-use futures_cpupool::CpuPool;
 use hyper::header::{Authorization, Bearer};
 use hyper::{Headers, Method};
 use jsonwebtoken::{encode, Algorithm, Header};
-use r2d2::{ManageConnection, Pool};
+use r2d2::ManageConnection;
 use serde;
 use serde_json;
-use stq_http::client::ClientHandle;
 use uuid::Uuid;
 
 use stq_static_resources::Provider;
 
-use self::profile::{Email, FacebookProfile, GoogleProfile, IntoUser};
+use self::profile::{Email, FacebookProfile, GoogleProfile, IntoUser, ProfileStatus};
 use super::util::password_verify;
-use config::{Config, OAuth, JWT as JWTConfig};
 use errors::Error;
 use models::{self, JWTPayload, NewEmailIdentity, NewIdentity, NewUser, ProviderOauth, User, UserStatus, JWT};
 use repos::repo_factory::ReposFactory;
 use repos::types::RepoResult;
 use services::types::ServiceFuture;
+use services::Service;
 
 /// JWT services, responsible for JsonWebToken operations
 pub trait JWTService {
@@ -39,62 +37,6 @@ pub trait JWTService {
     fn create_token_google(self, oauth: ProviderOauth, exp: i64) -> ServiceFuture<JWT>;
     /// Creates new JWT token by facebook
     fn create_token_facebook(self, oauth: ProviderOauth, exp: i64) -> ServiceFuture<JWT>;
-}
-
-/// JWT services, responsible for JsonWebToken operations
-#[derive(Clone)]
-pub struct JWTServiceImpl<
-    T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
-    M: ManageConnection<Connection = T>,
-    F: ReposFactory<T>,
-> {
-    pub db_pool: Pool<M>,
-    pub cpu_pool: CpuPool,
-    pub http_client: ClientHandle,
-    pub saga_addr: String,
-    pub google_config: OAuth,
-    pub facebook_config: OAuth,
-    pub jwt_config: JWTConfig,
-    pub repo_factory: F,
-    pub jwt_private_key: Vec<u8>,
-}
-
-impl<
-        T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
-        M: ManageConnection<Connection = T>,
-        F: ReposFactory<T>,
-    > JWTServiceImpl<T, M, F>
-{
-    pub fn new(
-        db_pool: Pool<M>,
-        cpu_pool: CpuPool,
-        http_client: ClientHandle,
-        config: Config,
-        repo_factory: F,
-        jwt_private_key: Vec<u8>,
-    ) -> Self {
-        Self {
-            db_pool,
-            cpu_pool,
-            http_client,
-            saga_addr: config.saga_addr.url.clone(),
-            google_config: config.google,
-            facebook_config: config.facebook,
-            jwt_config: config.jwt,
-            repo_factory,
-            jwt_private_key,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ProfileStatus {
-    // New user, new identity
-    NewUser,
-    // User exists with other identities
-    NewIdentity,
-    // User and identity for this email exist
-    ExistingProfile,
 }
 
 /// Profile service trait, presents standard scheme for receiving profile information from providers
@@ -135,7 +77,7 @@ impl<
         T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
         M: ManageConnection<Connection = T> + 'static,
         F: ReposFactory<T> + 'static,
-    > ProfileService<T, P> for JWTServiceImpl<T, M, F>
+    > ProfileService<T, P> for Service<T, M, F>
 where
     P: Email + Clone + Send + 'static,
     NewUser: From<P>,
@@ -144,8 +86,6 @@ where
 {
     fn create_token(self, provider: Provider, secret: Vec<u8>, info_url: String, headers: Option<Headers>, exp: i64) -> ServiceFuture<JWT> {
         let service = Arc::new(self);
-        let db_pool = service.db_pool.clone();
-        let thread_pool = service.cpu_pool.clone();
         let provider_clone = provider.clone();
 
         let future = service
@@ -160,35 +100,31 @@ where
             }).and_then({
                 let s = service.clone();
                 move |(status, profile)| -> ServiceFuture<(i32, UserStatus)> {
-                    Box::new({
-                        thread_pool.spawn_fn(move || {
-                            db_pool
-                                .get()
-                                .map_err(|e| e.context(Error::Connection).into())
-                                .and_then(move |conn| match status {
-                                    ProfileStatus::ExistingProfile => {
-                                        debug!("User exists for this profile. Looking up ID.");
-                                        s.get_id(profile, provider)
-                                            .inspect(move |id| debug!("Fetched user ID: {}", &id))
-                                            .map(|id| (id, UserStatus::Exists))
-                                            .wait()
-                                    }
-                                    ProfileStatus::NewUser => {
-                                        debug!("No user matches profile. Creating one");
-                                        s.create_profile(profile.clone(), provider).map(|id| {
-                                            debug!("Created user {} for profile.", &id);
-                                            (id, UserStatus::New(id))
-                                        })
-                                    }
-                                    ProfileStatus::NewIdentity => {
-                                        debug!("User exists, tying new identity to them.");
-                                        s.update_profile(&conn, profile).map(|id| {
-                                            debug!("Created identity for user {}", id);
-                                            (id, UserStatus::New(id))
-                                        })
-                                    }
+                    s.spawn_on_pool({
+                        let s = s.clone();
+                        move |conn| match status {
+                            ProfileStatus::ExistingProfile => {
+                                debug!("User exists for this profile. Looking up ID.");
+                                s.get_id(profile, provider)
+                                    .inspect(move |id| debug!("Fetched user ID: {}", &id))
+                                    .map(|id| (id, UserStatus::Exists))
+                                    .wait()
+                            }
+                            ProfileStatus::NewUser => {
+                                debug!("No user matches profile. Creating one");
+                                s.create_profile(profile.clone(), provider).map(|id| {
+                                    debug!("Created user {} for profile.", &id);
+                                    (id, UserStatus::New(id))
                                 })
-                        })
+                            }
+                            ProfileStatus::NewIdentity => {
+                                debug!("User exists, tying new identity to them.");
+                                s.update_profile(&conn, profile).map(|id| {
+                                    debug!("Created identity for user {}", id);
+                                    (id, UserStatus::New(id))
+                                })
+                            }
+                        }
                     })
                 }
             }).and_then({
@@ -201,7 +137,8 @@ where
 
     fn get_profile(&self, url: String, headers: Option<Headers>) -> ServiceFuture<P> {
         Box::new(
-            self.http_client
+            self.static_context
+                .client_handle
                 .request::<serde_json::Value>(Method::Get, url, None, headers)
                 .map_err(|e| {
                     e.context("Failed to receive user info from provider. {}")
@@ -218,43 +155,35 @@ where
     }
 
     fn profile_status(&self, profile: P, provider: Provider) -> ServiceFuture<ProfileStatus> {
-        Box::new({
-            let db_pool = self.db_pool.clone();
-            let repo_factory = self.repo_factory.clone();
-            self.cpu_pool
-                .spawn_fn(move || {
-                    db_pool
-                        .get()
-                        .map_err(|e| e.context(Error::Connection).into())
-                        .and_then(move |conn| {
-                            let users_repo = repo_factory.create_users_repo_with_sys_acl(&conn);
-                            let ident_repo = repo_factory.create_identities_repo(&conn);
-                            conn.transaction(move || {
-                                users_repo.email_exists(profile.get_email()).and_then(|user_exists| {
-                                    if user_exists {
-                                        ident_repo
-                                            .email_provider_exists(profile.get_email(), provider)
-                                            .map(|identity_exists| {
-                                                if identity_exists {
-                                                    ProfileStatus::ExistingProfile
-                                                } else {
-                                                    ProfileStatus::NewIdentity
-                                                }
-                                            })
-                                    } else {
-                                        Ok(ProfileStatus::NewUser)
-                                    }
-                                })
+        let repo_factory = self.static_context.repo_factory.clone();
+        self.spawn_on_pool(move |conn| {
+            let users_repo = repo_factory.create_users_repo_with_sys_acl(&conn);
+            let ident_repo = repo_factory.create_identities_repo(&conn);
+            conn.transaction(move || {
+                users_repo.email_exists(profile.get_email()).and_then(|user_exists| {
+                    if user_exists {
+                        ident_repo
+                            .email_provider_exists(profile.get_email(), provider)
+                            .map(|identity_exists| {
+                                if identity_exists {
+                                    ProfileStatus::ExistingProfile
+                                } else {
+                                    ProfileStatus::NewIdentity
+                                }
                             })
-                        })
-                }).map_err(|e: FailureError| e.context("Service jwt, profile_status endpoint error occured.").into())
+                    } else {
+                        Ok(ProfileStatus::NewUser)
+                    }
+                })
+            }).map_err(|e: FailureError| e.context("Service jwt, profile_status endpoint error occured.").into())
         })
     }
 
     fn create_profile(&self, profile_arg: P, provider: Provider) -> RepoResult<i32> {
         let new_user = NewUser::from(profile_arg.clone());
+        let saga_addr = self.static_context.config.saga_addr.url.clone();
 
-        let url = format!("{}/{}", &self.saga_addr, "create_account");
+        let url = format!("{}/{}", saga_addr, "create_account");
 
         serde_json::to_string(&models::SagaCreateProfile {
             user: Some(new_user.clone()),
@@ -266,7 +195,8 @@ where
             },
         }).map_err(From::from)
         .and_then(|body| {
-            self.http_client
+            self.static_context
+                .client_handle
                 .request::<User>(Method::Post, url, Some(body), None)
                 .wait()
                 .map_err(|e| e.context(Error::HttpClient).into())
@@ -275,11 +205,10 @@ where
     }
 
     fn update_profile(&self, conn: &T, profile: P) -> RepoResult<i32> {
-        let users_repo = self.repo_factory.create_users_repo_with_sys_acl(conn);
+        let users_repo = self.static_context.repo_factory.create_users_repo_with_sys_acl(conn);
         users_repo
             .find_by_email(profile.get_email())
-            .map(|user| (profile, user))
-            .and_then(move |(profile, user)| {
+            .and_then(move |user| {
                 if let Some(user) = user {
                     if user.is_blocked {
                         error!("User {} is blocked.", user.id);
@@ -302,22 +231,14 @@ where
     }
 
     fn get_id(&self, profile: P, provider: Provider) -> ServiceFuture<i32> {
-        Box::new({
-            let db_pool = self.db_pool.clone();
-            let repo_factory = self.repo_factory.clone();
-            self.cpu_pool
-                .spawn_fn(move || {
-                    db_pool
-                        .get()
-                        .map_err(|e| e.context(Error::Connection).into())
-                        .and_then(move |conn| {
-                            let ident_repo = repo_factory.create_identities_repo(&conn);
+        let repo_factory = self.static_context.repo_factory.clone();
+        self.spawn_on_pool(move |conn| {
+            let ident_repo = repo_factory.create_identities_repo(&conn);
 
-                            ident_repo
-                                .find_by_email_provider(profile.get_email(), provider)
-                                .map(|ident| ident.user_id.0)
-                        })
-                }).map_err(|e: FailureError| e.context("Service jwt, get_id endpoint error occured.").into())
+            ident_repo
+                .find_by_email_provider(profile.get_email(), provider)
+                .map(|ident| ident.user_id.0)
+                .map_err(|e: FailureError| e.context("Service jwt, get_id endpoint error occured.").into())
         })
     }
 }
@@ -326,117 +247,97 @@ impl<
         T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
         M: ManageConnection<Connection = T>,
         F: ReposFactory<T>,
-    > JWTService for JWTServiceImpl<T, M, F>
+    > JWTService for Service<T, M, F>
 {
     /// Creates new JWT token by email
     fn create_token_email(&self, payload: NewEmailIdentity, exp: i64) -> ServiceFuture<JWT> {
-        let r2d2_clone = self.db_pool.clone();
-        let jwt_private_key = self.jwt_private_key.clone();
-        let repo_factory = self.repo_factory.clone();
+        let jwt_private_key = self.static_context.jwt_private_key.clone();
+        let repo_factory = self.static_context.repo_factory.clone();
 
-        Box::new(
-            self.cpu_pool
-                .spawn_fn(move || {
-                    r2d2_clone
-                        .get()
-                        .map_err(|e| e.context(Error::Connection).into())
-                        .and_then(move |conn| {
-                            let ident_repo = repo_factory.create_identities_repo(&conn);
-                            let users_repo = repo_factory.create_users_repo_with_sys_acl(&conn);
+        self.spawn_on_pool(move |conn| {
+            let ident_repo = repo_factory.create_identities_repo(&conn);
+            let users_repo = repo_factory.create_users_repo_with_sys_acl(&conn);
 
-                            conn.transaction::<JWT, FailureError, _>(move || {
-                                ident_repo
-                                    .email_provider_exists(payload.email.to_string(), Provider::Email)
-                                    .map(|exists| (exists, payload))
-                                    .and_then(move |(exists, new_ident)| -> RepoResult<i32> {
-                                        if !exists {
-                                            // email does not exist
-                                            Err(Error::Validate(validation_errors!({"email": ["email" => "Email not found"]})).into())
-                                        } else {
-                                            // email exists, checking password
-                                            users_repo
-                                                .find_by_email(new_ident.email.clone())
-                                                .map(|user| (new_ident, user))
-                                                .and_then(move |(new_ident, user)| {
-                                                    if let Some(user) = user {
-                                                        if user.is_blocked {
-                                                            error!("User {} is blocked.", user.id);
-                                                            Err(Error::Validate(validation_errors!({"email": ["email" => "Email is blocked"]})).into())
-                                                        } else if user.email_verified {
-                                                            let new_ident_clone = new_ident.clone();
-                                                            ident_repo
-                                                                .find_by_email_provider(new_ident.email.clone(), Provider::Email)
-                                                                .and_then(move |identity| {
-                                                                    if let Some(passwd) = identity.password {
-                                                                        password_verify(&passwd, new_ident.password.clone())
-                                                                    } else {
-                                                                        error!(
-                                                                            "No password in db for user with Email provider, user_id: {}",
-                                                                            &identity.user_id
-                                                                        );
-                                                                        Err(Error::Validate(
-                                                                        validation_errors!({"password": ["password" => "Wrong password"]}),
-                                                                    ).into())
-                                                                    }
-                                                                })
-                                                                .map(move |verified| (verified, new_ident_clone))
-                                                                .and_then(move |(verified, new_ident)| -> Result<i32, FailureError> {
-                                                                    if !verified {
-                                                                        //password not verified
-                                                                        Err(Error::Validate(
-                                                                            validation_errors!({"password": ["password" => "Wrong password"]}),
-                                                                        ).into())
-                                                                    } else {
-                                                                        //password verified
-                                                                        ident_repo
-                                                                            .find_by_email_provider(new_ident.email, Provider::Email)
-                                                                            .map(|ident| ident.user_id.0)
-                                                                    }
-                                                                })
-                                                        } else {
-                                                            Err(Error::Validate(
-                                                                validation_errors!({"email": ["email" => "Email not verified"]}),
-                                                            ).into())
-                                                        }
+            conn.transaction::<JWT, FailureError, _>(move || {
+                ident_repo
+                    .email_provider_exists(payload.email.to_string(), Provider::Email)
+                    .and_then(move |exists| -> RepoResult<i32> {
+                        if !exists {
+                            // email does not exist
+                            Err(Error::Validate(validation_errors!({"email": ["email" => "Email not found"]})).into())
+                        } else {
+                            // email exists, checking password
+                            users_repo.find_by_email(payload.email.clone()).and_then(move |user| {
+                                if let Some(user) = user {
+                                    if user.is_blocked {
+                                        error!("User {} is blocked.", user.id);
+                                        Err(Error::Validate(validation_errors!({"email": ["email" => "Email is blocked"]})).into())
+                                    } else if user.email_verified {
+                                        ident_repo
+                                            .find_by_email_provider(payload.email.clone(), Provider::Email)
+                                            .and_then(|identity| {
+                                                if let Some(passwd) = identity.password {
+                                                    password_verify(&passwd, payload.password.clone())
+                                                } else {
+                                                    error!(
+                                                        "No password in db for user with Email provider, user_id: {}",
+                                                        &identity.user_id
+                                                    );
+                                                    Err(Error::Validate(validation_errors!({"password": ["password" => "Wrong password"]}))
+                                                        .into())
+                                                }
+                                            }).and_then(
+                                                move |verified| -> Result<i32, FailureError> {
+                                                    if !verified {
+                                                        //password not verified
+                                                        Err(Error::Validate(
+                                                            validation_errors!({"password": ["password" => "Wrong password"]}),
+                                                        ).into())
                                                     } else {
-                                                        Err(Error::NotFound
-                                                            .context(format!("User with email {} not found!", new_ident.email))
-                                                            .into())
+                                                        //password verified
+                                                        ident_repo
+                                                            .find_by_email_provider(payload.email, Provider::Email)
+                                                            .map(|ident| ident.user_id.0)
                                                     }
-                                                })
-                                        }
-                                    })
-                                    .and_then(move |id| {
-                                        let tokenpayload = JWTPayload::new(id, exp, Provider::Email);
-                                        encode(&Header::new(Algorithm::RS256), &tokenpayload, jwt_private_key.as_ref())
-                                            .map_err(|e| {
-                                                format_err!("{}", e)
-                                                    .context(Error::Parse)
-                                                    .context(format!("Couldn't encode jwt: {:?}.", tokenpayload))
-                                                    .into()
-                                            })
-                                            .and_then(|t| {
-                                                Ok(JWT {
-                                                    token: t,
-                                                    status: UserStatus::Exists,
-                                                })
-                                            })
-                                    })
+                                                },
+                                            )
+                                    } else {
+                                        Err(Error::Validate(validation_errors!({"email": ["email" => "Email not verified"]})).into())
+                                    }
+                                } else {
+                                    Err(Error::NotFound
+                                        .context(format!("User with email {} not found!", payload.email))
+                                        .into())
+                                }
                             })
-                        })
-                })
-                .map_err(|e: FailureError| e.context("Service jwt, create_token_email endpoint error occured.").into()),
-        )
+                        }
+                    }).and_then(move |id| {
+                        let tokenpayload = JWTPayload::new(id, exp, Provider::Email);
+                        encode(&Header::new(Algorithm::RS256), &tokenpayload, jwt_private_key.as_ref())
+                            .map_err(|e| {
+                                format_err!("{}", e)
+                                    .context(Error::Parse)
+                                    .context(format!("Couldn't encode jwt: {:?}.", tokenpayload))
+                                    .into()
+                            }).and_then(|t| {
+                                Ok(JWT {
+                                    token: t,
+                                    status: UserStatus::Exists,
+                                })
+                            })
+                    })
+            }).map_err(|e: FailureError| e.context("Service jwt, create_token_email endpoint error occured.").into())
+        })
     }
 
     /// https://developers.google.com/identity/protocols/OpenIDConnect#validatinganidtoken
     /// Creates new JWT token by google
     fn create_token_google(self, oauth: ProviderOauth, exp: i64) -> ServiceFuture<JWT> {
-        let url = self.google_config.info_url.clone();
+        let url = self.static_context.config.google.info_url.clone();
         let mut headers = Headers::new();
         headers.set(Authorization(Bearer { token: oauth.token }));
-        let jwt_private_key = self.jwt_private_key.clone();
-        <JWTServiceImpl<T, M, F> as ProfileService<T, GoogleProfile>>::create_token(
+        let jwt_private_key = self.static_context.jwt_private_key.clone();
+        <Service<T, M, F> as ProfileService<T, GoogleProfile>>::create_token(
             self,
             Provider::Google,
             jwt_private_key,
@@ -449,38 +350,33 @@ impl<
     /// https://developers.facebook.com/docs/facebook-login/manually-build-a-login-flow
     /// Creates new JWT token by facebook
     fn create_token_facebook(self, oauth: ProviderOauth, exp: i64) -> ServiceFuture<JWT> {
-        let info_url = self.facebook_config.info_url.clone();
+        let info_url = self.static_context.config.facebook.info_url.clone();
         let url = format!(
             "{}?fields=first_name,last_name,gender,email,name&access_token={}",
             info_url, oauth.token
         );
-        let jwt_private_key = self.jwt_private_key.clone();
-        <JWTServiceImpl<T, M, F> as ProfileService<T, FacebookProfile>>::create_token(
-            self,
-            Provider::Facebook,
-            jwt_private_key,
-            url,
-            None,
-            exp,
-        )
+        let jwt_private_key = self.static_context.jwt_private_key.clone();
+        <Service<T, M, F> as ProfileService<T, FacebookProfile>>::create_token(self, Provider::Facebook, jwt_private_key, url, None, exp)
     }
 }
 
 #[cfg(test)]
 pub mod tests {
     use std::sync::Arc;
+
     use tokio_core::reactor::Core;
 
-    use repos::repo_factory::tests::*;
+    use stq_types::UserId;
 
     use models::*;
+    use repos::repo_factory::tests::*;
     use services::jwt::JWTService;
 
     #[test]
     fn test_jwt_email() {
         let mut core = Core::new().unwrap();
         let handle = Arc::new(core.handle());
-        let service = create_jwt_service(handle);
+        let service = create_service(Some(UserId(1)), handle);
         let new_user = create_new_email_identity(MOCK_EMAIL.to_string(), MOCK_PASSWORD.to_string());
         let exp = 1;
         let work = service.create_token_email(new_user, exp);
@@ -495,7 +391,7 @@ pub mod tests {
     fn test_jwt_email_not_found() {
         let mut core = Core::new().unwrap();
         let handle = Arc::new(core.handle());
-        let service = create_jwt_service(handle);
+        let service = create_service(Some(UserId(1)), handle);
         let new_user = create_new_email_identity("not found email".to_string(), MOCK_PASSWORD.to_string());
         let exp = 1;
         let work = service.create_token_email(new_user, exp);
@@ -507,7 +403,7 @@ pub mod tests {
     fn test_jwt_password_incorrect() {
         let mut core = Core::new().unwrap();
         let handle = Arc::new(core.handle());
-        let service = create_jwt_service(handle);
+        let service = create_service(Some(UserId(1)), handle);
         let new_user = create_new_email_identity(MOCK_EMAIL.to_string(), "wrong password".to_string());
         let exp = 1;
         let work = service.create_token_email(new_user, exp);
@@ -521,7 +417,7 @@ pub mod tests {
     fn test_jwt_google() {
         let mut core = Core::new().unwrap();
         let handle = Arc::new(core.handle());
-        let service = create_jwt_service(handle);
+        let service = create_service(Some(UserId(1)), handle);
         let oauth = ProviderOauth {
             token: GOOGLE_TOKEN.to_string(),
         };
@@ -537,7 +433,7 @@ pub mod tests {
     fn test_jwt_facebook() {
         let mut core = Core::new().unwrap();
         let handle = Arc::new(core.handle());
-        let service = create_jwt_service(handle);
+        let service = create_service(Some(UserId(1)), handle);
         let oauth = ProviderOauth {
             token: FACEBOOK_TOKEN.to_string(),
         };

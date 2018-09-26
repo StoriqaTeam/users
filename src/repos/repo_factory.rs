@@ -134,6 +134,7 @@ pub mod tests {
     use stq_types::{RoleId, UserId, UsersRole};
 
     use config::Config;
+    use controller::context::{DynamicContext, StaticContext};
     use models::*;
     use repos::identities::IdentitiesRepo;
     use repos::repo_factory::ReposFactory;
@@ -141,8 +142,7 @@ pub mod tests {
     use repos::types::RepoResult;
     use repos::user_roles::UserRolesRepo;
     use repos::users::UsersRepo;
-    use services::jwt::JWTServiceImpl;
-    use services::users::UsersServiceImpl;
+    use services::Service;
 
     #[derive(Default, Copy, Clone)]
     pub struct ReposFactoryMock;
@@ -375,10 +375,10 @@ pub mod tests {
         }
     }
 
-    pub fn create_users_service(
+    pub fn create_service(
         user_id: Option<UserId>,
         handle: Arc<Handle>,
-    ) -> UsersServiceImpl<MockConnection, MockConnectionManager, ReposFactoryMock> {
+    ) -> Service<MockConnection, MockConnectionManager, ReposFactoryMock> {
         let manager = MockConnectionManager::default();
         let db_pool = r2d2::Pool::builder().build(manager).expect("Failed to create connection pool");
         let cpu_pool = CpuPool::new(1);
@@ -386,25 +386,20 @@ pub mod tests {
         let config = Config::new().unwrap();
         let client = stq_http::client::Client::new(&config.to_http_config(), &handle);
         let client_handle = client.handle();
-
-        UsersServiceImpl::new(db_pool, cpu_pool, client_handle, user_id, MOCK_REPO_FACTORY)
-    }
-
-    pub fn create_jwt_service(handle: Arc<Handle>) -> JWTServiceImpl<MockConnection, MockConnectionManager, ReposFactoryMock> {
-        let manager = MockConnectionManager::default();
-        let db_pool = r2d2::Pool::builder().build(manager).expect("Failed to create connection pool");
-        let cpu_pool = CpuPool::new(1);
-
-        let config = Config::new().unwrap();
-        let client = stq_http::client::Client::new(&config.to_http_config(), &handle);
-        let client_handle = client.handle();
-
-        debug!("Reading private key file {}", &config.jwt.secret_key_path);
         let mut f = File::open(config.jwt.secret_key_path.clone()).unwrap();
         let mut jwt_private_key: Vec<u8> = Vec::new();
         f.read_to_end(&mut jwt_private_key).unwrap();
+        let static_context = StaticContext::new(
+            db_pool,
+            cpu_pool,
+            client_handle,
+            Arc::new(config),
+            MOCK_REPO_FACTORY,
+            jwt_private_key,
+        );
+        let dynamic_context = DynamicContext::new(user_id);
 
-        JWTServiceImpl::new(db_pool, cpu_pool, client_handle, config, MOCK_REPO_FACTORY, jwt_private_key.clone())
+        Service::new(static_context, dynamic_context)
     }
 
     pub fn create_user(id: UserId, email: String) -> User {

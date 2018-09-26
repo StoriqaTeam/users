@@ -3,11 +3,11 @@
 //! Basically it provides inputs to `Service` layer and converts outputs
 //! of `Service` layer to http responses
 
+pub mod context;
 pub mod routes;
 pub mod utils;
 
 use std::str::FromStr;
-use std::sync::Arc;
 
 use chrono::Utc;
 use diesel::connection::AnsiTransactionManager;
@@ -17,30 +17,27 @@ use failure::Fail;
 use futures::future;
 use futures::Future;
 use futures::IntoFuture;
-use futures_cpupool::CpuPool;
 use hyper::header::Authorization;
 use hyper::server::Request;
 use hyper::{Delete, Get, Post, Put};
-use r2d2::{ManageConnection, Pool};
+use r2d2::ManageConnection;
 use validator::Validate;
 
-use stq_http::client::ClientHandle;
 use stq_http::controller::Controller;
 use stq_http::controller::ControllerFuture;
 use stq_http::request_util::parse_body;
 use stq_http::request_util::serialize_future;
-use stq_router::RouteParser;
 use stq_types::UserId;
 
+use self::context::{DynamicContext, StaticContext};
 use self::routes::Route;
-use config::Config;
 use errors::Error;
 use models;
 use repos::repo_factory::*;
-use services::jwt::{JWTService, JWTServiceImpl};
-use services::system::{SystemService, SystemServiceImpl};
-use services::user_roles::{UserRolesService, UserRolesServiceImpl};
-use services::users::{UsersService, UsersServiceImpl};
+use services::jwt::JWTService;
+use services::user_roles::UserRolesService;
+use services::users::UsersService;
+use services::Service;
 
 /// Controller handles route parsing and calling `Service` layer
 pub struct ControllerImpl<T, M, F>
@@ -49,13 +46,7 @@ where
     M: ManageConnection<Connection = T>,
     F: ReposFactory<T>,
 {
-    pub db_pool: Pool<M>,
-    pub cpu_pool: CpuPool,
-    pub route_parser: Arc<RouteParser<Route>>,
-    pub config: Config,
-    pub client_handle: ClientHandle,
-    pub repo_factory: F,
-    pub jwt_private_key: Vec<u8>,
+    pub static_context: StaticContext<T, M, F>,
 }
 
 impl<
@@ -65,24 +56,8 @@ impl<
     > ControllerImpl<T, M, F>
 {
     /// Create a new controller based on services
-    pub fn new(
-        db_pool: Pool<M>,
-        cpu_pool: CpuPool,
-        client_handle: ClientHandle,
-        config: Config,
-        repo_factory: F,
-        jwt_private_key: Vec<u8>,
-    ) -> Self {
-        let route_parser = Arc::new(routes::create_route_parser());
-        Self {
-            route_parser,
-            db_pool,
-            cpu_pool,
-            client_handle,
-            config,
-            repo_factory,
-            jwt_private_key,
-        }
+    pub fn new(static_context: StaticContext<T, M, F>) -> Self {
+        Self { static_context }
     }
 }
 
@@ -100,51 +75,30 @@ impl<
             .map(|auth| auth.0.clone())
             .and_then(|id| i32::from_str(&id).ok())
             .map(UserId);
+        let dynamic_context = DynamicContext::new(user_id);
 
-        let system_service = SystemServiceImpl::default();
-        let users_service = UsersServiceImpl::new(
-            self.db_pool.clone(),
-            self.cpu_pool.clone(),
-            self.client_handle.clone(),
-            user_id,
-            self.repo_factory.clone(),
-        );
-        let jwt_service = JWTServiceImpl::new(
-            self.db_pool.clone(),
-            self.cpu_pool.clone(),
-            self.client_handle.clone(),
-            self.config.clone(),
-            self.repo_factory.clone(),
-            self.jwt_private_key.clone(),
-        );
-        let user_roles_service = UserRolesServiceImpl::new(self.db_pool.clone(), self.cpu_pool.clone(), user_id, self.repo_factory.clone());
+        let service = Service::new(self.static_context.clone(), dynamic_context);
 
         let path = req.path().to_string();
 
-        match (&req.method().clone(), self.route_parser.test(req.path())) {
-            // GET /healthcheck
-            (&Get, Some(Route::Healthcheck)) => {
-                trace!("Received healthcheck request");
-                serialize_future(system_service.healthcheck())
-            }
-
+        match (&req.method().clone(), self.static_context.route_parser.test(req.path())) {
             // GET /users/<user_id>
             (&Get, Some(Route::User(user_id))) => {
                 debug!("Received request to get user info for ID {}", user_id);
-                serialize_future(users_service.get(user_id))
+                serialize_future(service.get(user_id))
             }
 
             // GET /users/current
             (&Get, Some(Route::Current)) => {
                 debug!("Received request to get current user info.");
-                serialize_future(users_service.current())
+                serialize_future(service.current())
             }
 
             // GET /users/by_email
             (&Get, Some(Route::UserByEmail)) => {
                 if let Some(email) = parse_query!(req.query().unwrap_or_default(), "email" => String) {
                     debug!("Received request to get user by email {}", email);
-                    serialize_future(users_service.find_by_email(email.to_lowercase()))
+                    serialize_future(service.find_by_email(email.to_lowercase()))
                 } else {
                     Box::new(future::err(
                         format_err!("Parsing query parameters // GET /users/by_email failed!")
@@ -158,7 +112,7 @@ impl<
             (&Get, Some(Route::Users)) => {
                 if let (Some(offset), Some(count)) = parse_query!(req.query().unwrap_or_default(), "offset" => UserId, "count" => i64) {
                     debug!("Received request to get {} users starting from {}", count, offset);
-                    serialize_future(users_service.list(offset, count))
+                    serialize_future(service.list(offset, count))
                 } else {
                     Box::new(future::err(
                         format_err!("Parsing query parameters // GET /users failed!")
@@ -200,7 +154,7 @@ impl<
                                     user
                                 });
 
-                                users_service.create(checked_new_ident, user)
+                                service.create(checked_new_ident, user)
                             })
                     }),
             ),
@@ -221,32 +175,32 @@ impl<
                             .into_future()
                             .inspect(|_| {
                                 debug!("Validation success");
-                            }).and_then(move |_| users_service.update(user_id, update_user))
+                            }).and_then(move |_| service.update(user_id, update_user))
                     }),
             ),
 
             // POST /users/<user_id>/block
             (&Post, Some(Route::UserBlock(user_id))) => {
                 debug!("Received request to block user {}", user_id);
-                serialize_future(users_service.set_block_status(user_id, true))
+                serialize_future(service.set_block_status(user_id, true))
             }
 
             // POST /users/<user_id>/unblock
             (&Post, Some(Route::UserUnblock(user_id))) => {
                 debug!("Received request to unblock user {}", user_id);
-                serialize_future(users_service.set_block_status(user_id, false))
+                serialize_future(service.set_block_status(user_id, false))
             }
 
             // DELETE /users/<user_id>
             (&Delete, Some(Route::User(user_id))) => {
                 debug!("Received request to deactivate user {}", user_id);
-                serialize_future(users_service.deactivate(user_id))
+                serialize_future(service.deactivate(user_id))
             }
 
             // DELETE /user_by_saga_id/<user_id>
             (&Delete, Some(Route::UserBySagaId(saga_id))) => {
                 debug!("Received request to delete user with saga ID {}", saga_id);
-                serialize_future(users_service.delete_by_saga_id(saga_id))
+                serialize_future(service.delete_by_saga_id(saga_id))
             }
 
             // POST /jwt/email
@@ -275,7 +229,7 @@ impl<
 
                                 let now = Utc::now().timestamp();
 
-                                jwt_service.create_token_email(checked_new_ident, now)
+                                service.create_token_email(checked_new_ident, now)
                             })
                     }),
             ),
@@ -292,7 +246,7 @@ impl<
                     }).and_then(move |oauth| {
                         let now = Utc::now().timestamp();
 
-                        jwt_service.create_token_google(oauth, now)
+                        service.create_token_google(oauth, now)
                     }),
             ),
 
@@ -308,27 +262,27 @@ impl<
                     }).and_then(move |oauth| {
                         let now = Utc::now().timestamp();
 
-                        jwt_service.create_token_facebook(oauth, now)
+                        service.create_token_facebook(oauth, now)
                     }),
             ),
 
             (Get, Some(Route::RolesByUserId { user_id })) => {
                 debug!("Received request to get roles by user id {}", user_id);
-                serialize_future({ user_roles_service.get_roles(user_id) })
+                serialize_future({ service.get_roles(user_id) })
             }
             (Post, Some(Route::Roles)) => serialize_future({
                 parse_body::<models::NewUserRole>(req.body()).and_then(move |data| {
                     debug!("Received request to create role {:?}", data);
-                    user_roles_service.create(data)
+                    service.create_user_role(data)
                 })
             }),
             (Delete, Some(Route::RolesByUserId { user_id })) => {
                 debug!("Received request to delete role by user id {}", user_id);
-                serialize_future({ user_roles_service.delete_by_user_id(user_id) })
+                serialize_future({ service.delete_user_role_by_user_id(user_id) })
             }
             (Delete, Some(Route::RoleById { id })) => {
                 debug!("Received request to delete role by id {}", id);
-                serialize_future({ user_roles_service.delete_by_id(id) })
+                serialize_future({ service.delete_user_role_by_id(id) })
             }
 
             // POST /users/password_change
@@ -348,7 +302,7 @@ impl<
                                     .context(Error::Validate(e))
                                     .into()
                             }).into_future()
-                            .and_then(move |_| users_service.change_password(change_req))
+                            .and_then(move |_| service.change_password(change_req))
                     }),
             ),
 
@@ -366,7 +320,7 @@ impl<
                             .validate()
                             .map_err(|e| format_err!("Validation of ResetRequest failed!").context(Error::Validate(e)).into())
                             .into_future()
-                            .and_then(move |_| users_service.get_password_reset_token(reset_req.email.to_lowercase()))
+                            .and_then(move |_| service.get_password_reset_token(reset_req.email.to_lowercase()))
                     }),
             ),
 
@@ -384,7 +338,7 @@ impl<
                             .validate()
                             .map_err(|e| format_err!("Validation of ResetApply failed!").context(Error::Validate(e)).into())
                             .into_future()
-                            .and_then(move |_| users_service.password_reset_apply(reset_apply.token, reset_apply.password))
+                            .and_then(move |_| service.password_reset_apply(reset_apply.token, reset_apply.password))
                     }),
             ),
 
@@ -402,7 +356,7 @@ impl<
                             .validate()
                             .map_err(|e| format_err!("Validation of ResetRequest failed!").context(Error::Validate(e)).into())
                             .into_future()
-                            .and_then(move |_| users_service.get_email_verification_token(reset_req.email.to_lowercase()))
+                            .and_then(move |_| service.get_email_verification_token(reset_req.email.to_lowercase()))
                     }),
             ),
 
@@ -410,7 +364,7 @@ impl<
             (&Put, Some(Route::UserEmailVerifyToken)) => {
                 if let Some(token) = parse_query!(req.query().unwrap_or_default(), "token" => String) {
                     debug!("Received request to apply token {} to verify email.", token);
-                    serialize_future(users_service.verify_email(token))
+                    serialize_future(service.verify_email(token))
                 } else {
                     Box::new(future::err(
                         format_err!("Parsing query parameters // Put /users/email_verify_token failed!")
@@ -432,7 +386,7 @@ impl<
                                     .into()
                             }).inspect(|payload| {
                                 debug!("Received request to search for user whith payload {:?}", payload);
-                            }).and_then(move |payload| users_service.search(offset, count, payload)),
+                            }).and_then(move |payload| service.search(offset, count, payload)),
                     )
                 } else {
                     Box::new(future::err(
