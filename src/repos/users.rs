@@ -210,16 +210,16 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
         let mut query = users.filter(id.ge(from)).into_boxed();
 
         if let Some(term_email) = term.email {
-            query = query.filter(email.eq(term_email));
+            query = query.filter(email.like(format!("%{}%", term_email)));
         }
         if let Some(term_phone) = term.phone {
             query = query.filter(phone.eq(term_phone));
         }
         if let Some(term_first_name) = term.first_name {
-            query = query.filter(first_name.like(format!("{}%", term_first_name)));
+            query = query.filter(first_name.like(format!("%{}%", term_first_name)));
         }
         if let Some(term_last_name) = term.last_name {
-            query = query.filter(last_name.like(format!("{}%", term_last_name)));
+            query = query.filter(last_name.like(format!("%{}%", term_last_name)));
         }
         if let Some(term_is_blocked) = term.is_blocked {
             query = query.filter(is_blocked.eq(term_is_blocked));
