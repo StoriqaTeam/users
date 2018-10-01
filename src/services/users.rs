@@ -1,5 +1,6 @@
 //! Users Services, presents CRUD operations with users
 
+use chrono::Utc;
 use std::time::SystemTime;
 
 use base64::encode;
@@ -9,6 +10,7 @@ use diesel::Connection;
 use failure::Error as FailureError;
 use failure::Fail;
 use futures::future;
+use futures::Future;
 use r2d2::ManageConnection;
 use uuid::Uuid;
 
@@ -20,8 +22,9 @@ use super::util::{password_create, password_verify};
 use errors::Error;
 use models::ResetToken;
 use models::{ChangeIdentityPassword, NewIdentity, UpdateIdentity};
-use models::{NewUser, UpdateUser, User, UsersSearchTerms};
+use models::{EmailVerifyApplyToken, NewUser, ResetApplyToken, UpdateUser, User, UsersSearchTerms};
 use repos::repo_factory::ReposFactory;
+use services::jwt::JWTService;
 use services::Service;
 
 pub trait UsersService {
@@ -40,7 +43,7 @@ pub trait UsersService {
     /// Get email verification token
     fn get_email_verification_token(&self, email: String) -> ServiceFuture<String>;
     /// Verifies email
-    fn verify_email(&self, token_arg: String) -> ServiceFuture<String>;
+    fn verify_email(&self, token_arg: String) -> ServiceFuture<EmailVerifyApplyToken>;
     /// Updates specific user
     fn update(&self, user_id: UserId, payload: UpdateUser) -> ServiceFuture<User>;
     /// Change user password
@@ -48,7 +51,7 @@ pub trait UsersService {
     /// Get password reset token
     fn get_password_reset_token(&self, email_arg: String) -> ServiceFuture<String>;
     /// Apply password reset
-    fn password_reset_apply(&self, token: String, new_pass: String) -> ServiceFuture<String>;
+    fn password_reset_apply(&self, token: String, new_pass: String) -> ServiceFuture<ResetApplyToken>;
     /// Creates reset token
     fn reset_token_create() -> String;
     /// Find by email
@@ -221,54 +224,60 @@ impl<
     }
 
     /// Verifies email
-    fn verify_email(&self, token_arg: String) -> ServiceFuture<String> {
+    fn verify_email(&self, token_arg: String) -> ServiceFuture<EmailVerifyApplyToken> {
         let repo_factory = self.static_context.repo_factory.clone();
+        let secret = self.static_context.jwt_private_key.clone();
+        let service = self.clone();
 
-        self.spawn_on_pool(move |conn| {
-            let users_repo = repo_factory.create_users_repo_with_sys_acl(&conn);
-            let reset_repo = repo_factory.create_reset_token_repo(&conn);
+        let fut = self
+            .spawn_on_pool(move |conn| {
+                {
+                    let users_repo = repo_factory.create_users_repo_with_sys_acl(&conn);
+                    let reset_repo = repo_factory.create_reset_token_repo(&conn);
 
-            reset_repo
-                .find_by_token(token_arg.clone(), TokenType::EmailVerify)
-                .map_err(|e| e.context(Error::InvalidToken).into())
-                .and_then(|reset_token| {
-                    reset_repo
+                    let reset_token: ResetToken = reset_repo
+                        .find_by_token(token_arg.clone(), TokenType::EmailVerify)
+                        .map_err(|e| e.context(Error::InvalidToken))?;
+
+                    let reset_token = reset_repo
                         .delete_by_token(reset_token.token.clone(), TokenType::EmailVerify)
-                        .map_err(|e| e.context("Unable to delete token").into())
-                }).and_then(move |reset_token| match SystemTime::now().duration_since(reset_token.created_at) {
-                    Ok(elapsed) => {
-                        if elapsed.as_secs() < 3600 {
-                            users_repo
-                                .find_by_email(reset_token.email.clone())
-                                .and_then(|user| {
-                                    if let Some(user) = user {
-                                        let update = UpdateUser {
-                                            phone: None,
-                                            first_name: None,
-                                            last_name: None,
-                                            middle_name: None,
-                                            gender: None,
-                                            birthdate: None,
-                                            avatar: None,
-                                            is_active: None,
-                                            email_verified: Some(true),
-                                        };
+                        .map_err(|e| e.context("Unable to delete token"))?;
 
-                                        users_repo.update(user.id.clone(), update)
-                                    } else {
-                                        Err(Error::NotFound
-                                            .context(format!("User with email {} not found!", reset_token.email))
-                                            .into())
-                                    }
-                                }).map_err(|e| e.context(Error::InvalidToken).into())
-                        } else {
-                            Err(Error::InvalidToken.into())
+                    let user = match SystemTime::now().duration_since(reset_token.created_at) {
+                        Ok(elapsed) => {
+                            if elapsed.as_secs() < 3600 {
+                                let user = users_repo.find_by_email(reset_token.email.clone())?;
+
+                                if let Some(user) = user {
+                                    let update = UpdateUser {
+                                        email_verified: Some(true),
+                                        ..Default::default()
+                                    };
+
+                                    users_repo.update(user.id.clone(), update)
+                                } else {
+                                    Err(Error::InvalidToken
+                                        .context(format!("User with email {} not found!", reset_token.email))
+                                        .into())
+                                }
+                            } else {
+                                Err(Error::InvalidToken.into())
+                            }
                         }
-                    }
-                    Err(_) => Err(Error::InvalidToken.into()),
-                }).map(|user| user.email)
-                .map_err(|e: FailureError| e.context("Service users, verify_email endpoint error occured.").into())
-        })
+                        Err(_) => Err(Error::InvalidToken.into()),
+                    }?;
+
+                    Ok(user)
+                }.map_err(|e: FailureError| e.context("Service users, verify_email endpoint error occured.").into())
+            }).and_then(move |user| {
+                let provider = Provider::Email;
+                let exp = Utc::now().timestamp() + 120; // TODO: change now() + expire_config_value
+                service
+                    .create_jwt(user.id, exp, secret, provider)
+                    .and_then(move |token| future::ok(EmailVerifyApplyToken { token, user }))
+            });
+
+        Box::new(fut)
     }
 
     /// Updates specific user
@@ -385,46 +394,60 @@ impl<
         })
     }
 
-    fn password_reset_apply(&self, token_arg: String, new_pass: String) -> ServiceFuture<String> {
+    fn password_reset_apply(&self, token_arg: String, new_pass: String) -> ServiceFuture<ResetApplyToken> {
         let repo_factory = self.static_context.repo_factory.clone();
+        let secret = self.static_context.jwt_private_key.clone();
+        let service = self.clone();
 
         debug!("Resetting password for token {}.", &token_arg);
 
-        self.spawn_on_pool(move |conn| {
-            let reset_repo = repo_factory.create_reset_token_repo(&conn);
-            let ident_repo = repo_factory.create_identities_repo(&conn);
+        let fut = self
+            .spawn_on_pool(move |conn| {
+                {
+                    let reset_repo = repo_factory.create_reset_token_repo(&conn);
+                    let ident_repo = repo_factory.create_identities_repo(&conn);
 
-            reset_repo
-                .find_by_token(token_arg.clone(), TokenType::PasswordReset)
-                .map_err(|e| e.context("Reset token by token search failure").context(Error::InvalidToken).into())
-                .and_then(|reset_token| {
-                    reset_repo
+                    let reset_token = reset_repo
+                        .find_by_token(token_arg.clone(), TokenType::PasswordReset)
+                        .map_err(|e| e.context("Reset token by token search failure").context(Error::InvalidToken))?;
+
+                    let reset_token = reset_repo
                         .delete_by_token(reset_token.token.clone(), TokenType::PasswordReset)
-                        .map_err(|e| e.context("Unable to delete token").into())
-                }).and_then(move |reset_token| {
+                        .map_err(|e| e.context("Unable to delete token"))?;
+
                     debug!("Checking reset token's {:?} expiration", &reset_token);
-                    match SystemTime::now().duration_since(reset_token.created_at) {
+                    let identity = match SystemTime::now().duration_since(reset_token.created_at) {
                         Ok(elapsed) => {
                             if elapsed.as_secs() < 3600 {
-                                ident_repo
-                                    .find_by_email_provider(reset_token.email.clone(), Provider::Email)
-                                    .and_then(move |ident| {
-                                        debug!("Token check successful, resetting password for identity {:?}", &ident);
-                                        let update = UpdateIdentity {
-                                            password: Some(password_create(new_pass)),
-                                        };
+                                let ident = ident_repo.find_by_email_provider(reset_token.email.clone(), Provider::Email)?;
+                                debug!("Token check successful, resetting password for identity {:?}", &ident);
+                                let update = UpdateIdentity {
+                                    password: Some(password_create(new_pass)),
+                                };
 
-                                        ident_repo.update(ident, update)
-                                    }).map_err(|e| e.context(Error::InvalidToken).into())
+                                ident_repo.update(ident, update)
                             } else {
                                 Err(Error::InvalidToken.context(format!("Token {:?} has expired", &reset_token)).into())
                             }
                         }
                         Err(_) => Err(Error::InvalidToken.into()),
-                    }
-                }).map(|ident| ident.email)
-                .map_err(|e: FailureError| e.context("Service users, password_reset_apply endpoint error occured.").into())
-        })
+                    }?;
+
+                    Ok(identity)
+                }.map_err(|e: FailureError| e.context("Service users, password_reset_apply endpoint error occured.").into())
+            }).and_then(move |identity| {
+                let exp = Utc::now().timestamp() + 120; // TODO: change now() + expire_config_value
+                service
+                    .create_jwt(identity.user_id, exp, secret, identity.provider)
+                    .and_then(move |token| {
+                        Ok(ResetApplyToken {
+                            token,
+                            email: identity.email,
+                        })
+                    })
+            });
+
+        Box::new(fut)
     }
 
     fn reset_token_create() -> String {

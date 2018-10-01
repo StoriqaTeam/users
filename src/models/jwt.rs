@@ -1,10 +1,12 @@
 //! Models for managing Json Web Token
+
 use stq_static_resources::Provider;
+use stq_types::UserId;
 
 /// Json Web Token created by provider user status
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum UserStatus {
-    New(i32),
+    New(UserId),
     Exists,
 }
 
@@ -24,13 +26,13 @@ pub struct ProviderOauth {
 /// Json web token payload
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct JWTPayload {
-    pub user_id: i32,
+    pub user_id: UserId,
     pub exp: i64,
     pub provider: Provider,
 }
 
 impl JWTPayload {
-    pub fn new(id: i32, exp_arg: i64, provider_arg: Provider) -> Self {
+    pub fn new(id: UserId, exp_arg: i64, provider_arg: Provider) -> Self {
         Self {
             user_id: id,
             exp: exp_arg,

@@ -6,6 +6,7 @@ use validator::Validate;
 
 use stq_static_resources::TokenType;
 
+use models::user::User;
 use schema::reset_tokens;
 
 #[derive(Serialize, Deserialize, Queryable, Insertable, Debug)]
@@ -29,6 +30,11 @@ pub struct ResetApply {
     #[validate(length(min = "8", max = "30", message = "Password should be between 8 and 30 symbols"))]
     pub password: String,
 }
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ResetApplyToken {
+    pub email: String,
+    pub token: String,
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ResetMail {
@@ -41,4 +47,10 @@ impl fmt::Display for ResetApply {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "ResetApply {{ token: \"{}\", password: \"*****\" }}", self.token)
     }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct EmailVerifyApplyToken {
+    pub user: User,
+    pub token: String,
 }
