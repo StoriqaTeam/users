@@ -72,7 +72,7 @@ pub struct NewUser {
 }
 
 /// Payload for updating users
-#[derive(Debug, Serialize, Deserialize, Insertable, Validate, AsChangeset)]
+#[derive(Default, Debug, Serialize, Deserialize, Insertable, Validate, AsChangeset)]
 #[table_name = "users"]
 pub struct UpdateUser {
     #[validate(custom = "validate_phone")]

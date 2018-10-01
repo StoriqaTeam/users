@@ -19,6 +19,7 @@ use serde_json;
 use uuid::Uuid;
 
 use stq_static_resources::Provider;
+use stq_types::UserId;
 
 use self::profile::{Email, FacebookProfile, GoogleProfile, IntoUser, ProfileStatus};
 use super::util::password_verify;
@@ -37,25 +38,9 @@ pub trait JWTService {
     fn create_token_google(self, oauth: ProviderOauth, exp: i64) -> ServiceFuture<JWT>;
     /// Creates new JWT token by facebook
     fn create_token_facebook(self, oauth: ProviderOauth, exp: i64) -> ServiceFuture<JWT>;
-}
-
-/// Profile service trait, presents standard scheme for receiving profile information from providers
-
-trait ProfileService<T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static, P: Email> {
-    fn create_token(self, provider: Provider, secret: Vec<u8>, info_url: String, headers: Option<Headers>, exp: i64) -> ServiceFuture<JWT>;
-
-    fn get_profile(&self, url: String, headers: Option<Headers>) -> ServiceFuture<P>;
-
-    fn profile_status(&self, profile: P, provider: Provider) -> ServiceFuture<ProfileStatus>;
-
-    fn create_profile(&self, profile: P, provider: Provider) -> RepoResult<i32>;
-
-    fn update_profile(&self, conn: &T, profile: P) -> RepoResult<i32>;
-
-    fn get_id(&self, profile: P, provider: Provider) -> ServiceFuture<i32>;
-
-    fn create_jwt(&self, id: i32, exp: i64, status: UserStatus, secret: Vec<u8>, provider: Provider) -> ServiceFuture<JWT> {
-        debug!("Creating token for user {}, at {}", id, exp);
+    /// Crates new JWT token
+    fn create_jwt(&self, id: UserId, exp: i64, secret: Vec<u8>, provider: Provider) -> ServiceFuture<String> {
+        debug!("Creating token for user_id {:?}, at {}", id, exp);
         let tokenpayload = JWTPayload::new(id, exp, provider);
         Box::new(
             encode(&Header::new(Algorithm::RS256), &tokenpayload, secret.as_ref())
@@ -65,11 +50,28 @@ trait ProfileService<T: Connection<Backend = Pg, TransactionManager = AnsiTransa
                         .context(format!("Couldn't encode jwt: {:?}.", tokenpayload))
                         .into()
                 }).into_future()
-                .inspect(move |token| {
-                    debug!("Token {} created successfully for id {}", token, id);
-                }).and_then(move |token| future::ok(JWT { token, status })),
+                .map(move |token| {
+                    debug!("Token {} created successfully for user_id {:?}", token, id);
+                    token
+                }),
         )
     }
+}
+
+/// Profile service trait, presents standard scheme for receiving profile information from providers
+
+trait ProfileService<T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static, P: Email> {
+    fn create_token(self, provider: Provider, info_url: String, headers: Option<Headers>, exp: i64) -> ServiceFuture<JWT>;
+
+    fn get_profile(&self, url: String, headers: Option<Headers>) -> ServiceFuture<P>;
+
+    fn profile_status(&self, profile: P, provider: Provider) -> ServiceFuture<ProfileStatus>;
+
+    fn create_profile(&self, profile: P, provider: Provider) -> RepoResult<UserId>;
+
+    fn update_profile(&self, conn: &T, profile: P) -> RepoResult<UserId>;
+
+    fn get_id(&self, profile: P, provider: Provider) -> ServiceFuture<UserId>;
 }
 
 impl<
@@ -84,7 +86,8 @@ where
     P: for<'a> serde::Deserialize<'a>,
     P: IntoUser,
 {
-    fn create_token(self, provider: Provider, secret: Vec<u8>, info_url: String, headers: Option<Headers>, exp: i64) -> ServiceFuture<JWT> {
+    fn create_token(self, provider: Provider, info_url: String, headers: Option<Headers>, exp: i64) -> ServiceFuture<JWT> {
+        let secret = self.static_context.jwt_private_key.clone();
         let service = Arc::new(self);
         let provider_clone = provider.clone();
 
@@ -99,7 +102,7 @@ where
                 }
             }).and_then({
                 let s = service.clone();
-                move |(status, profile)| -> ServiceFuture<(i32, UserStatus)> {
+                move |(status, profile)| -> ServiceFuture<(UserId, UserStatus)> {
                     s.spawn_on_pool({
                         let s = s.clone();
                         move |conn| match status {
@@ -129,7 +132,10 @@ where
                 }
             }).and_then({
                 let s = service.clone();
-                move |(id, status)| s.create_jwt(id, exp, status, secret, provider_clone)
+                move |(id, status)| {
+                    s.create_jwt(id, exp, secret, provider_clone)
+                        .and_then(move |token| future::ok(JWT { token, status }))
+                }
             }).map_err(|e: FailureError| e.context("Service jwt, create_token endpoint error occured.").into());
 
         Box::new(future)
@@ -179,7 +185,7 @@ where
         })
     }
 
-    fn create_profile(&self, profile_arg: P, provider: Provider) -> RepoResult<i32> {
+    fn create_profile(&self, profile_arg: P, provider: Provider) -> RepoResult<UserId> {
         let new_user = NewUser::from(profile_arg.clone());
         let saga_addr = self.static_context.config.saga_addr.url.clone();
 
@@ -200,11 +206,11 @@ where
                 .request::<User>(Method::Post, url, Some(body), None)
                 .wait()
                 .map_err(|e| e.context(Error::HttpClient).into())
-        }).map(|created_user| created_user.id.0)
+        }).map(|created_user| created_user.id)
         .map_err(|e: FailureError| e.context("Service jwt, create_profile saga request failed.").into())
     }
 
-    fn update_profile(&self, conn: &T, profile: P) -> RepoResult<i32> {
+    fn update_profile(&self, conn: &T, profile: P) -> RepoResult<UserId> {
         let users_repo = self.static_context.repo_factory.create_users_repo_with_sys_acl(conn);
         users_repo
             .find_by_email(profile.get_email())
@@ -218,9 +224,9 @@ where
                     let update_user = profile.merge_into_user(user.clone());
 
                     if update_user.is_empty() {
-                        Ok(user.id.0)
+                        Ok(user.id)
                     } else {
-                        users_repo.update(user.id, update_user).map(|u| u.id.0)
+                        users_repo.update(user.id, update_user).map(|u| u.id)
                     }
                 } else {
                     Err(Error::NotFound
@@ -230,14 +236,14 @@ where
             }).map_err(|e: FailureError| e.context("Service jwt, update_profile endpoint error occured.").into())
     }
 
-    fn get_id(&self, profile: P, provider: Provider) -> ServiceFuture<i32> {
+    fn get_id(&self, profile: P, provider: Provider) -> ServiceFuture<UserId> {
         let repo_factory = self.static_context.repo_factory.clone();
         self.spawn_on_pool(move |conn| {
             let ident_repo = repo_factory.create_identities_repo(&conn);
 
             ident_repo
                 .find_by_email_provider(profile.get_email(), provider)
-                .map(|ident| ident.user_id.0)
+                .map(|ident| ident.user_id)
                 .map_err(|e: FailureError| e.context("Service jwt, get_id endpoint error occured.").into())
         })
     }
@@ -261,7 +267,7 @@ impl<
             conn.transaction::<JWT, FailureError, _>(move || {
                 ident_repo
                     .email_provider_exists(payload.email.to_string(), Provider::Email)
-                    .and_then(move |exists| -> RepoResult<i32> {
+                    .and_then(move |exists| -> RepoResult<UserId> {
                         if !exists {
                             // email does not exist
                             Err(Error::Validate(validation_errors!({"email": ["email" => "Email not found"]})).into())
@@ -287,7 +293,7 @@ impl<
                                                         .into())
                                                 }
                                             }).and_then(
-                                                move |verified| -> Result<i32, FailureError> {
+                                                move |verified| -> Result<UserId, FailureError> {
                                                     if !verified {
                                                         //password not verified
                                                         Err(Error::Validate(
@@ -297,7 +303,7 @@ impl<
                                                         //password verified
                                                         ident_repo
                                                             .find_by_email_provider(payload.email, Provider::Email)
-                                                            .map(|ident| ident.user_id.0)
+                                                            .map(|ident| ident.user_id)
                                                     }
                                                 },
                                             )
@@ -336,15 +342,7 @@ impl<
         let url = self.static_context.config.google.info_url.clone();
         let mut headers = Headers::new();
         headers.set(Authorization(Bearer { token: oauth.token }));
-        let jwt_private_key = self.static_context.jwt_private_key.clone();
-        <Service<T, M, F> as ProfileService<T, GoogleProfile>>::create_token(
-            self,
-            Provider::Google,
-            jwt_private_key,
-            url,
-            Some(headers),
-            exp,
-        )
+        <Service<T, M, F> as ProfileService<T, GoogleProfile>>::create_token(self, Provider::Google, url, Some(headers), exp)
     }
 
     /// https://developers.facebook.com/docs/facebook-login/manually-build-a-login-flow
@@ -355,8 +353,7 @@ impl<
             "{}?fields=first_name,last_name,gender,email,name&access_token={}",
             info_url, oauth.token
         );
-        let jwt_private_key = self.static_context.jwt_private_key.clone();
-        <Service<T, M, F> as ProfileService<T, FacebookProfile>>::create_token(self, Provider::Facebook, jwt_private_key, url, None, exp)
+        <Service<T, M, F> as ProfileService<T, FacebookProfile>>::create_token(self, Provider::Facebook, url, None, exp)
     }
 }
 
