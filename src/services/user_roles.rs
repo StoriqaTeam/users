@@ -18,7 +18,7 @@ pub trait UserRolesService {
     fn get_roles(&self, user_id: UserId) -> ServiceFuture<Vec<UsersRole>>;
     /// Creates new user_role
     fn create_user_role(&self, payload: NewUserRole) -> ServiceFuture<UserRole>;
-    /// Remove new user_role
+    /// Remove user_role
     fn delete_user_role(&self, payload: RemoveUserRole) -> ServiceFuture<UserRole>;
     /// Deletes roles for user
     fn delete_user_role_by_user_id(&self, user_id_arg: UserId) -> ServiceFuture<Vec<UserRole>>;
@@ -57,7 +57,7 @@ impl<
         })
     }
 
-    /// Creates new user_role
+    /// Remove user_role
     fn delete_user_role(&self, user_role: RemoveUserRole) -> ServiceFuture<UserRole> {
         let current_uid = self.dynamic_context.user_id;
         let repo_factory = self.static_context.repo_factory.clone();
