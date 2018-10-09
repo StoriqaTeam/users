@@ -25,6 +25,7 @@ use validator::Validate;
 
 use stq_http::controller::Controller;
 use stq_http::controller::ControllerFuture;
+use stq_http::errors::ErrorMessageWrapper;
 use stq_http::request_util::parse_body;
 use stq_http::request_util::serialize_future;
 use stq_types::UserId;
@@ -34,6 +35,7 @@ use self::routes::Route;
 use errors::Error;
 use models;
 use repos::repo_factory::*;
+use sentry_integration::log_and_capture_error;
 use services::jwt::JWTService;
 use services::user_roles::UserRolesService;
 use services::users::UsersService;
@@ -81,7 +83,7 @@ impl<
 
         let path = req.path().to_string();
 
-        match (&req.method().clone(), self.static_context.route_parser.test(req.path())) {
+        let fut = match (&req.method().clone(), self.static_context.route_parser.test(req.path())) {
             // GET /users/<user_id>
             (&Get, Some(Route::User(user_id))) => {
                 debug!("Received request to get user info for ID {}", user_id);
@@ -409,6 +411,14 @@ impl<
                     .context(Error::NotFound)
                     .into(),
             )),
-        }
+        }.map_err(|err| {
+            let wrapper = ErrorMessageWrapper::<Error>::from(&err);
+            if wrapper.inner.code == 500 {
+                log_and_capture_error(&err);
+            }
+            err
+        });
+
+        Box::new(fut)
     }
 }
