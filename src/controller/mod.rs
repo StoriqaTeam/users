@@ -109,6 +109,19 @@ impl<
                     ))
                 }
             }
+            // GET /users/search/email
+            (&Get, Some(Route::UsersSearchByEmail)) => {
+                if let Some(email) = parse_query!(req.query().unwrap_or_default(), "email" => String) {
+                    debug!("Received request to search users by email {}", email);
+                    serialize_future(service.fuzzy_search_by_email(email.to_lowercase()))
+                } else {
+                    Box::new(future::err(
+                        format_err!("Parsing query parameters // GET /users/search/email failed!")
+                            .context(Error::Parse)
+                            .into(),
+                    ))
+                }
+            }
 
             // GET /users
             (&Get, Some(Route::Users)) => {

@@ -11,6 +11,7 @@ pub enum Route {
     UserUnblock(UserId),
     UserBySagaId(String),
     UsersSearch,
+    UsersSearchByEmail,
     UserByEmail,
     Current,
     JWTEmail,
@@ -106,6 +107,8 @@ pub fn create_route_parser() -> RouteParser<Route> {
 
     // Users Routes
     router.add_route(r"^/users/search$", || Route::UsersSearch);
+    // Users search by email fuzzy Routes
+    router.add_route(r"^/users/search/by_email$", || Route::UsersSearchByEmail);
 
     router
 }

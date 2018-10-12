@@ -232,6 +232,10 @@ pub mod tests {
             let user = create_user(user_id_arg, MOCK_EMAIL.to_string());
             Ok(user)
         }
+        fn fuzzy_search_by_email(&self, _term_email: String) -> RepoResult<Vec<User>> {
+            let user = create_user(UserId(1), MOCK_EMAIL.to_string());
+            Ok(vec![user])
+        }
     }
 
     #[derive(Clone, Default)]
