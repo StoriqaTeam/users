@@ -60,6 +60,8 @@ pub trait UsersService {
     fn search(&self, from: UserId, count: i64, term: UsersSearchTerms) -> ServiceFuture<Vec<User>>;
     /// Set block status for specific user
     fn set_block_status(&self, user_id: UserId, is_blocked: bool) -> ServiceFuture<User>;
+    /// Fuzzy search users by email
+    fn fuzzy_search_by_email(&self, term_email: String) -> ServiceFuture<Vec<User>>;
 }
 
 impl<
@@ -482,6 +484,20 @@ impl<
             users_repo
                 .search(from, count, term)
                 .map_err(|e: FailureError| e.context("Service users, search endpoint error occured.").into())
+        })
+    }
+    /// Fuzzy search users by email
+    fn fuzzy_search_by_email(&self, term_email: String) -> ServiceFuture<Vec<User>> {
+        let current_uid = self.dynamic_context.user_id;
+        let repo_factory = self.static_context.repo_factory.clone();
+
+        debug!("Searching for users email containing {}", term_email);
+
+        self.spawn_on_pool(move |conn| {
+            let users_repo = repo_factory.create_users_repo(&conn, current_uid);
+            users_repo
+                .fuzzy_search_by_email(term_email)
+                .map_err(|e: FailureError| e.context("Service users, fuzzy_search_by_email endpoint error occured.").into())
         })
     }
 }

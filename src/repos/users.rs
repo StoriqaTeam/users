@@ -55,6 +55,8 @@ pub trait UsersRepo {
 
     /// Search users limited by `from` and `count` parameters
     fn search(&self, from: UserId, count: i64, term: UsersSearchTerms) -> RepoResult<Vec<User>>;
+    /// Fuzzy search users by email
+    fn fuzzy_search_by_email(&self, email_arg: String) -> RepoResult<Vec<User>>;
 }
 
 impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static> UsersRepoImpl<'a, T> {
@@ -240,6 +242,21 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                 e.context(format!("search for users, limited by {} and {} error occured", from, count))
                     .into()
             })
+    }
+
+    /// Fuzzy search users by email
+    fn fuzzy_search_by_email(&self, term_email: String) -> RepoResult<Vec<User>> {
+        let query = users.filter(email.like(format!("%{}%", term_email))).order(id);
+        query
+            .get_results(self.db_conn)
+            .map_err(From::from)
+            .and_then(|users_res: Vec<User>| {
+                for user in &users_res {
+                    acl::check(&*self.acl, Resource::Users, Action::Read, self, Some(&user))?;
+                }
+
+                Ok(users_res)
+            }).map_err(|e: FailureError| e.context(format!("fuzzy search for users by email error occured")).into())
     }
 }
 
