@@ -148,7 +148,7 @@ where
                 .request::<serde_json::Value>(Method::Get, url, None, headers)
                 .map_err(|e| {
                     e.context("Failed to receive user info from provider. {}")
-                        .context(Error::HttpClient)
+                        .context(Error::Forbidden)
                         .into()
                 }).and_then(|val| {
                     if val["email"].is_null() {
