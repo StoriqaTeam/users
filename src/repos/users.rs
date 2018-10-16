@@ -55,6 +55,7 @@ pub trait UsersRepo {
 
     /// Search users limited by `from` and `count` parameters
     fn search(&self, from: UserId, count: i64, term: UsersSearchTerms) -> RepoResult<Vec<User>>;
+
     /// Fuzzy search users by email
     fn fuzzy_search_by_email(&self, email_arg: String) -> RepoResult<Vec<User>>;
 }
@@ -117,7 +118,12 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 
     /// Returns list of users, limited by `from` and `count` parameters
     fn list(&self, from: UserId, count: i64) -> RepoResult<Vec<User>> {
-        let query = users.filter(is_active.eq(true)).filter(id.ge(from)).order(id).limit(count);
+        let query = users
+            .filter(id.ne(1)) // hide user_id == 1
+            .filter(is_active.eq(true))
+            .filter(id.ge(from))
+            .order(id)
+            .limit(count);
 
         query
             .get_results(self.db_conn)
@@ -210,6 +216,9 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
     /// Search users limited by `from` and `count` parameters
     fn search(&self, from: UserId, count: i64, term: UsersSearchTerms) -> RepoResult<Vec<User>> {
         let mut query = users.filter(id.ge(from)).into_boxed();
+
+        // hide user_id == 1
+        query = query.filter(id.ne(1));
 
         if let Some(term_email) = term.email {
             query = query.filter(email.like(format!("%{}%", term_email)));
