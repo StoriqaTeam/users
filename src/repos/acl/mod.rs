@@ -37,7 +37,7 @@ pub fn check<T>(
     })
 }
 
-/// ApplicationAcl contains main logic for manipulation with recources
+/// ApplicationAcl contains main logic for manipulation with resources
 #[derive(Clone)]
 pub struct ApplicationAcl {
     acls: Rc<HashMap<UsersRole, Vec<Permission>>>,

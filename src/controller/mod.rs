@@ -406,7 +406,7 @@ impl<
                                     .context(Error::Parse)
                                     .into()
                             }).inspect(|payload| {
-                                debug!("Received request to search for user whith payload {:?}", payload);
+                                debug!("Received request to search for user with payload {:?}", payload);
                             }).and_then(move |payload| service.search(offset, count, payload)),
                     )
                 } else {
