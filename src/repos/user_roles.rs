@@ -9,7 +9,8 @@ use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::Connection;
 use failure::Error as FailureError;
-
+use std::sync::Arc;
+use stq_cache::cache::Cache;
 use stq_types::{RoleId, UserId, UsersRole};
 
 use repos::legacy_acl::*;
@@ -40,14 +41,26 @@ pub trait UserRolesRepo {
 }
 
 /// Implementation of UserRoles trait
-pub struct UserRolesRepoImpl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static> {
-    pub db_conn: &'a T,
+pub struct UserRolesRepoImpl<'a, C, T>
+where
+    C: Cache<Vec<UsersRole>>,
+    T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
+{
     pub acl: Box<Acl<Resource, Action, Scope, FailureError, UserRole>>,
-    pub cached_roles: RolesCacheImpl,
+    pub db_conn: &'a T,
+    pub cached_roles: Arc<RolesCacheImpl<C>>,
 }
 
-impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static> UserRolesRepoImpl<'a, T> {
-    pub fn new(db_conn: &'a T, acl: Box<Acl<Resource, Action, Scope, FailureError, UserRole>>, cached_roles: RolesCacheImpl) -> Self {
+impl<'a, C, T> UserRolesRepoImpl<'a, C, T>
+where
+    C: Cache<Vec<UsersRole>>,
+    T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
+{
+    pub fn new(
+        db_conn: &'a T,
+        acl: Box<Acl<Resource, Action, Scope, FailureError, UserRole>>,
+        cached_roles: Arc<RolesCacheImpl<C>>,
+    ) -> Self {
         Self {
             db_conn,
             acl,
@@ -56,12 +69,15 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
     }
 }
 
-impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static> UserRolesRepo for UserRolesRepoImpl<'a, T> {
+impl<'a, C, T> UserRolesRepo for UserRolesRepoImpl<'a, C, T>
+where
+    C: Cache<Vec<UsersRole>>,
+    T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
+{
     /// Returns list of user_roles for a specific user
     fn list_for_user(&self, user_id_value: UserId) -> RepoResult<Vec<UsersRole>> {
         debug!("list user roles for id {}.", user_id_value);
-        if self.cached_roles.contains(user_id_value) {
-            let roles = self.cached_roles.get(user_id_value);
+        if let Some(roles) = self.cached_roles.get(user_id_value) {
             Ok(roles)
         } else {
             let query = user_roles.filter(user_id.eq(user_id_value));
@@ -79,7 +95,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                     Ok(roles)
                 }).and_then(|roles| {
                     if !roles.is_empty() {
-                        self.cached_roles.add_roles(user_id_value, &roles);
+                        self.cached_roles.set(user_id_value, roles.clone());
                     }
                     Ok(roles)
                 }).map_err(|e: FailureError| {
@@ -152,8 +168,10 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
     }
 }
 
-impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static> CheckScope<Scope, UserRole>
-    for UserRolesRepoImpl<'a, T>
+impl<'a, C, T> CheckScope<Scope, UserRole> for UserRolesRepoImpl<'a, C, T>
+where
+    C: Cache<Vec<UsersRole>>,
+    T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static,
 {
     fn is_in_scope(&self, user_id_arg: UserId, scope: &Scope, obj: Option<&UserRole>) -> bool {
         match *scope {
