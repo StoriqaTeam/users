@@ -97,11 +97,7 @@ impl IntoUser for FacebookProfile {
         } else {
             None
         };
-        let last_name = if user.last_name.is_none() {
-            self.last_name.clone()
-        } else {
-            None
-        };
+        let last_name = if user.last_name.is_none() { self.last_name.clone() } else { None };
         let gender = if user.gender == None {
             self.gender.clone().map(|g| Gender::from_str(&g).unwrap_or(Gender::Undefined))
         } else {
