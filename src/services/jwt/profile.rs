@@ -12,7 +12,7 @@ use uuid::Uuid;
 /// User profile from google
 #[derive(Serialize, Deserialize, Clone)]
 pub struct GoogleProfile {
-    pub family_name: String,
+    pub family_name: Option<String>,
     pub name: String,
     pub picture: String,
     pub email: String,
@@ -26,7 +26,7 @@ impl From<GoogleProfile> for NewUser {
             email: google_id.email,
             phone: None,
             first_name: Some(google_id.given_name),
-            last_name: Some(google_id.family_name),
+            last_name: google_id.family_name,
             middle_name: None,
             gender: Some(Gender::Undefined),
             birthdate: None,
@@ -43,7 +43,7 @@ pub struct FacebookProfile {
     pub email: String,
     pub gender: Option<String>,
     pub first_name: String,
-    pub last_name: String,
+    pub last_name: Option<String>,
     pub name: String,
 }
 
@@ -58,7 +58,7 @@ impl From<FacebookProfile> for NewUser {
             email: facebook_id.email,
             phone: None,
             first_name: Some(facebook_id.first_name),
-            last_name: Some(facebook_id.last_name),
+            last_name: facebook_id.last_name,
             middle_name: None,
             gender,
             birthdate: None,
@@ -97,11 +97,7 @@ impl IntoUser for FacebookProfile {
         } else {
             None
         };
-        let last_name = if user.last_name.is_none() {
-            Some(self.last_name.clone())
-        } else {
-            None
-        };
+        let last_name = if user.last_name.is_none() { self.last_name.clone() } else { None };
         let gender = if user.gender == None {
             self.gender.clone().map(|g| Gender::from_str(&g).unwrap_or(Gender::Undefined))
         } else {
@@ -124,11 +120,11 @@ impl IntoUser for FacebookProfile {
 impl IntoUser for GoogleProfile {
     fn merge_into_user(&self, user: User) -> UpdateUser {
         let first_name = user.first_name.unwrap_or_else(|| self.given_name.clone());
-        let last_name = user.last_name.unwrap_or_else(|| self.family_name.clone());
+        let last_name = user.last_name.or(self.family_name.clone());
         UpdateUser {
             phone: None,
             first_name: Some(first_name),
-            last_name: Some(last_name),
+            last_name,
             middle_name: None,
             gender: None,
             birthdate: None,
