@@ -10,6 +10,7 @@ pub enum Route {
     UserBlock(UserId),
     UserUnblock(UserId),
     UserBySagaId(String),
+    UserCount,
     UsersSearch,
     UsersSearchByEmail,
     UserByEmail,
@@ -96,6 +97,9 @@ pub fn create_route_parser() -> RouteParser<Route> {
             .map(|id| Route::RoleById { id })
     });
 
+    // /users/count route
+    router.add_route(r"^/users/count$", || Route::UserCount);
+
     // /users/password_change route
     router.add_route(r"^/users/password_change$", || Route::PasswordChange);
 
@@ -105,8 +109,9 @@ pub fn create_route_parser() -> RouteParser<Route> {
     // User email verification route
     router.add_route(r"^/users/email_verify_token$", || Route::UserEmailVerifyToken);
 
-    // Users Routes
+    // Search users
     router.add_route(r"^/users/search$", || Route::UsersSearch);
+
     // Users search by email fuzzy Routes
     router.add_route(r"^/users/search/by_email$", || Route::UsersSearchByEmail);
 

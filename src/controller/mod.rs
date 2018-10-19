@@ -306,6 +306,18 @@ impl<
                 serialize_future({ service.delete_user_role_by_id(id) })
             }
 
+            // GET /users/count
+            (&Get, Some(Route::UserCount)) => {
+                let only_active_users = parse_query!(
+                    req.query().unwrap_or_default(),
+                    "only_active_users" => bool
+                );
+
+                debug!("Received request to get user count (only_active_users: {:?})", only_active_users);
+
+                serialize_future({ service.count(only_active_users.unwrap_or(false)) })
+            }
+
             // POST /users/password_change
             (&Post, Some(Route::PasswordChange)) => serialize_future(
                 parse_body::<models::ChangeIdentityPassword>(req.body())
@@ -397,8 +409,19 @@ impl<
 
             // POST /users/search
             (&Post, Some(Route::UsersSearch)) => {
-                if let (Some(offset), Some(count)) = parse_query!(req.query().unwrap_or_default(), "offset" => UserId, "count" => i64) {
-                    debug!("Received request to search {} users starting from {}", count, offset);
+                let (offset, skip_opt, count_opt) = parse_query!(
+                    req.query().unwrap_or_default(),
+                    "offset" => UserId, "skip" => i64, "count" => i64
+                );
+
+                debug!(
+                    "Received request to search users (offset id: {:?}, skip: {:?}, count: {:?})",
+                    offset, skip_opt, count_opt
+                );
+
+                let skip = skip_opt.unwrap_or(0);
+                let count = count_opt.unwrap_or(0);
+
                     serialize_future(
                         parse_body::<models::UsersSearchTerms>(req.body())
                             .map_err(|e| {
@@ -407,15 +430,8 @@ impl<
                                     .into()
                             }).inspect(|payload| {
                                 debug!("Received request to search for user with payload {:?}", payload);
-                            }).and_then(move |payload| service.search(offset, count, payload)),
+                        }).and_then(move |payload| service.search(offset, skip, count, payload)),
                     )
-                } else {
-                    Box::new(future::err(
-                        format_err!("Parsing query parameters // POST /users/search failed!")
-                            .context(Error::Parse)
-                            .into(),
-                    ))
-                }
             }
 
             // Fallback
