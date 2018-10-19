@@ -422,16 +422,16 @@ impl<
                 let skip = skip_opt.unwrap_or(0);
                 let count = count_opt.unwrap_or(0);
 
-                    serialize_future(
-                        parse_body::<models::UsersSearchTerms>(req.body())
-                            .map_err(|e| {
-                                e.context("Parsing body // POST /users/search in UsersSearchTerms failed!")
-                                    .context(Error::Parse)
-                                    .into()
-                            }).inspect(|payload| {
-                                debug!("Received request to search for user with payload {:?}", payload);
+                serialize_future(
+                    parse_body::<models::UsersSearchTerms>(req.body())
+                        .map_err(|e| {
+                            e.context("Parsing body // POST /users/search in UsersSearchTerms failed!")
+                                .context(Error::Parse)
+                                .into()
+                        }).inspect(|payload| {
+                            debug!("Received request to search for user with payload {:?}", payload);
                         }).and_then(move |payload| service.search(offset, skip, count, payload)),
-                    )
+                )
             }
 
             // Fallback
