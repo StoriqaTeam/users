@@ -26,6 +26,9 @@ pub struct UsersRepoImpl<'a, T: Connection<Backend = Pg, TransactionManager = An
 }
 
 pub trait UsersRepo {
+    /// Get user count
+    fn count(&self, only_active_users: bool) -> RepoResult<i64>;
+
     /// Find specific user by ID
     fn find(&self, user_id: UserId) -> RepoResult<Option<User>>;
 
@@ -53,8 +56,8 @@ pub trait UsersRepo {
     /// Deletes specific user
     fn delete_by_saga_id(&self, saga_id_arg: String) -> RepoResult<User>;
 
-    /// Search users limited by `from` and `count` parameters
-    fn search(&self, from: UserId, count: i64, term: UsersSearchTerms) -> RepoResult<Vec<User>>;
+    /// Search users limited by `from`, `skip` and `count` parameters
+    fn search(&self, from: Option<UserId>, skip: i64, count: i64, term: UsersSearchTerms) -> RepoResult<Vec<User>>;
 
     /// Fuzzy search users by email
     fn fuzzy_search_by_email(&self, email_arg: String) -> RepoResult<Vec<User>>;
@@ -67,6 +70,19 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 }
 
 impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static> UsersRepo for UsersRepoImpl<'a, T> {
+    /// Get user count
+    fn count(&self, only_active_users: bool) -> RepoResult<i64> {
+        let mut query = users.filter(id.ne(1)).into_boxed();
+
+        if only_active_users {
+            query = query.filter(is_active.eq(true));
+        }
+
+        acl::check(&*self.acl, Resource::Users, Action::Read, self, None)
+            .and_then(|_| query.count().get_result(self.db_conn).map_err(From::from))
+            .map_err(|e| FailureError::from(e).context("Count users error occurred").into())
+    }
+
     /// Find specific user by ID
     fn find(&self, user_id_arg: UserId) -> RepoResult<Option<User>> {
         let query = users.find(user_id_arg.clone());
@@ -213,12 +229,20 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
         })
     }
 
-    /// Search users limited by `from` and `count` parameters
-    fn search(&self, from: UserId, count: i64, term: UsersSearchTerms) -> RepoResult<Vec<User>> {
-        let mut query = users.filter(id.ge(from)).into_boxed();
-
+    /// Search users limited by `from`, `skip` and `count` parameters
+    fn search(&self, from: Option<UserId>, skip: i64, count: i64, term: UsersSearchTerms) -> RepoResult<Vec<User>> {
         // hide user_id == 1
-        query = query.filter(id.ne(1));
+        let mut query = users.filter(id.ne(1)).into_boxed();
+
+        if let Some(from_id) = from {
+            query = query.filter(id.ge(from_id));
+        }
+        if skip > 0 {
+            query = query.offset(skip);
+        }
+        if count > 0 {
+            query = query.limit(count);
+        }
 
         if let Some(term_email) = term.email {
             query = query.filter(email.like(format!("%{}%", term_email)));
@@ -236,9 +260,8 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
             query = query.filter(is_blocked.eq(term_is_blocked));
         }
 
-        query = query.order(id).limit(count);
-
         query
+            .order(id)
             .get_results(self.db_conn)
             .map_err(From::from)
             .and_then(|users_res: Vec<User>| {
@@ -248,8 +271,10 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 
                 Ok(users_res)
             }).map_err(|e: FailureError| {
-                e.context(format!("search for users, limited by {} and {} error occured", from, count))
-                    .into()
+                e.context(format!(
+                    "search for users error occured (from id: {:?}, skip: {}, count: {})",
+                    from, skip, count
+                )).into()
             })
     }
 

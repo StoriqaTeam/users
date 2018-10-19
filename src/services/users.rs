@@ -30,6 +30,8 @@ use services::Service;
 pub trait UsersService {
     /// Returns user by ID
     fn get(&self, user_id: UserId) -> ServiceFuture<Option<User>>;
+    /// Returns total user count
+    fn count(&self, only_active_users: bool) -> ServiceFuture<i64>;
     /// Returns current user
     fn current(&self) -> ServiceFuture<Option<User>>;
     /// Lists users limited by `from` and `count` parameters
@@ -56,8 +58,8 @@ pub trait UsersService {
     fn reset_token_create() -> String;
     /// Find by email
     fn find_by_email(&self, email: String) -> ServiceFuture<Option<User>>;
-    /// Search users limited by `from` and `count` parameters
-    fn search(&self, from: UserId, count: i64, term: UsersSearchTerms) -> ServiceFuture<Vec<User>>;
+    /// Search users limited by `from`, `skip` and `count` parameters
+    fn search(&self, from: Option<UserId>, skip: i64, count: i64, term: UsersSearchTerms) -> ServiceFuture<Vec<User>>;
     /// Set block status for specific user
     fn set_block_status(&self, user_id: UserId, is_blocked: bool) -> ServiceFuture<User>;
     /// Fuzzy search users by email
@@ -82,6 +84,21 @@ impl<
             users_repo
                 .find(user_id)
                 .map_err(|e: FailureError| e.context("Service users, get endpoint error occured.").into())
+        })
+    }
+
+    /// Returns total user count
+    fn count(&self, only_active_users: bool) -> ServiceFuture<i64> {
+        let current_uid = self.dynamic_context.user_id;
+        let repo_factory = self.static_context.repo_factory.clone();
+
+        debug!("Getting user count");
+
+        self.spawn_on_pool(move |conn| {
+            let users_repo = repo_factory.create_users_repo(&conn, current_uid);
+            users_repo
+                .count(only_active_users)
+                .map_err(|e: FailureError| e.context("Service `users`, `count` endpoint error occurred.").into())
         })
     }
 
@@ -472,20 +489,24 @@ impl<
         })
     }
 
-    /// Search users limited by `from` and `count` parameters
-    fn search(&self, from: UserId, count: i64, term: UsersSearchTerms) -> ServiceFuture<Vec<User>> {
+    /// Search users limited by `from`, `skip` and `count` parameters
+    fn search(&self, from: Option<UserId>, skip: i64, count: i64, term: UsersSearchTerms) -> ServiceFuture<Vec<User>> {
         let current_uid = self.dynamic_context.user_id;
         let repo_factory = self.static_context.repo_factory.clone();
 
-        debug!("Searching for {} users starting from {} with payload: {:?}", count, from, term);
+        debug!(
+            "Searching for users (from: {:?}, skip: {}, count: {}) with payload: {:?}",
+            from, skip, count, term
+        );
 
         self.spawn_on_pool(move |conn| {
             let users_repo = repo_factory.create_users_repo(&conn, current_uid);
             users_repo
-                .search(from, count, term)
-                .map_err(|e: FailureError| e.context("Service users, search endpoint error occured.").into())
+                .search(from, skip, count, term)
+                .map_err(|e: FailureError| e.context("Service `users`, `search` endpoint error occured.").into())
         })
     }
+
     /// Fuzzy search users by email
     fn fuzzy_search_by_email(&self, term_email: String) -> ServiceFuture<Vec<User>> {
         let current_uid = self.dynamic_context.user_id;
