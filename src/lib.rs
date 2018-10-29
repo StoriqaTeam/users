@@ -26,6 +26,7 @@ extern crate lazy_static;
 #[macro_use]
 extern crate log;
 extern crate r2d2;
+extern crate r2d2_redis;
 extern crate rand;
 extern crate regex;
 extern crate serde;
@@ -40,7 +41,7 @@ extern crate validator;
 extern crate validator_derive;
 #[macro_use]
 extern crate sentry;
-
+extern crate stq_cache;
 extern crate stq_http;
 extern crate stq_logging;
 extern crate stq_router;
@@ -62,6 +63,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::process;
 use std::sync::Arc;
+use std::time::Duration;
 
 use diesel::pg::PgConnection;
 use diesel::r2d2::ConnectionManager;
@@ -69,9 +71,10 @@ use futures::future;
 use futures::{Future, Stream};
 use futures_cpupool::CpuPool;
 use hyper::server::Http;
-use tokio_core::reactor::Core;
-
+use r2d2_redis::RedisConnectionManager;
+use stq_cache::cache::{redis::RedisCache, Cache, NullCache, TypedCache};
 use stq_http::controller::Application;
+use tokio_core::reactor::Core;
 
 use config::Config;
 use controller::context::StaticContext;
@@ -101,15 +104,36 @@ pub fn start_server(config: Config) {
 
     // Prepare database pool
     let database_url: String = config.server.database.parse().expect("Database URL must be set in configuration");
-    let manager = ConnectionManager::<PgConnection>::new(database_url);
-    let db_pool = r2d2::Pool::builder().build(manager).expect("Failed to create connection pool");
+    let db_manager = ConnectionManager::<PgConnection>::new(database_url);
+    let db_pool = r2d2::Pool::builder()
+        .build(db_manager)
+        .expect("Failed to create DB connection pool");
 
     // Prepare CPU pool
     let cpu_pool = CpuPool::new(thread_count);
 
-    let roles_cache = RolesCacheImpl::default();
+    // Prepare cache
+    let roles_cache = match &config.server.redis {
+        Some(redis_url) => {
+            // Prepare Redis pool
+            let redis_url: String = redis_url.parse().expect("Redis URL must be set in configuration");
+            let redis_manager = RedisConnectionManager::new(redis_url.as_ref()).expect("Failed to create Redis connection manager");
+            let redis_pool = r2d2::Pool::builder()
+                .build(redis_manager)
+                .expect("Failed to create Redis connection pool");
 
-    let repo_factory = ReposFactoryImpl::new(roles_cache.clone());
+            let ttl = Duration::from_secs(config.server.cache_ttl_sec);
+
+            let roles_cache_backend = Box::new(TypedCache::new(
+                RedisCache::new(redis_pool.clone(), "roles".to_string()).with_ttl(ttl),
+            )) as Box<dyn Cache<_, Error = _> + Send + Sync>;
+
+            RolesCacheImpl::new(roles_cache_backend)
+        }
+        None => RolesCacheImpl::new(Box::new(NullCache::new()) as Box<_>),
+    };
+
+    let repo_factory = ReposFactoryImpl::new(roles_cache);
 
     debug!("Reading private key file {}", &config.jwt.secret_key_path);
     let mut f = File::open(config.jwt.secret_key_path.clone()).unwrap();

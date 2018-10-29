@@ -21,22 +21,36 @@ services:
     stdin_open: true
     depends_on:
       - users-pg
+      - users-redis
 
   users-pg:
     image: postgres:10
     container_name: users-pg
     volumes:
-      - stq-users-postgres-data:/var/lib/postgresql/data
+      - stq_users_postgres_data:/var/lib/postgresql/data
     environment:
       - POSTGRES_USER=users
       - POSTGRES_DB=users
       - POSTGRES_PASSWORD=users
+    ports:
+      - "5432"
     expose:
       - 5432
 
+  users-redis:
+    image: redis:4.0-alpine
+    container_name: users-redis
+    volumes:
+      - stq_users_redis_data:/data
+    ports:
+      - "6379"
+    expose:
+      - 6379
+
 volumes:
   stq_cargo_cache:
-  stq-users-postgres-data:
+  stq_users_postgres_data:
+  stq_users_redis_data:
 
 networks:
   default:
