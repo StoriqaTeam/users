@@ -200,6 +200,10 @@ pub mod tests {
     pub struct UsersRepoMock;
 
     impl UsersRepo for UsersRepoMock {
+        fn count(&self, only_active_users: bool) -> RepoResult<i64> {
+            Ok(if only_active_users { 0 } else { 1 })
+        }
+
         fn find(&self, user_id: UserId) -> RepoResult<Option<User>> {
             let user = create_user(user_id, MOCK_EMAIL.to_string());
             Ok(Some(user))
@@ -243,9 +247,11 @@ pub mod tests {
             let user = create_user(UserId(1), MOCK_EMAIL.to_string());
             Ok(user)
         }
-        fn search(&self, from: UserId, count: i64, _term: UsersSearchTerms) -> RepoResult<Vec<User>> {
+        fn search(&self, from: Option<UserId>, skip: i64, count: i64, _term: UsersSearchTerms) -> RepoResult<Vec<User>> {
             let mut users = vec![];
-            for i in from.0..(from.0 + count as i32) {
+            let from_id = from.unwrap_or(UserId(1));
+            let range = (from_id.0..).skip(skip as usize).take(count as usize);
+            for i in range {
                 let user = create_user(UserId(i), MOCK_EMAIL.to_string());
                 users.push(user);
             }
