@@ -292,21 +292,18 @@ impl<
                                                     Err(Error::Validate(validation_errors!({"password": ["password" => "Wrong password"]}))
                                                         .into())
                                                 }
-                                            }).and_then(
-                                                move |verified| -> Result<UserId, FailureError> {
-                                                    if !verified {
-                                                        //password not verified
-                                                        Err(Error::Validate(
-                                                            validation_errors!({"password": ["password" => "Wrong password"]}),
-                                                        ).into())
-                                                    } else {
-                                                        //password verified
-                                                        ident_repo
-                                                            .find_by_email_provider(payload.email, Provider::Email)
-                                                            .map(|ident| ident.user_id)
-                                                    }
-                                                },
-                                            )
+                                            }).and_then(move |verified| -> Result<UserId, FailureError> {
+                                                if !verified {
+                                                    //password not verified
+                                                    Err(Error::Validate(validation_errors!({"password": ["password" => "Wrong password"]}))
+                                                        .into())
+                                                } else {
+                                                    //password verified
+                                                    ident_repo
+                                                        .find_by_email_provider(payload.email, Provider::Email)
+                                                        .map(|ident| ident.user_id)
+                                                }
+                                            })
                                     } else {
                                         Err(Error::Validate(validation_errors!({"email": ["email" => "Email not verified"]})).into())
                                     }
