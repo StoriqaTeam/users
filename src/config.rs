@@ -17,6 +17,7 @@ pub struct Config {
     pub jwt: JWT,
     pub google: OAuth,
     pub facebook: OAuth,
+    pub tokens: Tokens,
     pub graylog: Option<GrayLogConfig>,
     pub sentry: Option<SentryConfig>,
 }
@@ -57,6 +58,13 @@ pub struct OAuth {
 #[derive(Debug, Deserialize, Clone)]
 pub struct SagaAddr {
     pub url: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct Tokens {
+    pub verify_expiration_s: u64,
+    pub reset_expiration_s: u64,
+    pub jwt_expiration_s: u64,
 }
 
 /// Creates new app config struct
