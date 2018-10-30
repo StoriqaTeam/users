@@ -246,6 +246,8 @@ impl<
     fn verify_email(&self, token_arg: String) -> ServiceFuture<EmailVerifyApplyToken> {
         let repo_factory = self.static_context.repo_factory.clone();
         let secret = self.static_context.jwt_private_key.clone();
+        let verify_expiration_s = self.static_context.config.tokens.verify_expiration_s;
+        let jwt_expiration_s = self.static_context.config.tokens.jwt_expiration_s;
         let service = self.clone();
 
         let fut = self
@@ -258,13 +260,9 @@ impl<
                         .find_by_token(token_arg.clone(), TokenType::EmailVerify)
                         .map_err(|e| e.context(Error::InvalidToken))?;
 
-                    let reset_token = reset_repo
-                        .delete_by_token(reset_token.token.clone(), TokenType::EmailVerify)
-                        .map_err(|e| e.context("Unable to delete token"))?;
-
                     let user = match SystemTime::now().duration_since(reset_token.created_at) {
                         Ok(elapsed) => {
-                            if elapsed.as_secs() < 3600 {
+                            if elapsed.as_secs() < verify_expiration_s {
                                 let user = users_repo.find_by_email(reset_token.email.clone())?;
 
                                 if let Some(user) = user {
@@ -286,11 +284,15 @@ impl<
                         Err(_) => Err(Error::InvalidToken.into()),
                     }?;
 
+                    let _ = reset_repo
+                        .delete_by_token(reset_token.token.clone(), TokenType::EmailVerify)
+                        .map_err(|e| e.context("Unable to delete token"))?;
+
                     Ok(user)
                 }.map_err(|e: FailureError| e.context("Service users, verify_email endpoint error occured.").into())
             }).and_then(move |user| {
                 let provider = Provider::Email;
-                let exp = Utc::now().timestamp() + 120; // TODO: change now() + expire_config_value
+                let exp = Utc::now().timestamp() + jwt_expiration_s as i64;
                 service
                     .create_jwt(user.id, exp, secret, provider)
                     .and_then(move |token| future::ok(EmailVerifyApplyToken { token, user }))
@@ -417,6 +419,8 @@ impl<
         let repo_factory = self.static_context.repo_factory.clone();
         let secret = self.static_context.jwt_private_key.clone();
         let service = self.clone();
+        let reset_expiration_s = self.static_context.config.tokens.reset_expiration_s;
+        let jwt_expiration_s = self.static_context.config.tokens.jwt_expiration_s;
 
         debug!("Resetting password for token {}.", &token_arg);
 
@@ -430,14 +434,10 @@ impl<
                         .find_by_token(token_arg.clone(), TokenType::PasswordReset)
                         .map_err(|e| e.context("Reset token by token search failure").context(Error::InvalidToken))?;
 
-                    let reset_token = reset_repo
-                        .delete_by_token(reset_token.token.clone(), TokenType::PasswordReset)
-                        .map_err(|e| e.context("Unable to delete token"))?;
-
                     debug!("Checking reset token's {:?} expiration", &reset_token);
                     let identity = match SystemTime::now().duration_since(reset_token.created_at) {
                         Ok(elapsed) => {
-                            if elapsed.as_secs() < 3600 {
+                            if elapsed.as_secs() < reset_expiration_s {
                                 let ident = ident_repo.find_by_email_provider(reset_token.email.clone(), Provider::Email)?;
                                 debug!("Token check successful, resetting password for identity {:?}", &ident);
                                 let update = UpdateIdentity {
@@ -452,10 +452,14 @@ impl<
                         Err(_) => Err(Error::InvalidToken.into()),
                     }?;
 
+                    let _ = reset_repo
+                        .delete_by_token(reset_token.token.clone(), TokenType::PasswordReset)
+                        .map_err(|e| e.context("Unable to delete token"))?;
+
                     Ok(identity)
                 }.map_err(|e: FailureError| e.context("Service users, password_reset_apply endpoint error occured.").into())
             }).and_then(move |identity| {
-                let exp = Utc::now().timestamp() + 120; // TODO: change now() + expire_config_value
+                let exp = Utc::now().timestamp() + jwt_expiration_s as i64;
                 service
                     .create_jwt(identity.user_id, exp, secret, identity.provider)
                     .and_then(move |token| {
