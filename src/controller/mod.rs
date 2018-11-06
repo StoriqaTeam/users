@@ -81,6 +81,10 @@ impl<
 
         let service = Service::new(self.static_context.clone(), dynamic_context);
 
+        let jwt_expiration_s = self.static_context.config.tokens.jwt_expiration_s;
+
+        let token_expiration = Utc::now().timestamp() + jwt_expiration_s as i64;
+
         let path = req.path().to_string();
 
         let fut = match (&req.method().clone(), self.static_context.route_parser.test(req.path())) {
@@ -241,10 +245,7 @@ impl<
                                     email: new_ident.email.to_lowercase(),
                                     password: new_ident.password,
                                 };
-
-                                let now = Utc::now().timestamp();
-
-                                service.create_token_email(checked_new_ident, now)
+                                service.create_token_email(checked_new_ident, token_expiration)
                             })
                     }),
             ),
@@ -258,11 +259,7 @@ impl<
                             .into()
                     }).inspect(|payload| {
                         debug!("Received request to authenticate with Google token: {:?}", &payload);
-                    }).and_then(move |oauth| {
-                        let now = Utc::now().timestamp();
-
-                        service.create_token_google(oauth, now)
-                    }),
+                    }).and_then(move |oauth| service.create_token_google(oauth, token_expiration)),
             ),
 
             // POST /jwt/facebook
@@ -274,11 +271,7 @@ impl<
                             .into()
                     }).inspect(|payload| {
                         debug!("Received request to authenticate with Facebook token: {:?}", &payload);
-                    }).and_then(move |oauth| {
-                        let now = Utc::now().timestamp();
-
-                        service.create_token_facebook(oauth, now)
-                    }),
+                    }).and_then(move |oauth| service.create_token_facebook(oauth, token_expiration)),
             ),
 
             (Get, Some(Route::RolesByUserId { user_id })) => {
