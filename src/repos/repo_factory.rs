@@ -441,7 +441,7 @@ pub mod tests {
             MOCK_REPO_FACTORY,
             jwt_private_key,
         );
-        let dynamic_context = DynamicContext::new(user_id);
+        let dynamic_context = DynamicContext::new(user_id, String::default());
 
         Service::new(static_context, dynamic_context)
     }
