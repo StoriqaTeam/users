@@ -35,6 +35,7 @@ extern crate serde_derive;
 extern crate serde_json;
 extern crate sha3;
 extern crate tokio_core;
+extern crate tokio_signal;
 extern crate uuid;
 extern crate validator;
 #[macro_use]
@@ -67,7 +68,6 @@ use std::time::Duration;
 
 use diesel::pg::PgConnection;
 use diesel::r2d2::ConnectionManager;
-use futures::future;
 use futures::{Future, Stream};
 use futures_cpupool::CpuPool;
 use hyper::server::Http;
@@ -164,5 +164,9 @@ pub fn start_server(config: Config) {
     );
 
     info!("Listening on http://{}, threads: {}", address, thread_count);
-    core.run(future::empty::<(), ()>()).unwrap();
+
+    core.run(tokio_signal::ctrl_c().flatten_stream().take(1u64).for_each(|()| {
+        info!("Ctrl+C received. Exit");
+        Ok(())
+    })).unwrap();
 }
