@@ -6,14 +6,10 @@ RUN wget -q https://www.postgresql.org/media/keys/ACCC4CF8.asc -O - | apt-key ad
     apt-get update && \
     apt-get install -y libpq-dev
 
-# Install clang
-RUN apt-get update && \
-    apt-get install -y libclang1 clang
-
 # Install diesel client
 RUN mkdir -p /usr/local/cargo/bin/ || true \
   && wget -q https://s3.eu-central-1.amazonaws.com/dumpster.stq/diesel -O /usr/local/bin/diesel \
-  && chmod +x /usr/local/bin/diesel 
+  && chmod +x /usr/local/bin/diesel
 
 # Utils for waiting for some service to be up before starting
 ADD wait_for_it.sh /utils/
