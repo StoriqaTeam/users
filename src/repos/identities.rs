@@ -68,7 +68,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
     fn email_exists(&self, email_arg: String) -> RepoResult<bool> {
         self.execute_query(select(exists(identities.filter(email.eq(email_arg.clone())))))
             .map_err(|e| {
-                e.context(format!("Checks if e-mail {} is already registered error occured.", email_arg))
+                e.context(format!("Checks if e-mail {} is already registered error occurred.", email_arg))
                     .into()
             })
     }
@@ -81,7 +81,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                 .filter(provider.eq(provider_arg.clone())),
         ))).map_err(|e| {
             e.context(format!(
-                "Checks if e-mail {} with provider {} is already registered error occured.",
+                "Checks if e-mail {} with provider {} is already registered error occurred.",
                 email_arg, provider_arg
             )).into()
         })
@@ -107,7 +107,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
         let ident_query = diesel::insert_into(identities).values(&identity_arg);
         ident_query
             .get_result::<Identity>(self.db_conn)
-            .map_err(|e| e.context(format!("Creates new identity {:?} error occured.", identity_arg)).into())
+            .map_err(|e| e.context(format!("Creates new identity {:?} error occurred.", identity_arg)).into())
     }
 
     /// Verifies password
@@ -118,7 +118,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                 .filter(password.eq(password_arg.clone())),
         ))).map_err(|e| {
             e.context(format!(
-                "Verifies password email {} password {} error occured.",
+                "Verifies password email {} password {} error occurred.",
                 email_arg, password_arg
             )).into()
         })
@@ -132,7 +132,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 
         query.first::<Identity>(self.db_conn).map_err(|e| {
             e.context(format!(
-                "Find specific user by user_id {} provider {} error occured.",
+                "Find specific user by user_id {} provider {} error occurred.",
                 user_id_arg, provider_arg
             )).into()
         })
@@ -146,7 +146,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 
         query.first::<Identity>(self.db_conn).map_err(|e| {
             e.context(format!(
-                "Find specific user by email {} provider {} error occured.",
+                "Find specific user by email {} provider {} error occurred.",
                 email_arg, provider_arg
             )).into()
         })
@@ -160,8 +160,10 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 
         let query = diesel::update(filter).set(&update);
         query.get_result::<Identity>(self.db_conn).map_err(|e| {
-            e.context(format!("Update identity {:?} with new identity {:?} error occured.", ident, update))
-                .into()
+            e.context(format!(
+                "Update identity {:?} with new identity {:?} error occurred.",
+                ident, update
+            )).into()
         })
     }
 }

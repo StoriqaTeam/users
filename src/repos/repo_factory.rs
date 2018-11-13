@@ -477,8 +477,8 @@ pub mod tests {
         }
     }
 
-    pub fn create_new_email_identity(email: String, password: String) -> NewEmailIdentity {
-        NewEmailIdentity { email, password }
+    pub fn create_new_email_identity(email: String, password: String) -> EmailIdentity {
+        EmailIdentity { email, password }
     }
 
     pub fn create_update_user(_email: String) -> UpdateUser {

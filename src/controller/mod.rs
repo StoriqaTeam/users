@@ -194,27 +194,24 @@ impl<
 
             // POST /jwt/email
             (&Post, Some(Route::JWTEmail)) => serialize_future(
-                parse_body::<models::identity::NewEmailIdentity>(req.body())
-                    .map_err(|e| {
-                        e.context("Parsing body failed, target: NewEmailIdentity")
-                            .context(Error::Parse)
-                            .into()
-                    }).and_then(move |new_ident| {
-                        new_ident
+                parse_body::<models::identity::EmailIdentity>(req.body())
+                    .map_err(|e| e.context("Parsing body failed, target: EmailIdentity").context(Error::Parse).into())
+                    .and_then(move |ident| {
+                        ident
                             .validate()
                             .map_err(|e| {
-                                format_err!("Validation failed, target: NewEmailIdentity")
+                                format_err!("Validation failed, target: EmailIdentity")
                                     .context(Error::Validate(e))
                                     .into()
                             }).into_future()
                             .inspect(|_| {
                                 debug!("Validation success");
                             }).and_then(move |_| {
-                                let checked_new_ident = models::identity::NewEmailIdentity {
-                                    email: new_ident.email.to_lowercase(),
-                                    password: new_ident.password,
+                                let checked_ident = models::identity::EmailIdentity {
+                                    email: ident.email.to_lowercase(),
+                                    password: ident.password,
                                 };
-                                service.create_token_email(checked_new_ident, token_expiration)
+                                service.create_token_email(checked_ident, token_expiration)
                             })
                     }),
             ),
