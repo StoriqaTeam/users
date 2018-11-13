@@ -34,10 +34,9 @@ pub struct NewIdentity {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Validate)]
-pub struct NewEmailIdentity {
+pub struct EmailIdentity {
     #[validate(email(message = "Invalid email format"))]
     pub email: String,
-    #[validate(length(min = "8", max = "30", message = "Password should be between 8 and 30 symbols"))]
     pub password: String,
 }
 
@@ -56,8 +55,8 @@ pub struct UpdateIdentity {
     pub password: Option<String>,
 }
 
-impl From<NewEmailIdentity> for NewIdentity {
-    fn from(v: NewEmailIdentity) -> Self {
+impl From<EmailIdentity> for NewIdentity {
+    fn from(v: EmailIdentity) -> Self {
         Self {
             email: v.email,
             password: Some(v.password),
@@ -67,8 +66,8 @@ impl From<NewEmailIdentity> for NewIdentity {
     }
 }
 
-impl fmt::Display for NewEmailIdentity {
+impl fmt::Display for EmailIdentity {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "NewEmailIdentity {{ email: \"{}\", password: \"******\" }}", self.email)
+        write!(f, "EmailIdentity {{ email: \"{}\", password: \"******\" }}", self.email)
     }
 }

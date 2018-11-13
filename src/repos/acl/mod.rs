@@ -101,7 +101,12 @@ impl<T> Acl<Resource, Action, Scope, FailureError, T> for ApplicationAcl {
             .filter(|permission| (permission.resource == resource) && ((permission.action == action) || (permission.action == Action::All)))
             .filter(|permission| scope_checker.is_in_scope(*user_id, &permission.scope, obj));
 
-        Ok(acls.count() > 0)
+        if acls.count() > 0 {
+            Ok(true)
+        } else {
+            error!("Denied request from user {} to do {} on {}.", user_id, action, resource);
+            Ok(false)
+        }
     }
 }
 

@@ -24,7 +24,7 @@ use stq_types::UserId;
 use self::profile::{Email, FacebookProfile, GoogleProfile, IntoUser, ProfileStatus};
 use super::util::password_verify;
 use errors::Error;
-use models::{self, JWTPayload, NewEmailIdentity, NewIdentity, NewUser, ProviderOauth, User, UserStatus, JWT};
+use models::{self, EmailIdentity, JWTPayload, NewIdentity, NewUser, ProviderOauth, User, UserStatus, JWT};
 use repos::repo_factory::ReposFactory;
 use repos::types::RepoResult;
 use services::types::ServiceFuture;
@@ -33,7 +33,7 @@ use services::Service;
 /// JWT services, responsible for JsonWebToken operations
 pub trait JWTService {
     /// Creates new JWT token by email
-    fn create_token_email(&self, payload: NewEmailIdentity, exp: i64) -> ServiceFuture<JWT>;
+    fn create_token_email(&self, payload: EmailIdentity, exp: i64) -> ServiceFuture<JWT>;
     /// Creates new JWT token by google
     fn create_token_google(self, oauth: ProviderOauth, exp: i64) -> ServiceFuture<JWT>;
     /// Creates new JWT token by facebook
@@ -256,7 +256,7 @@ impl<
     > JWTService for Service<T, M, F>
 {
     /// Creates new JWT token by email
-    fn create_token_email(&self, payload: NewEmailIdentity, exp: i64) -> ServiceFuture<JWT> {
+    fn create_token_email(&self, payload: EmailIdentity, exp: i64) -> ServiceFuture<JWT> {
         let jwt_private_key = self.static_context.jwt_private_key.clone();
         let repo_factory = self.static_context.repo_factory.clone();
 
