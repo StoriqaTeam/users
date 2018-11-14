@@ -88,11 +88,7 @@ pub struct DynamicContext {
 
 impl DynamicContext {
     /// Create a new dynamic context for each request
-    pub fn new(
-        user_id: Option<UserId>,
-        correlation_token: String,
-        http_client: TimeLimitedHttpClient<ClientHandle>
-    ) -> Self {
+    pub fn new(user_id: Option<UserId>, correlation_token: String, http_client: TimeLimitedHttpClient<ClientHandle>) -> Self {
         Self {
             user_id,
             correlation_token,

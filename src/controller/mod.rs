@@ -19,7 +19,7 @@ use r2d2::ManageConnection;
 use validator::Validate;
 
 use stq_http::{
-    client::{TimeLimitedHttpClient},
+    client::TimeLimitedHttpClient,
     controller::{Controller, ControllerFuture},
     errors::ErrorMessageWrapper,
     request_util::{self, parse_body, serialize_future, RequestTimeout as RequestTimeoutHeader},
@@ -77,17 +77,16 @@ impl<
         let user_id = get_user_id(&req);
         let correlation_token = request_util::get_correlation_token(&req);
 
-        let request_timeout = req.headers().get::<RequestTimeoutHeader>()
+        let request_timeout = req
+            .headers()
+            .get::<RequestTimeoutHeader>()
             .and_then(|h| h.0.parse::<u64>().ok())
             .unwrap_or(self.static_context.config.client.http_timeout_ms)
             .checked_sub(self.static_context.config.server.processing_timeout_ms as u64)
             .map(Duration::from_millis)
             .unwrap_or(Duration::new(0, 0));
 
-        let time_limited_http_client = TimeLimitedHttpClient::new(
-            self.static_context.client_handle.clone(),
-            request_timeout,
-        );
+        let time_limited_http_client = TimeLimitedHttpClient::new(self.static_context.client_handle.clone(), request_timeout);
 
         let dynamic_context = DynamicContext::new(user_id, correlation_token, time_limited_http_client);
         let service = Service::new(self.static_context.clone(), dynamic_context);
