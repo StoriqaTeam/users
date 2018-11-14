@@ -18,6 +18,7 @@ use serde;
 use serde_json;
 use uuid::Uuid;
 
+use stq_http::client::HttpClient;
 use stq_static_resources::Provider;
 use stq_types::UserId;
 
@@ -143,9 +144,9 @@ where
 
     fn get_profile(&self, url: String, headers: Option<Headers>) -> ServiceFuture<P> {
         Box::new(
-            self.static_context
-                .client_handle
-                .request::<serde_json::Value>(Method::Get, url, None, headers)
+            self.dynamic_context
+                .http_client
+                .request_json::<serde_json::Value>(Method::Get, url, None, headers)
                 .map_err(|e| {
                     e.context("Failed to receive user info from provider. {}")
                         .context(Error::Forbidden)
@@ -201,9 +202,9 @@ where
             },
         }).map_err(From::from)
         .and_then(|body| {
-            self.static_context
-                .client_handle
-                .request::<User>(Method::Post, url, Some(body), None)
+            self.dynamic_context
+                .http_client
+                .request_json::<User>(Method::Post, url, Some(body), None)
                 .wait()
                 .map_err(|e| e.context(Error::HttpClient).into())
         }).map(|created_user| created_user.id)
