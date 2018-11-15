@@ -31,6 +31,7 @@ pub struct Server {
     pub redis: Option<String>,
     pub thread_count: usize,
     pub cache_ttl_sec: u64,
+    pub processing_timeout_ms: u32,
 }
 
 /// Http client settings
@@ -77,6 +78,9 @@ pub struct Tokens {
 impl Config {
     pub fn new() -> Result<Self, ConfigError> {
         let mut s = RawConfig::new();
+
+        s.set_default("server.processing_timeout_ms", 1000 as i64).unwrap();
+
         s.merge(File::with_name("config/base"))?;
 
         // Note that this file is _optional_

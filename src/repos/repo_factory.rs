@@ -133,7 +133,7 @@ pub mod tests {
     use std::fs::File;
     use std::io::prelude::*;
     use std::sync::Arc;
-    use std::time::SystemTime;
+    use std::time::{Duration, SystemTime};
 
     use base64::encode;
     use diesel::connection::AnsiTransactionManager;
@@ -153,6 +153,7 @@ pub mod tests {
     use sha3::{Digest, Sha3_256};
     use tokio_core::reactor::Handle;
 
+    use stq_http::client::TimeLimitedHttpClient;
     use stq_static_resources::{Provider, TokenType};
     use stq_types::{RoleId, UserId, UsersRole};
 
@@ -436,12 +437,13 @@ pub mod tests {
         let static_context = StaticContext::new(
             db_pool,
             cpu_pool,
-            client_handle,
+            client_handle.clone(),
             Arc::new(config),
             MOCK_REPO_FACTORY,
             jwt_private_key,
         );
-        let dynamic_context = DynamicContext::new(user_id, String::default());
+        let time_limited_http_client = TimeLimitedHttpClient::new(client_handle, Duration::new(1, 0));
+        let dynamic_context = DynamicContext::new(user_id, String::default(), time_limited_http_client);
 
         Service::new(static_context, dynamic_context)
     }
