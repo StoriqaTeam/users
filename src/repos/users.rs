@@ -6,6 +6,7 @@ use diesel::pg::Pg;
 use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::select;
+use diesel::sql_types::Bool;
 use diesel::Connection;
 use failure::Error as FailureError;
 use failure::Fail;
@@ -15,7 +16,7 @@ use stq_types::UserId;
 use super::acl;
 use super::types::RepoResult;
 use models::authorization::*;
-use models::{NewUser, UpdateUser, User, UsersSearchTerms};
+use models::{NewUser, UpdateUser, User, UserSearchResults, UsersSearchTerms};
 use repos::legacy_acl::*;
 use schema::users::dsl::*;
 
@@ -57,7 +58,7 @@ pub trait UsersRepo {
     fn delete_by_saga_id(&self, saga_id_arg: String) -> RepoResult<User>;
 
     /// Search users limited by `from`, `skip` and `count` parameters
-    fn search(&self, from: Option<UserId>, skip: i64, count: i64, term: UsersSearchTerms) -> RepoResult<Vec<User>>;
+    fn search(&self, from: Option<UserId>, skip: i64, count: i64, term: UsersSearchTerms) -> RepoResult<UserSearchResults>;
 
     /// Fuzzy search users by email
     fn fuzzy_search_by_email(&self, email_arg: String) -> RepoResult<Vec<User>>;
@@ -230,8 +231,10 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
     }
 
     /// Search users limited by `from`, `skip` and `count` parameters
-    fn search(&self, from: Option<UserId>, skip: i64, count: i64, term: UsersSearchTerms) -> RepoResult<Vec<User>> {
+    fn search(&self, from: Option<UserId>, skip: i64, count: i64, term: UsersSearchTerms) -> RepoResult<UserSearchResults> {
         // hide user_id == 1
+        let total_count_query = users.filter(id.ne(1).and(by_search_terms(&term))).count();
+
         let mut query = users.filter(id.ne(1)).into_boxed();
 
         if let Some(from_id) = from {
@@ -244,21 +247,7 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
             query = query.limit(count);
         }
 
-        if let Some(term_email) = term.email {
-            query = query.filter(email.like(format!("%{}%", term_email)));
-        }
-        if let Some(term_phone) = term.phone {
-            query = query.filter(phone.eq(term_phone));
-        }
-        if let Some(term_first_name) = term.first_name {
-            query = query.filter(first_name.like(format!("%{}%", term_first_name)));
-        }
-        if let Some(term_last_name) = term.last_name {
-            query = query.filter(last_name.like(format!("%{}%", term_last_name)));
-        }
-        if let Some(term_is_blocked) = term.is_blocked {
-            query = query.filter(is_blocked.eq(term_is_blocked));
-        }
+        query = query.filter(by_search_terms(&term));
 
         query
             .order(id)
@@ -269,7 +258,12 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                     acl::check(&*self.acl, Resource::Users, Action::Read, self, Some(&user))?;
                 }
 
-                Ok(users_res)
+                total_count_query
+                    .get_result::<i64>(self.db_conn)
+                    .map(move |total_count| UserSearchResults {
+                        total_count: total_count as u32,
+                        users: users_res,
+                    }).map_err(From::from)
             }).map_err(|e: FailureError| {
                 e.context(format!(
                     "search for users error occured (from id: {:?}, skip: {}, count: {})",
@@ -309,4 +303,26 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
             }
         }
     }
+}
+
+fn by_search_terms(term: &UsersSearchTerms) -> Box<BoxableExpression<users, Pg, SqlType = Bool>> {
+    let mut expr: Box<BoxableExpression<users, Pg, SqlType = Bool>> = Box::new(id.eq(id));
+
+    if let Some(term_email) = term.email.clone() {
+        expr = Box::new(expr.and(email.like(format!("%{}%", term_email))));
+    }
+    if let Some(term_phone) = term.phone.clone() {
+        expr = Box::new(expr.and(phone.eq(term_phone)));
+    }
+    if let Some(term_first_name) = term.first_name.clone() {
+        expr = Box::new(expr.and(first_name.like(format!("%{}%", term_first_name))));
+    }
+    if let Some(term_last_name) = term.last_name.clone() {
+        expr = Box::new(expr.and(last_name.like(format!("%{}%", term_last_name))));
+    }
+    if let Some(term_is_blocked) = term.is_blocked.clone() {
+        expr = Box::new(expr.and(is_blocked.eq(term_is_blocked)));
+    }
+
+    expr
 }
