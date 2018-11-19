@@ -20,9 +20,10 @@ use stq_types::UserId;
 use super::types::ServiceFuture;
 use super::util::{password_create, password_verify};
 use errors::Error;
-use models::ResetToken;
-use models::{ChangeIdentityPassword, NewIdentity, UpdateIdentity};
-use models::{EmailVerifyApplyToken, NewUser, ResetApplyToken, UpdateUser, User, UsersSearchTerms};
+use models::{
+    ChangeIdentityPassword, EmailVerifyApplyToken, NewIdentity, NewUser, ResetApplyToken, ResetToken, UpdateIdentity, UpdateUser, User,
+    UserSearchResults, UsersSearchTerms,
+};
 use repos::repo_factory::ReposFactory;
 use services::jwt::JWTService;
 use services::Service;
@@ -59,7 +60,7 @@ pub trait UsersService {
     /// Find by email
     fn find_by_email(&self, email: String) -> ServiceFuture<Option<User>>;
     /// Search users limited by `from`, `skip` and `count` parameters
-    fn search(&self, from: Option<UserId>, skip: i64, count: i64, term: UsersSearchTerms) -> ServiceFuture<Vec<User>>;
+    fn search(&self, from: Option<UserId>, skip: i64, count: i64, term: UsersSearchTerms) -> ServiceFuture<UserSearchResults>;
     /// Set block status for specific user
     fn set_block_status(&self, user_id: UserId, is_blocked: bool) -> ServiceFuture<User>;
     /// Fuzzy search users by email
@@ -494,7 +495,7 @@ impl<
     }
 
     /// Search users limited by `from`, `skip` and `count` parameters
-    fn search(&self, from: Option<UserId>, skip: i64, count: i64, term: UsersSearchTerms) -> ServiceFuture<Vec<User>> {
+    fn search(&self, from: Option<UserId>, skip: i64, count: i64, term: UsersSearchTerms) -> ServiceFuture<UserSearchResults> {
         let current_uid = self.dynamic_context.user_id;
         let repo_factory = self.static_context.repo_factory.clone();
 

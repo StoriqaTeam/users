@@ -126,3 +126,9 @@ pub struct UsersSearchTerms {
     pub last_name: Option<String>,
     pub is_blocked: Option<bool>,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct UserSearchResults {
+    pub total_count: u32,
+    pub users: Vec<User>,
+}
