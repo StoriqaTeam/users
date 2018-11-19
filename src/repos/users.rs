@@ -1,13 +1,13 @@
 //! Users repo, presents CRUD operations with db for users
 use diesel;
 use diesel::connection::AnsiTransactionManager;
-use diesel::dsl::exists;
+use diesel::dsl::{exists, sql};
 use diesel::pg::Pg;
 use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::select;
-use diesel::sql_types::Bool;
-use diesel::Connection;
+use diesel::sql_types::{Bool, VarChar};
+use diesel::{Connection, PgTextExpressionMethods};
 use failure::Error as FailureError;
 use failure::Fail;
 
@@ -309,16 +309,18 @@ fn by_search_terms(term: &UsersSearchTerms) -> Box<BoxableExpression<users, Pg, 
     let mut expr: Box<BoxableExpression<users, Pg, SqlType = Bool>> = Box::new(id.eq(id));
 
     if let Some(term_email) = term.email.clone() {
-        expr = Box::new(expr.and(email.like(format!("%{}%", term_email))));
+        expr = Box::new(expr.and(email.ilike(format!("%{}%", term_email))));
     }
     if let Some(term_phone) = term.phone.clone() {
         expr = Box::new(expr.and(phone.eq(term_phone)));
     }
     if let Some(term_first_name) = term.first_name.clone() {
-        expr = Box::new(expr.and(first_name.like(format!("%{}%", term_first_name))));
+        let ilike_expr = sql("first_name ILIKE concat('%', $1, '%')").bind::<VarChar, _>(term_first_name);
+        expr = Box::new(expr.and(ilike_expr));
     }
     if let Some(term_last_name) = term.last_name.clone() {
-        expr = Box::new(expr.and(last_name.like(format!("%{}%", term_last_name))));
+        let ilike_expr = sql("last_name ILIKE concat('%', $1, '%')").bind::<VarChar, _>(term_last_name);
+        expr = Box::new(expr.and(ilike_expr));
     }
     if let Some(term_is_blocked) = term.is_blocked.clone() {
         expr = Box::new(expr.and(is_blocked.eq(term_is_blocked)));
