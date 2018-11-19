@@ -248,7 +248,7 @@ pub mod tests {
             let user = create_user(UserId(1), MOCK_EMAIL.to_string());
             Ok(user)
         }
-        fn search(&self, from: Option<UserId>, skip: i64, count: i64, _term: UsersSearchTerms) -> RepoResult<Vec<User>> {
+        fn search(&self, from: Option<UserId>, skip: i64, count: i64, _term: UsersSearchTerms) -> RepoResult<UserSearchResults> {
             let mut users = vec![];
             let from_id = from.unwrap_or(UserId(1));
             let range = (from_id.0..).skip(skip as usize).take(count as usize);
@@ -256,7 +256,10 @@ pub mod tests {
                 let user = create_user(UserId(i), MOCK_EMAIL.to_string());
                 users.push(user);
             }
-            Ok(users)
+            Ok(UserSearchResults {
+                total_count: users.len() as u32,
+                users,
+            })
         }
         fn set_block_status(&self, user_id_arg: UserId, _is_blocked_arg: bool) -> RepoResult<User> {
             let user = create_user(user_id_arg, MOCK_EMAIL.to_string());
