@@ -315,11 +315,13 @@ fn by_search_terms(term: &UsersSearchTerms) -> Box<BoxableExpression<users, Pg, 
         expr = Box::new(expr.and(phone.eq(term_phone)));
     }
     if let Some(term_first_name) = term.first_name.clone() {
-        let ilike_expr = sql("first_name ILIKE concat('%', $1, '%')").bind::<VarChar, _>(term_first_name);
+        let ilike_expr = sql("first_name ILIKE concat('%', ")
+            .bind::<VarChar, _>(term_first_name)
+            .sql(", '%')");
         expr = Box::new(expr.and(ilike_expr));
     }
     if let Some(term_last_name) = term.last_name.clone() {
-        let ilike_expr = sql("last_name ILIKE concat('%', $1, '%')").bind::<VarChar, _>(term_last_name);
+        let ilike_expr = sql("last_name ILIKE concat('%', ").bind::<VarChar, _>(term_last_name).sql(", '%')");
         expr = Box::new(expr.and(ilike_expr));
     }
     if let Some(term_is_blocked) = term.is_blocked.clone() {
