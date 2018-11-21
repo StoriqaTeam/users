@@ -2,6 +2,7 @@
 use std::fmt;
 use std::time::SystemTime;
 
+use uuid::Uuid;
 use validator::Validate;
 
 use stq_static_resources::TokenType;
@@ -16,10 +17,18 @@ pub struct ResetToken {
     pub email: String,
     pub created_at: SystemTime,
     pub token_type: TokenType,
+    pub uuid: Uuid,
 }
 
 #[derive(Serialize, Deserialize, Validate, Debug)]
 pub struct ResetRequest {
+    #[validate(email(message = "Invalid email format"))]
+    pub email: String,
+    pub uuid: Uuid,
+}
+
+#[derive(Serialize, Deserialize, Validate, Debug)]
+pub struct VerifyRequest {
     #[validate(email(message = "Invalid email format"))]
     pub email: String,
 }
