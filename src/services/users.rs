@@ -384,7 +384,7 @@ impl<
                         .and_then(|user| {
                             if !user.email_verified {
                                 //email not verified
-                                Err(Error::Validate(validation_errors!({"email": ["email" => "Email not verified"]})).into())
+                                Err(Error::Validate(validation_errors!({"email": ["not_verified" => "Email not verified"]})).into())
                             } else {
                                 Ok(user)
                             }
