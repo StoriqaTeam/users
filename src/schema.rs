@@ -14,6 +14,7 @@ table! {
         email -> Varchar,
         created_at -> Timestamp,
         token_type -> Varchar,
+        uuid -> Uuid,
     }
 }
 

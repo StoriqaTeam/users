@@ -516,6 +516,7 @@ pub mod tests {
             email,
             token_type: TokenType::EmailVerify,
             created_at: SystemTime::now(),
+            uuid: uuid::Uuid::new_v4(),
         }
     }
 

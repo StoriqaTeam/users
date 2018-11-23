@@ -299,7 +299,7 @@ impl<
                                     .context(Error::Validate(e))
                                     .into()
                             }).into_future()
-                            .and_then(move |_| service.get_password_reset_token(reset_req.email.to_lowercase()))
+                            .and_then(move |_| service.get_password_reset_token(reset_req.email.to_lowercase(), reset_req.uuid))
                     }),
             ),
 
@@ -324,13 +324,13 @@ impl<
 
             // Post /users/email_verify_token
             (&Post, Some(Route::UserEmailVerifyToken)) => serialize_future(
-                parse_body::<models::ResetRequest>(req.body())
-                    .map_err(|e| e.context("Parsing body failed, target: ResetRequest").context(Error::Parse).into())
+                parse_body::<models::VerifyRequest>(req.body())
+                    .map_err(|e| e.context("Parsing body failed, target: VerifyRequest").context(Error::Parse).into())
                     .and_then(move |reset_req| {
                         reset_req
                             .validate()
                             .map_err(|e| {
-                                format_err!("Validation failed, target: ResetRequest")
+                                format_err!("Validation failed, target: VerifyRequest")
                                     .context(Error::Validate(e))
                                     .into()
                             }).into_future()

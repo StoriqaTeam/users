@@ -52,7 +52,7 @@ pub trait UsersService {
     /// Change user password
     fn change_password(&self, payload: ChangeIdentityPassword) -> ServiceFuture<bool>;
     /// Get password reset token
-    fn get_password_reset_token(&self, email_arg: String) -> ServiceFuture<String>;
+    fn get_password_reset_token(&self, email_arg: String, uuid: Uuid) -> ServiceFuture<String>;
     /// Apply password reset
     fn password_reset_apply(&self, token: String, new_pass: String) -> ServiceFuture<ResetApplyToken>;
     /// Creates reset token
@@ -233,6 +233,7 @@ impl<
                 email: email.clone(),
                 token_type: TokenType::EmailVerify,
                 created_at: SystemTime::now(),
+                uuid: Uuid::new_v4(),
             };
 
             reset_repo
@@ -369,7 +370,7 @@ impl<
         }
     }
 
-    fn get_password_reset_token(&self, email_arg: String) -> ServiceFuture<String> {
+    fn get_password_reset_token(&self, email_arg: String, uuid: Uuid) -> ServiceFuture<String> {
         let email = email_arg.clone();
         let repo_factory = self.static_context.repo_factory.clone();
 
@@ -406,6 +407,7 @@ impl<
                         email: ident.email.clone(),
                         token_type: TokenType::PasswordReset,
                         created_at: SystemTime::now(),
+                        uuid,
                     };
 
                     reset_repo
