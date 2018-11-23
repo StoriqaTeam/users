@@ -306,7 +306,7 @@ impl<
                                                 }
                                             })
                                     } else {
-                                        Err(Error::Validate(validation_errors!({"email": ["email" => "Email not verified"]})).into())
+                                        Err(Error::Validate(validation_errors!({"email": ["not_verified" => "Email not verified"]})).into())
                                     }
                                 } else {
                                     Err(Error::NotFound
