@@ -3,7 +3,6 @@
 use chrono::Utc;
 use std::time::SystemTime;
 
-use base64::encode;
 use diesel::connection::AnsiTransactionManager;
 use diesel::pg::Pg;
 use diesel::Connection;
@@ -55,8 +54,6 @@ pub trait UsersService {
     fn get_password_reset_token(&self, email_arg: String, uuid: Uuid) -> ServiceFuture<String>;
     /// Apply password reset
     fn password_reset_apply(&self, token: String, new_pass: String) -> ServiceFuture<ResetApplyToken>;
-    /// Creates reset token
-    fn reset_token_create() -> String;
     /// Find by email
     fn find_by_email(&self, email: String) -> ServiceFuture<Option<User>>;
     /// Search users limited by `from`, `skip` and `count` parameters
@@ -221,23 +218,28 @@ impl<
     /// Get verification token
     fn get_email_verification_token(&self, email: String) -> ServiceFuture<String> {
         let repo_factory = self.static_context.repo_factory.clone();
+        let email_sending_timeout = self.static_context.config.tokens.email_sending_timeout_s;
 
         self.spawn_on_pool(move |conn| {
             let reset_repo = repo_factory.create_reset_token_repo(&conn);
+            let token = reset_repo
+                .find_by_email(email.clone(), TokenType::EmailVerify)
+                .map_err(|e| e.context(format!("Can not find token by email {}", email.clone())))?;
 
-            let _res = reset_repo.delete_by_email(email.clone(), TokenType::EmailVerify);
-
-            let new_token = Self::reset_token_create();
-            let reset_token = ResetToken {
-                token: new_token,
-                email: email.clone(),
-                token_type: TokenType::EmailVerify,
-                created_at: SystemTime::now(),
-                uuid: Uuid::new_v4(),
-            };
+            if let Some(token) = token {
+                let token_duration = SystemTime::now()
+                    .duration_since(token.updated_at)
+                    .map_err(|e| Error::InvalidTime.context(format!("Can not calc duration : {}", e.to_string())))?
+                    .as_secs();
+                if token_duration < email_sending_timeout {
+                    return Err(Error::Validate(
+                        validation_errors!({"email": ["email_timeout" => "can not send email more often then 30 seconds"]}),
+                    ).into());
+                }
+            }
 
             reset_repo
-                .create(reset_token)
+                .upsert(email.clone(), TokenType::EmailVerify, None)
                 .map(|t| t.token)
                 .map_err(|e| e.context("Can not create reset token").into())
                 .map_err(|e: FailureError| e.context("Service users, resend_verification_link endpoint error occured.").into())
@@ -268,12 +270,16 @@ impl<
                                 let user = users_repo.find_by_email(reset_token.email.clone())?;
 
                                 if let Some(user) = user {
-                                    let update = UpdateUser {
-                                        email_verified: Some(true),
-                                        ..Default::default()
-                                    };
+                                    if user.email_verified {
+                                        Ok(user)
+                                    } else {
+                                        let update = UpdateUser {
+                                            email_verified: Some(true),
+                                            ..Default::default()
+                                        };
 
-                                    users_repo.update(user.id.clone(), update)
+                                        users_repo.update(user.id.clone(), update)
+                                    }
                                 } else {
                                     Err(Error::InvalidToken
                                         .context(format!("User with email {} not found!", reset_token.email))
@@ -285,10 +291,6 @@ impl<
                         }
                         Err(_) => Err(Error::InvalidToken.into()),
                     }?;
-
-                    let _ = reset_repo
-                        .delete_by_token(reset_token.token.clone(), TokenType::EmailVerify)
-                        .map_err(|e| e.context("Unable to delete token"))?;
 
                     Ok(user)
                 }.map_err(|e: FailureError| e.context("Service users, verify_email endpoint error occured.").into())
@@ -373,6 +375,7 @@ impl<
     fn get_password_reset_token(&self, email_arg: String, uuid: Uuid) -> ServiceFuture<String> {
         let email = email_arg.clone();
         let repo_factory = self.static_context.repo_factory.clone();
+        let email_sending_timeout = self.static_context.config.tokens.email_sending_timeout_s;
 
         self.spawn_on_pool(move |conn| {
             let reset_repo = repo_factory.create_reset_token_repo(&conn);
@@ -396,22 +399,24 @@ impl<
                         .map_err(|e| e.context("Identity by email search failure").context(Error::InvalidToken).into())
                 }).and_then(|ident| {
                     debug!("Found identity {:?}, generating reset token.", &ident);
+                    let token = reset_repo
+                        .find_by_email(email.clone(), TokenType::PasswordReset)
+                        .map_err(|e| e.context(format!("Can not find token by email {}", email.clone())))?;
 
-                    debug!("Removing previous tokens for {} if any", &ident.email);
-                    let _res = reset_repo.delete_by_email(ident.email.clone(), TokenType::PasswordReset);
-
-                    debug!("Generating new token for {}", &ident.email);
-                    let new_token = Self::reset_token_create();
-                    let reset_token = ResetToken {
-                        token: new_token,
-                        email: ident.email.clone(),
-                        token_type: TokenType::PasswordReset,
-                        created_at: SystemTime::now(),
-                        uuid,
-                    };
+                    if let Some(token) = token {
+                        let token_duration = SystemTime::now()
+                            .duration_since(token.updated_at)
+                            .map_err(|e| Error::InvalidTime.context(format!("Can not calc duration : {}", e.to_string())))?
+                            .as_secs();
+                        if token_duration < email_sending_timeout {
+                            return Err(Error::Validate(
+                                validation_errors!({"email": ["email_timeout" => "can not send email more often then 30 seconds"]}),
+                            ).into());
+                        }
+                    }
 
                     reset_repo
-                        .create(reset_token)
+                        .upsert(ident.email.clone(), TokenType::PasswordReset, Some(uuid))
                         .map_err(|e| e.context("Cannot create reset token").into())
                 }).map(|t| t.token)
                 .map_err(|e: FailureError| e.context("Service users, password_reset_request endpoint error occured.").into())
@@ -455,10 +460,6 @@ impl<
                         Err(_) => Err(Error::InvalidToken.into()),
                     }?;
 
-                    let _ = reset_repo
-                        .delete_by_token(reset_token.token.clone(), TokenType::PasswordReset)
-                        .map_err(|e| e.context("Unable to delete token"))?;
-
                     Ok(identity)
                 }.map_err(|e: FailureError| e.context("Service users, password_reset_apply endpoint error occured.").into())
             }).and_then(move |identity| {
@@ -474,11 +475,6 @@ impl<
             });
 
         Box::new(fut)
-    }
-
-    fn reset_token_create() -> String {
-        let new_token = Uuid::new_v4().to_string();
-        encode(&new_token)
     }
 
     /// Find by email

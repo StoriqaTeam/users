@@ -1,8 +1,10 @@
+use std::sync::Arc;
+
 use diesel::connection::AnsiTransactionManager;
 use diesel::pg::Pg;
 use diesel::Connection;
 use failure::Error as FailureError;
-use std::sync::Arc;
+
 use stq_cache::cache::Cache;
 use stq_types::{UserId, UsersRole};
 
@@ -152,6 +154,7 @@ pub mod tests {
     use r2d2::ManageConnection;
     use sha3::{Digest, Sha3_256};
     use tokio_core::reactor::Handle;
+    use uuid::Uuid;
 
     use stq_http::client::TimeLimitedHttpClient;
     use stq_static_resources::{Provider, TokenType};
@@ -332,7 +335,7 @@ pub mod tests {
 
     impl ResetTokenRepo for ResetTokenRepoMock {
         /// Create token for user
-        fn create(&self, _reset_token_arg: ResetToken) -> RepoResult<ResetToken> {
+        fn upsert(&self, _email_arg: String, _token_type_arg: TokenType, _uuid_: Option<Uuid>) -> RepoResult<ResetToken> {
             let token = create_reset_token(MOCK_TOKEN.to_string(), MOCK_EMAIL.to_string());
 
             Ok(token)
@@ -346,10 +349,10 @@ pub mod tests {
         }
 
         /// Find by email
-        fn find_by_email(&self, _email_arg: String, _token_type_arg: TokenType) -> RepoResult<ResetToken> {
+        fn find_by_email(&self, _email_arg: String, _token_type_arg: TokenType) -> RepoResult<Option<ResetToken>> {
             let token = create_reset_token(MOCK_TOKEN.to_string(), MOCK_EMAIL.to_string());
 
-            Ok(token)
+            Ok(Some(token))
         }
 
         /// Delete by token
@@ -515,8 +518,9 @@ pub mod tests {
             token,
             email,
             token_type: TokenType::EmailVerify,
-            created_at: SystemTime::now(),
             uuid: uuid::Uuid::new_v4(),
+            created_at: SystemTime::now(),
+            updated_at: SystemTime::now(),
         }
     }
 

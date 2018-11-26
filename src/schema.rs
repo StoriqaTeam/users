@@ -15,6 +15,7 @@ table! {
         created_at -> Timestamp,
         token_type -> Varchar,
         uuid -> Uuid,
+        updated_at -> Timestamp,
     }
 }
 
