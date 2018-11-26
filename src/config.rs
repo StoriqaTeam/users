@@ -66,6 +66,7 @@ pub struct Tokens {
     pub verify_expiration_s: u64,
     pub reset_expiration_s: u64,
     pub jwt_expiration_s: u64,
+    pub email_sending_timeout_s: u64,
 }
 
 /// Creates new app config struct

@@ -2,6 +2,7 @@
 use std::fmt;
 use std::time::SystemTime;
 
+use base64::encode;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -18,6 +19,22 @@ pub struct ResetToken {
     pub created_at: SystemTime,
     pub token_type: TokenType,
     pub uuid: Uuid,
+    pub updated_at: SystemTime,
+}
+
+impl ResetToken {
+    pub fn new(email: String, token_type: TokenType, uuid: Option<Uuid>) -> ResetToken {
+        let uuid = uuid.unwrap_or(Uuid::new_v4());
+        let token = encode(&Uuid::new_v4().to_string());
+        ResetToken {
+            token,
+            email,
+            token_type,
+            uuid,
+            created_at: SystemTime::now(),
+            updated_at: SystemTime::now(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Validate, Debug)]

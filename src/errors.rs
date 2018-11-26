@@ -20,6 +20,8 @@ pub enum Error {
     HttpClient,
     #[fail(display = "Invalid oauth token")]
     InvalidToken,
+    #[fail(display = "Invalid time duration")]
+    InvalidTime,
 }
 
 impl Codeable for Error {
@@ -28,7 +30,7 @@ impl Codeable for Error {
             Error::NotFound => StatusCode::NotFound,
             Error::Validate(_) => StatusCode::BadRequest,
             Error::Parse => StatusCode::UnprocessableEntity,
-            Error::Connection | Error::HttpClient => StatusCode::InternalServerError,
+            Error::Connection | Error::HttpClient | Error::InvalidTime => StatusCode::InternalServerError,
             Error::Forbidden | Error::InvalidToken => StatusCode::Forbidden,
         }
     }
