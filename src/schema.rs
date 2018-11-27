@@ -49,6 +49,7 @@ table! {
         saga_id -> Varchar,
         avatar -> Nullable<Varchar>,
         is_blocked -> Bool,
+        emarsys_id -> Nullable<Int4>,
     }
 }
 

@@ -473,6 +473,7 @@ pub mod tests {
             updated_at: SystemTime::now(),
             saga_id: MOCK_SAGA_ID.to_string(),
             is_blocked: false,
+            emarsys_id: None,
         }
     }
 
@@ -500,6 +501,7 @@ pub mod tests {
             avatar: None,
             is_active: None,
             email_verified: None,
+            emarsys_id: None,
         }
     }
 
