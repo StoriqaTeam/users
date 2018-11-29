@@ -113,6 +113,7 @@ impl IntoUser for FacebookProfile {
             avatar: None,
             is_active: Some(true),
             email_verified: None,
+            emarsys_id: None,
         }
     }
 }
@@ -131,6 +132,7 @@ impl IntoUser for GoogleProfile {
             avatar: None,
             is_active: Some(true),
             email_verified: None,
+            emarsys_id: None,
         }
     }
 }

@@ -9,7 +9,7 @@ use regex::Regex;
 use validator::{Validate, ValidationError};
 
 use stq_static_resources::Gender;
-use stq_types::UserId;
+use stq_types::{EmarsysId, UserId};
 
 use models::NewIdentity;
 use schema::users;
@@ -49,6 +49,7 @@ pub struct User {
     pub saga_id: String,
     pub avatar: Option<String>,
     pub is_blocked: bool,
+    pub emarsys_id: Option<EmarsysId>,
 }
 
 /// Payload for creating users
@@ -88,6 +89,7 @@ pub struct UpdateUser {
     pub avatar: Option<String>,
     pub is_active: Option<bool>,
     pub email_verified: Option<bool>,
+    pub emarsys_id: Option<EmarsysId>,
 }
 
 impl UpdateUser {

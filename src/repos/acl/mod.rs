@@ -140,6 +140,7 @@ mod tests {
             updated_at: SystemTime::now(),
             saga_id: "saga_id".to_string(),
             is_blocked: false,
+            emarsys_id: None,
         }
     }
 
