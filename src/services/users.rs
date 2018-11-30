@@ -264,7 +264,7 @@ impl<
                         .find_by_token(token_arg.clone(), TokenType::EmailVerify)
                         .map_err(|e| e.context(Error::InvalidToken))?;
 
-                    let user = match SystemTime::now().duration_since(reset_token.created_at) {
+                    let user = match SystemTime::now().duration_since(reset_token.updated_at) {
                         Ok(elapsed) => {
                             if elapsed.as_secs() < verify_expiration_s {
                                 let user = users_repo.find_by_email(reset_token.email.clone())?;
@@ -443,7 +443,7 @@ impl<
                         .map_err(|e| e.context("Reset token by token search failure").context(Error::InvalidToken))?;
 
                     debug!("Checking reset token's {:?} expiration", &reset_token);
-                    let identity = match SystemTime::now().duration_since(reset_token.created_at) {
+                    let identity = match SystemTime::now().duration_since(reset_token.updated_at) {
                         Ok(elapsed) => {
                             if elapsed.as_secs() < reset_expiration_s {
                                 let ident = ident_repo.find_by_email_provider(reset_token.email.clone(), Provider::Email)?;
