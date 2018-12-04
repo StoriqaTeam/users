@@ -447,6 +447,7 @@ pub mod tests {
         let service = create_service(Some(UserId(1)), handle);
         let oauth = ProviderOauth {
             token: GOOGLE_TOKEN.to_string(),
+            additional_data: None,
         };
         let exp = 1;
         let work = service.create_token_google(oauth, exp);
@@ -463,6 +464,7 @@ pub mod tests {
         let service = create_service(Some(UserId(1)), handle);
         let oauth = ProviderOauth {
             token: FACEBOOK_TOKEN.to_string(),
+            additional_data: None,
         };
         let exp = 1;
         let work = service.create_token_facebook(oauth, exp);
