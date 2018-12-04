@@ -50,6 +50,10 @@ table! {
         avatar -> Nullable<Varchar>,
         is_blocked -> Bool,
         emarsys_id -> Nullable<Int4>,
+        referal -> Nullable<Int4>,
+        utm_marks -> Nullable<Jsonb>,
+        country -> Nullable<Varchar>,
+        referer -> Nullable<Varchar>,
     }
 }
 

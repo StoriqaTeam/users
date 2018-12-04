@@ -50,6 +50,10 @@ pub struct User {
     pub avatar: Option<String>,
     pub is_blocked: bool,
     pub emarsys_id: Option<EmarsysId>,
+    pub referal: Option<UserId>,
+    pub utm_marks: Option<serde_json::Value>,
+    pub country: Option<String>,
+    pub referer: Option<String>,
 }
 
 /// Payload for creating users
@@ -70,6 +74,10 @@ pub struct NewUser {
     pub birthdate: Option<NaiveDate>,
     pub last_login_at: SystemTime,
     pub saga_id: String,
+    pub referal: Option<UserId>,
+    pub utm_marks: Option<serde_json::Value>,
+    pub country: Option<String>,
+    pub referer: Option<String>,
 }
 
 /// Payload for updating users
@@ -115,6 +123,10 @@ impl From<NewIdentity> for NewUser {
             birthdate: None,
             last_login_at: SystemTime::now(),
             saga_id: identity.saga_id,
+            referal: None,
+            utm_marks: None,
+            country: None,
+            referer: None,
         }
     }
 }

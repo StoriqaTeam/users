@@ -21,6 +21,7 @@ pub struct JWT {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProviderOauth {
     pub token: String,
+    pub additional_data: Option<NewUserAdditionalData>,
 }
 
 /// Json web token payload
@@ -39,4 +40,12 @@ impl JWTPayload {
             provider: provider_arg,
         }
     }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct NewUserAdditionalData {
+    pub referal: Option<UserId>,
+    pub utm_marks: Option<serde_json::Value>,
+    pub country: Option<String>,
+    pub referer: Option<String>,
 }

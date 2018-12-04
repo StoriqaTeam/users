@@ -25,6 +25,7 @@ use stq_types::UserId;
 use self::profile::{Email, FacebookProfile, GoogleProfile, IntoUser, ProfileStatus};
 use super::util::password_verify;
 use errors::Error;
+use models::jwt::NewUserAdditionalData;
 use models::{self, EmailIdentity, JWTPayload, NewIdentity, NewUser, ProviderOauth, User, UserStatus, JWT};
 use repos::repo_factory::ReposFactory;
 use repos::types::RepoResult;
@@ -62,13 +63,20 @@ pub trait JWTService {
 /// Profile service trait, presents standard scheme for receiving profile information from providers
 
 trait ProfileService<T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static, P: Email> {
-    fn create_token(self, provider: Provider, info_url: String, headers: Option<Headers>, exp: i64) -> ServiceFuture<JWT>;
+    fn create_token(
+        self,
+        provider: Provider,
+        info_url: String,
+        headers: Option<Headers>,
+        additional_data: Option<NewUserAdditionalData>,
+        exp: i64,
+    ) -> ServiceFuture<JWT>;
 
     fn get_profile(&self, url: String, headers: Option<Headers>) -> ServiceFuture<P>;
 
     fn profile_status(&self, profile: P, provider: Provider) -> ServiceFuture<ProfileStatus>;
 
-    fn create_profile(&self, profile: P, provider: Provider) -> RepoResult<UserId>;
+    fn create_profile(&self, profile: P, provider: Provider, additional_data: Option<NewUserAdditionalData>) -> RepoResult<UserId>;
 
     fn update_profile(&self, conn: &T, profile: P) -> RepoResult<UserId>;
 
@@ -87,7 +95,14 @@ where
     P: for<'a> serde::Deserialize<'a>,
     P: IntoUser,
 {
-    fn create_token(self, provider: Provider, info_url: String, headers: Option<Headers>, exp: i64) -> ServiceFuture<JWT> {
+    fn create_token(
+        self,
+        provider: Provider,
+        info_url: String,
+        headers: Option<Headers>,
+        additional_data: Option<NewUserAdditionalData>,
+        exp: i64,
+    ) -> ServiceFuture<JWT> {
         let secret = self.static_context.jwt_private_key.clone();
         let service = Arc::new(self);
         let provider_clone = provider.clone();
@@ -116,13 +131,13 @@ where
                             }
                             ProfileStatus::NewUser => {
                                 debug!("No user matches profile. Creating one");
-                                s.create_profile(profile.clone(), provider).map(|id| {
+                                s.create_profile(profile.clone(), provider, additional_data).map(|id| {
                                     debug!("Created user {} for profile.", &id);
                                     (id, UserStatus::New(id))
                                 })
                             }
                             ProfileStatus::NewIdentity => {
-                                debug!("User exists, tying new identity to them.");
+                                debug!("User exists, trying new identity to them.");
                                 s.update_profile(&conn, profile).map(|id| {
                                     debug!("Created identity for user {}", id);
                                     (id, UserStatus::New(id))
@@ -186,14 +201,22 @@ where
         })
     }
 
-    fn create_profile(&self, profile_arg: P, provider: Provider) -> RepoResult<UserId> {
+    fn create_profile(&self, profile_arg: P, provider: Provider, additional_data: Option<NewUserAdditionalData>) -> RepoResult<UserId> {
         let new_user = NewUser::from(profile_arg.clone());
         let saga_addr = self.static_context.config.saga_addr.url.clone();
 
         let url = format!("{}/{}", saga_addr, "create_account");
 
+        let additional_data = additional_data.unwrap_or_default();
+
         serde_json::to_string(&models::SagaCreateProfile {
-            user: Some(new_user.clone()),
+            user: Some(NewUser {
+                referal: additional_data.referal,
+                utm_marks: additional_data.utm_marks,
+                referer: additional_data.referer,
+                country: additional_data.country,
+                ..new_user.clone()
+            }),
             identity: NewIdentity {
                 email: new_user.email,
                 password: None,
@@ -340,7 +363,15 @@ impl<
         let url = self.static_context.config.google.info_url.clone();
         let mut headers = Headers::new();
         headers.set(Authorization(Bearer { token: oauth.token }));
-        <Service<T, M, F> as ProfileService<T, GoogleProfile>>::create_token(self, Provider::Google, url, Some(headers), exp)
+        let additional_data = oauth.additional_data;
+        <Service<T, M, F> as ProfileService<T, GoogleProfile>>::create_token(
+            self,
+            Provider::Google,
+            url,
+            Some(headers),
+            additional_data,
+            exp,
+        )
     }
 
     /// https://developers.facebook.com/docs/facebook-login/manually-build-a-login-flow
@@ -351,7 +382,8 @@ impl<
             "{}?fields=first_name,last_name,gender,email,name&access_token={}",
             info_url, oauth.token
         );
-        <Service<T, M, F> as ProfileService<T, FacebookProfile>>::create_token(self, Provider::Facebook, url, None, exp)
+        let additional_data = oauth.additional_data;
+        <Service<T, M, F> as ProfileService<T, FacebookProfile>>::create_token(self, Provider::Facebook, url, None, additional_data, exp)
     }
 }
 
