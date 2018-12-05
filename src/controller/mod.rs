@@ -257,7 +257,7 @@ impl<
                     .map_err(|e| e.context("Parsing body failed, target: JWTPayload").context(Error::Parse).into())
                     .inspect(|payload| {
                         debug!("Received request to revoke all tokens for: {:?}", &payload);
-                    }).and_then(move |oauth| service.revoke_tokens(oauth)),
+                    }).and_then(move |oauth| service.revoke_tokens(oauth.user_id, oauth.provider)),
             ),
 
             // POST /jwt/facebook
