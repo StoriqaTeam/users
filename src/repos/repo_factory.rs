@@ -277,6 +277,9 @@ pub mod tests {
             let user = create_user(UserId(1), MOCK_EMAIL.to_string());
             Ok(vec![user])
         }
+        fn revoke_tokens(&self, _user_id_arg: UserId, _revoke_before_: SystemTime) -> RepoResult<()> {
+            Ok(())
+        }
     }
 
     #[derive(Clone, Default)]
@@ -483,6 +486,7 @@ pub mod tests {
             referal: None,
             referer: None,
             utm_marks: None,
+            revoke_before: SystemTime::now(),
         }
     }
 

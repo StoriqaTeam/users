@@ -1,14 +1,17 @@
 //! Users Services, presents CRUD operations with users
 
 use chrono::Utc;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use diesel::connection::AnsiTransactionManager;
 use diesel::pg::Pg;
 use diesel::Connection;
 use failure::Error as FailureError;
 use failure::Fail;
-use futures::{future, Future};
+use futures::future;
+use futures::{Future, IntoFuture};
+use jsonwebtoken::{encode, Algorithm, Header};
+
 use r2d2::ManageConnection;
 use uuid::Uuid;
 
@@ -19,8 +22,8 @@ use super::types::ServiceFuture;
 use super::util::{password_create, password_verify};
 use errors::Error;
 use models::{
-    ChangeIdentityPassword, EmailVerifyApplyToken, NewIdentity, NewUser, ResetApplyToken, ResetToken, UpdateIdentity, UpdateUser, User,
-    UserSearchResults, UsersSearchTerms,
+    ChangeIdentityPassword, EmailVerifyApplyToken, JWTPayload, NewIdentity, NewUser, ResetApplyToken, ResetToken, UpdateIdentity,
+    UpdateUser, User, UserSearchResults, UsersSearchTerms,
 };
 use repos::repo_factory::ReposFactory;
 use services::jwt::JWTService;
@@ -63,6 +66,8 @@ pub trait UsersService {
     fn set_block_status(&self, user_id: UserId, is_blocked: bool) -> ServiceFuture<User>;
     /// Fuzzy search users by email
     fn fuzzy_search_by_email(&self, term_email: String) -> ServiceFuture<Vec<User>>;
+    /// Revoke all tokens for user
+    fn revoke_tokens(&self, oauth: JWTPayload) -> ServiceFuture<String>;
 }
 
 impl<
@@ -545,6 +550,43 @@ impl<
                 .fuzzy_search_by_email(term_email)
                 .map_err(|e: FailureError| e.context("Service users, fuzzy_search_by_email endpoint error occured.").into())
         })
+    }
+
+    /// Revoke all tokens for user
+    fn revoke_tokens(&self, oauth: JWTPayload) -> ServiceFuture<String> {
+        let current_uid = self.dynamic_context.user_id;
+        let repo_factory = self.static_context.repo_factory.clone();
+        let jwt_expiration_s = self.static_context.config.tokens.jwt_expiration_s;
+        let secret = self.static_context.jwt_private_key.clone();
+        let user_id = oauth.user_id;
+        // revoking all tokens given before current date
+        // expiration date of tokens must be later than now + jwt_exp
+        let revoke_before = SystemTime::now() + Duration::from_secs(jwt_expiration_s);
+
+        debug!("Revoking all tokens for user {}", user_id);
+
+        Box::new(
+            self.spawn_on_pool(move |conn| {
+                let users_repo = repo_factory.create_users_repo(&conn, current_uid);
+                users_repo
+                    .revoke_tokens(user_id, revoke_before)
+                    .map_err(|e: FailureError| e.context("Service users, revoke_tokens endpoint error occured.").into())
+            }).and_then(move |_| {
+                let exp = Utc::now().timestamp() + jwt_expiration_s as i64;
+                let tokenpayload = JWTPayload::new(user_id, exp, oauth.provider);
+                encode(&Header::new(Algorithm::RS256), &tokenpayload, secret.as_ref())
+                    .map_err(|e| {
+                        format_err!("{}", e)
+                            .context(Error::Parse)
+                            .context(format!("Couldn't encode jwt: {:?}.", tokenpayload))
+                            .into()
+                    }).into_future()
+                    .map(move |token| {
+                        debug!("Token {} created successfully for user_id {:?}", token, user_id);
+                        token
+                    })
+            }),
+        )
     }
 }
 

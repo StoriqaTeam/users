@@ -3,6 +3,7 @@ pub mod profile;
 
 use std::sync::Arc;
 
+use chrono::Utc;
 use diesel::connection::AnsiTransactionManager;
 use diesel::pg::Pg;
 use diesel::Connection;
@@ -58,6 +59,7 @@ pub trait JWTService {
                 }),
         )
     }
+    fn refresh_token(&self, old_payload: JWTPayload) -> ServiceFuture<String>;
 }
 
 /// Profile service trait, presents standard scheme for receiving profile information from providers
@@ -384,6 +386,32 @@ impl<
         );
         let additional_data = oauth.additional_data;
         <Service<T, M, F> as ProfileService<T, FacebookProfile>>::create_token(self, Provider::Facebook, url, None, additional_data, exp)
+    }
+
+    fn refresh_token(&self, old_payload: JWTPayload) -> ServiceFuture<String> {
+        let refresh_timeout = self.static_context.config.tokens.refresh_timeout_s;
+        let jwt_expiration_s = self.static_context.config.tokens.jwt_expiration_s;
+        let secret = self.static_context.jwt_private_key.clone();
+
+        if old_payload.exp + (refresh_timeout as i64) < Utc::now().timestamp() {
+            Box::new(Err(Error::InvalidToken.context("Couldn't refresh jwt, it is expired.").into()).into_future())
+        } else {
+            let exp = Utc::now().timestamp() + jwt_expiration_s as i64;
+            let tokenpayload = JWTPayload::new(old_payload.user_id, exp, old_payload.provider);
+            Box::new(
+                encode(&Header::new(Algorithm::RS256), &tokenpayload, secret.as_ref())
+                    .map_err(|e| {
+                        format_err!("{}", e)
+                            .context(Error::Parse)
+                            .context(format!("Couldn't encode jwt: {:?}.", tokenpayload))
+                            .into()
+                    }).into_future()
+                    .map(move |token| {
+                        debug!("Token {} created successfully for user_id {:?}", token, old_payload.user_id);
+                        token
+                    }),
+            )
+        }
     }
 }
 

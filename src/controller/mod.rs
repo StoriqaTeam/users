@@ -242,6 +242,24 @@ impl<
                     }).and_then(move |oauth| service.create_token_google(oauth, token_expiration)),
             ),
 
+            // POST /jwt/refresh
+            (&Post, Some(Route::JWTRefresh)) => serialize_future(
+                parse_body::<models::jwt::JWTPayload>(req.body())
+                    .map_err(|e| e.context("Parsing body failed, target: JWTPayload").context(Error::Parse).into())
+                    .inspect(|payload| {
+                        debug!("Received request to refresh jwt token for: {:?}", &payload);
+                    }).and_then(move |oauth| service.refresh_token(oauth)),
+            ),
+
+            // POST /jwt/revoke
+            (&Post, Some(Route::JWTRevoke)) => serialize_future(
+                parse_body::<models::jwt::JWTPayload>(req.body())
+                    .map_err(|e| e.context("Parsing body failed, target: JWTPayload").context(Error::Parse).into())
+                    .inspect(|payload| {
+                        debug!("Received request to revoke all tokens for: {:?}", &payload);
+                    }).and_then(move |oauth| service.revoke_tokens(oauth)),
+            ),
+
             // POST /jwt/facebook
             (&Post, Some(Route::JWTFacebook)) => serialize_future(
                 parse_body::<models::jwt::ProviderOauth>(req.body())

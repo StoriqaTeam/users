@@ -19,7 +19,8 @@ pub enum Route {
     JWTEmail,
     JWTGoogle,
     JWTFacebook,
-    JWTRenew,
+    JWTRefresh,
+    JWTRevoke,
     Roles,
     RoleById { id: RoleId },
     RolesByUserId { user_id: UserId },
@@ -58,6 +59,12 @@ pub fn create_route_parser() -> RouteParser<Route> {
 
     // JWT facebook route
     router.add_route(r"^/jwt/facebook$", || Route::JWTFacebook);
+
+    // JWT refresh route
+    router.add_route(r"^/jwt/refresh", || Route::JWTRefresh);
+
+    // JWT revoke route
+    router.add_route(r"^/jwt/revoke", || Route::JWTRevoke);
 
     // Users/:id route
     router.add_route_with_params(r"^/users/(\d+)$", |params| {

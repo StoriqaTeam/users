@@ -1,4 +1,6 @@
 //! Users repo, presents CRUD operations with db for users
+use std::time::SystemTime;
+
 use diesel;
 use diesel::connection::AnsiTransactionManager;
 use diesel::dsl::{exists, sql};
@@ -65,6 +67,9 @@ pub trait UsersRepo {
 
     /// Fuzzy search users by email
     fn fuzzy_search_by_email(&self, email_arg: String) -> RepoResult<Vec<User>>;
+
+    /// Revoke all tokens for user
+    fn revoke_tokens(&self, user_id: UserId, revoke_before: SystemTime) -> RepoResult<()>;
 }
 
 impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static> UsersRepoImpl<'a, T> {
@@ -299,6 +304,24 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 
                 Ok(users_res)
             }).map_err(|e: FailureError| e.context(format!("fuzzy search for users by email error occured")).into())
+    }
+    /// Revoke all tokens for user
+    fn revoke_tokens(&self, user_id_arg: UserId, revoke_before_: SystemTime) -> RepoResult<()> {
+        let query = users.find(user_id_arg.clone());
+
+        query
+            .get_result(self.db_conn)
+            .map_err(From::from)
+            .and_then(|user: User| acl::check(&*self.acl, Resource::Users, Action::Update, self, Some(&user)))
+            .and_then(|_| {
+                let filter = users.filter(id.eq(user_id_arg.clone()));
+                let query = diesel::update(filter).set(revoke_before.eq(revoke_before_));
+
+                query.get_result(self.db_conn).map_err(From::from).map(|_: User| ())
+            }).map_err(|e: FailureError| {
+                e.context(format!("Set revoke before for user {:?} error occured", user_id_arg))
+                    .into()
+            })
     }
 }
 

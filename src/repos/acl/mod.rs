@@ -145,6 +145,7 @@ mod tests {
             referal: None,
             referer: None,
             utm_marks: None,
+            revoke_before: SystemTime::now(),
         }
     }
 
