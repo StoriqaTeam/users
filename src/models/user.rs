@@ -9,7 +9,7 @@ use regex::Regex;
 use validator::{Validate, ValidationError};
 
 use stq_static_resources::Gender;
-use stq_types::{EmarsysId, UserId};
+use stq_types::{Alpha3, EmarsysId, UserId};
 
 use models::NewIdentity;
 use schema::users;
@@ -52,7 +52,7 @@ pub struct User {
     pub emarsys_id: Option<EmarsysId>,
     pub referal: Option<UserId>,
     pub utm_marks: Option<serde_json::Value>,
-    pub country: Option<String>,
+    pub country: Option<Alpha3>,
     pub referer: Option<String>,
 }
 
@@ -76,7 +76,7 @@ pub struct NewUser {
     pub saga_id: String,
     pub referal: Option<UserId>,
     pub utm_marks: Option<serde_json::Value>,
-    pub country: Option<String>,
+    pub country: Option<Alpha3>,
     pub referer: Option<String>,
 }
 
