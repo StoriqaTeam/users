@@ -36,6 +36,7 @@ use sentry_integration::log_and_capture_error;
 use services::jwt::JWTService;
 use services::user_roles::UserRolesService;
 use services::users::UsersService;
+use services::util::UtilService;
 use services::Service;
 
 /// Controller handles route parsing and calling `Service` layer
@@ -96,6 +97,9 @@ impl<
         let path = req.path().to_string();
 
         let fut = match (&req.method().clone(), self.static_context.route_parser.test(req.path())) {
+            // POST /clear_database
+            (&Post, Some(Route::ClearDatabase)) => serialize_future(service.clear_database()),
+
             // GET /users/<user_id>
             (&Get, Some(Route::User(user_id))) => serialize_future(service.get(user_id)),
 

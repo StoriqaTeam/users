@@ -25,6 +25,7 @@ pub enum Route {
     PasswordChange,
     UserPasswordResetToken,
     UserEmailVerifyToken,
+    ClearDatabase,
 }
 
 pub fn create_route_parser() -> RouteParser<Route> {
@@ -32,6 +33,9 @@ pub fn create_route_parser() -> RouteParser<Route> {
 
     // Healthcheck
     router.add_route(r"^/healthcheck$", || Route::Healthcheck);
+
+    // Truncate tables for testing purpuses
+    router.add_route(r"^/clear_database$", || Route::ClearDatabase);
 
     // Users Routes
     router.add_route(r"^/users$", || Route::Users);
