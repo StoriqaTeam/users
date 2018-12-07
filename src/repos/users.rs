@@ -57,6 +57,9 @@ pub trait UsersRepo {
     /// Deletes specific user
     fn delete_by_saga_id(&self, saga_id_arg: String) -> RepoResult<User>;
 
+    /// Delete user by id
+    fn delete(&self, user_id: UserId) -> RepoResult<()>;
+
     /// Search users limited by `from`, `skip` and `count` parameters
     fn search(&self, from: Option<UserId>, skip: i64, count: i64, term: UsersSearchTerms) -> RepoResult<UserSearchResults>;
 
@@ -228,6 +231,17 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
             e.context(format!("Delete specific user by saga id {:?} error occured", saga_id_arg))
                 .into()
         })
+    }
+
+    /// Delete user by id
+    fn delete(&self, user_id_arg: UserId) -> RepoResult<()> {
+        let filtered = users.filter(id.eq(user_id_arg.clone()));
+        let query = diesel::delete(filtered);
+
+        query
+            .get_result::<User>(self.db_conn)
+            .map_err(|e| e.context(format!("Delete user by id: {} error occured", user_id_arg)).into())
+            .map(|_| ())
     }
 
     /// Search users limited by `from`, `skip` and `count` parameters

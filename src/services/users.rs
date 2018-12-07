@@ -8,8 +8,7 @@ use diesel::pg::Pg;
 use diesel::Connection;
 use failure::Error as FailureError;
 use failure::Fail;
-use futures::future;
-use futures::Future;
+use futures::{future, Future};
 use r2d2::ManageConnection;
 use uuid::Uuid;
 
@@ -40,6 +39,8 @@ pub trait UsersService {
     fn deactivate(&self, user_id: UserId) -> ServiceFuture<User>;
     /// Deletes user by saga id
     fn delete_by_saga_id(&self, saga_id: String) -> ServiceFuture<User>;
+    /// Delete user by id
+    fn delete(self, user_id: UserId) -> ServiceFuture<()>;
     /// Creates new user
     fn create(&self, payload: NewIdentity, user_payload: Option<NewUser>) -> ServiceFuture<User>;
     /// Get email verification token
@@ -174,6 +175,27 @@ impl<
             users_repo
                 .delete_by_saga_id(saga_id)
                 .map_err(|e: FailureError| e.context("Service users, delete_by_saga_id endpoint error occured.").into())
+        })
+    }
+
+    /// Delete user by id
+    fn delete(self, user_id_arg: UserId) -> ServiceFuture<()> {
+        let current_uid = self.dynamic_context.user_id;
+        let repo_factory = self.static_context.repo_factory.clone();
+
+        debug!("Deleting user with id {}", user_id_arg);
+
+        if current_uid != Some(UserId(1)) {
+            // can only superadmin with id = 1
+            return Box::new(future::err(Error::Forbidden.context("Cannot delete user").into()));
+        }
+
+        self.spawn_on_pool(move |conn| {
+            let users_repo = repo_factory.create_users_repo(&conn, current_uid);
+
+            users_repo
+                .delete(user_id_arg)
+                .map_err(|e: FailureError| e.context("Service users, delete endpoint error occured.").into())
         })
     }
 

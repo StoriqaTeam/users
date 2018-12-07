@@ -203,6 +203,9 @@ impl<
             // DELETE /users/<user_id>
             (&Delete, Some(Route::User(user_id))) => serialize_future(service.deactivate(user_id)),
 
+            // DELETE /users/:user_id
+            (&Delete, Some(Route::UserDelete(user_id))) => serialize_future(service.delete(user_id)),
+
             // DELETE /user_by_saga_id/<user_id>
             (&Delete, Some(Route::UserBySagaId(saga_id))) => serialize_future(service.delete_by_saga_id(saga_id)),
 
