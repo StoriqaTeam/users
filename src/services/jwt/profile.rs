@@ -32,6 +32,10 @@ impl From<GoogleProfile> for NewUser {
             birthdate: None,
             last_login_at: SystemTime::now(),
             saga_id: Uuid::new_v4().to_string(),
+            referal: None,
+            utm_marks: None,
+            country: None,
+            referer: None,
         }
     }
 }
@@ -64,6 +68,10 @@ impl From<FacebookProfile> for NewUser {
             birthdate: None,
             last_login_at: SystemTime::now(),
             saga_id: Uuid::new_v4().to_string(),
+            referal: None,
+            utm_marks: None,
+            country: None,
+            referer: None,
         }
     }
 }

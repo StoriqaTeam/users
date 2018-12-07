@@ -141,6 +141,10 @@ mod tests {
             saga_id: "saga_id".to_string(),
             is_blocked: false,
             emarsys_id: None,
+            country: None,
+            referal: None,
+            referer: None,
+            utm_marks: None,
         }
     }
 

@@ -474,6 +474,10 @@ pub mod tests {
             saga_id: MOCK_SAGA_ID.to_string(),
             is_blocked: false,
             emarsys_id: None,
+            country: None,
+            referal: None,
+            referer: None,
+            utm_marks: None,
         }
     }
 
