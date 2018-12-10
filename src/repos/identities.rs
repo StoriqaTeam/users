@@ -79,11 +79,13 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
             identities
                 .filter(email.eq(email_arg.clone()))
                 .filter(provider.eq(provider_arg.clone())),
-        ))).map_err(|e| {
+        )))
+        .map_err(|e| {
             e.context(format!(
                 "Checks if e-mail {} with provider {} is already registered error occurred.",
                 email_arg, provider_arg
-            )).into()
+            ))
+            .into()
         })
     }
 
@@ -116,11 +118,13 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
             identities
                 .filter(email.eq(email_arg.clone()))
                 .filter(password.eq(password_arg.clone())),
-        ))).map_err(|e| {
+        )))
+        .map_err(|e| {
             e.context(format!(
                 "Verifies password email {} password {} error occurred.",
                 email_arg, password_arg
-            )).into()
+            ))
+            .into()
         })
     }
 
@@ -134,7 +138,8 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
             e.context(format!(
                 "Find specific user by user_id {} provider {} error occurred.",
                 user_id_arg, provider_arg
-            )).into()
+            ))
+            .into()
         })
     }
 
@@ -148,7 +153,8 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
             e.context(format!(
                 "Find specific user by email {} provider {} error occurred.",
                 email_arg, provider_arg
-            )).into()
+            ))
+            .into()
         })
     }
 
@@ -163,7 +169,8 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
             e.context(format!(
                 "Update identity {:?} with new identity {:?} error occurred.",
                 ident, update
-            )).into()
+            ))
+            .into()
         })
     }
 }

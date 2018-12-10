@@ -54,6 +54,7 @@ table! {
         utm_marks -> Nullable<Jsonb>,
         country -> Nullable<Varchar>,
         referer -> Nullable<Varchar>,
+        revoke_before -> Timestamp,
     }
 }
 

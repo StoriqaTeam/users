@@ -252,7 +252,7 @@ pub mod tests {
             Ok(user)
         }
 
-        fn delete(&self, user_id_arg: UserId) -> RepoResult<()> {
+        fn delete(&self, _user_id_arg: UserId) -> RepoResult<()> {
             Ok(())
         }
 
@@ -276,6 +276,9 @@ pub mod tests {
         fn fuzzy_search_by_email(&self, _term_email: String) -> RepoResult<Vec<User>> {
             let user = create_user(UserId(1), MOCK_EMAIL.to_string());
             Ok(vec![user])
+        }
+        fn revoke_tokens(&self, _user_id_arg: UserId, _revoke_before_: SystemTime) -> RepoResult<()> {
+            Ok(())
         }
     }
 
@@ -483,6 +486,7 @@ pub mod tests {
             referal: None,
             referer: None,
             utm_marks: None,
+            revoke_before: SystemTime::now(),
         }
     }
 

@@ -54,6 +54,7 @@ pub struct User {
     pub utm_marks: Option<serde_json::Value>,
     pub country: Option<Alpha3>,
     pub referer: Option<String>,
+    pub revoke_before: SystemTime,
 }
 
 /// Payload for creating users

@@ -55,6 +55,7 @@ impl ApplicationAcl {
                 permission!(Resource::Users, Action::Create),
                 permission!(Resource::Users, Action::Block),
                 permission!(Resource::Users, Action::Delete),
+                permission!(Resource::Users, Action::Update, Scope::Owned),
                 permission!(Resource::UserRoles),
             ],
         );
@@ -145,6 +146,7 @@ mod tests {
             referal: None,
             referer: None,
             utm_marks: None,
+            revoke_before: SystemTime::now(),
         }
     }
 

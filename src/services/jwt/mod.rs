@@ -3,6 +3,7 @@ pub mod profile;
 
 use std::sync::Arc;
 
+use chrono::Utc;
 use diesel::connection::AnsiTransactionManager;
 use diesel::pg::Pg;
 use diesel::Connection;
@@ -51,13 +52,15 @@ pub trait JWTService {
                         .context(Error::Parse)
                         .context(format!("Couldn't encode jwt: {:?}.", tokenpayload))
                         .into()
-                }).into_future()
+                })
+                .into_future()
                 .map(move |token| {
                     debug!("Token {} created successfully for user_id {:?}", token, id);
                     token
                 }),
         )
     }
+    fn refresh_token(&self, old_payload: JWTPayload) -> ServiceFuture<String>;
 }
 
 /// Profile service trait, presents standard scheme for receiving profile information from providers
@@ -116,7 +119,8 @@ where
                     let profile_clone = profile.clone();
                     s.profile_status(profile, provider).map(|status| (status, profile_clone))
                 }
-            }).and_then({
+            })
+            .and_then({
                 let s = service.clone();
                 move |(status, profile)| -> ServiceFuture<(UserId, UserStatus)> {
                     s.spawn_on_pool({
@@ -146,13 +150,15 @@ where
                         }
                     })
                 }
-            }).and_then({
+            })
+            .and_then({
                 let s = service.clone();
                 move |(id, status)| {
                     s.create_jwt(id, exp, secret, provider_clone)
                         .and_then(move |token| future::ok(JWT { token, status }))
                 }
-            }).map_err(|e: FailureError| e.context("Service jwt, create_token endpoint error occured.").into());
+            })
+            .map_err(|e: FailureError| e.context("Service jwt, create_token endpoint error occured.").into());
 
         Box::new(future)
     }
@@ -166,13 +172,15 @@ where
                     e.context("Failed to receive user info from provider. {}")
                         .context(Error::Forbidden)
                         .into()
-                }).and_then(|val| {
+                })
+                .and_then(|val| {
                     if val["email"].is_null() {
                         Err(Error::Validate(validation_errors!({"email": ["email" => "Email required but not provided"]})).into())
                     } else {
                         serde_json::from_value::<P>(val.clone()).map_err(|e| e.context(format!("Can not parse profile: {}", val)).into())
                     }
-                }).map_err(|e: FailureError| e.context("Service jwt, get_profile endpoint error occured.").into()),
+                })
+                .map_err(|e: FailureError| e.context("Service jwt, get_profile endpoint error occured.").into()),
         )
     }
 
@@ -197,7 +205,8 @@ where
                         Ok(ProfileStatus::NewUser)
                     }
                 })
-            }).map_err(|e: FailureError| e.context("Service jwt, profile_status endpoint error occured.").into())
+            })
+            .map_err(|e: FailureError| e.context("Service jwt, profile_status endpoint error occured.").into())
         })
     }
 
@@ -223,14 +232,16 @@ where
                 provider,
                 saga_id: Uuid::new_v4().to_string(),
             },
-        }).map_err(From::from)
+        })
+        .map_err(From::from)
         .and_then(|body| {
             self.dynamic_context
                 .http_client
                 .request_json::<User>(Method::Post, url, Some(body), None)
                 .wait()
                 .map_err(|e| e.context(Error::HttpClient).into())
-        }).map(|created_user| created_user.id)
+        })
+        .map(|created_user| created_user.id)
         .map_err(|e: FailureError| e.context("Service jwt, create_profile saga request failed.").into())
     }
 
@@ -257,7 +268,8 @@ where
                         .context(format!("User with email {} not found!", profile.get_email()))
                         .into())
                 }
-            }).map_err(|e: FailureError| e.context("Service jwt, update_profile endpoint error occured.").into())
+            })
+            .map_err(|e: FailureError| e.context("Service jwt, update_profile endpoint error occured.").into())
     }
 
     fn get_id(&self, profile: P, provider: Provider) -> ServiceFuture<UserId> {
@@ -316,7 +328,8 @@ impl<
                                                     Err(Error::Validate(validation_errors!({"password": ["password" => "Wrong password"]}))
                                                         .into())
                                                 }
-                                            }).and_then(move |verified| -> Result<UserId, FailureError> {
+                                            })
+                                            .and_then(move |verified| -> Result<UserId, FailureError> {
                                                 if !verified {
                                                     //password not verified
                                                     Err(Error::Validate(validation_errors!({"password": ["password" => "Wrong password"]}))
@@ -338,7 +351,8 @@ impl<
                                 }
                             })
                         }
-                    }).and_then(move |id| {
+                    })
+                    .and_then(move |id| {
                         let tokenpayload = JWTPayload::new(id, exp, Provider::Email);
                         encode(&Header::new(Algorithm::RS256), &tokenpayload, jwt_private_key.as_ref())
                             .map_err(|e| {
@@ -346,14 +360,16 @@ impl<
                                     .context(Error::Parse)
                                     .context(format!("Couldn't encode jwt: {:?}.", tokenpayload))
                                     .into()
-                            }).and_then(|t| {
+                            })
+                            .and_then(|t| {
                                 Ok(JWT {
                                     token: t,
                                     status: UserStatus::Exists,
                                 })
                             })
                     })
-            }).map_err(|e: FailureError| e.context("Service jwt, create_token_email endpoint error occured.").into())
+            })
+            .map_err(|e: FailureError| e.context("Service jwt, create_token_email endpoint error occured.").into())
         })
     }
 
@@ -384,6 +400,33 @@ impl<
         );
         let additional_data = oauth.additional_data;
         <Service<T, M, F> as ProfileService<T, FacebookProfile>>::create_token(self, Provider::Facebook, url, None, additional_data, exp)
+    }
+
+    fn refresh_token(&self, old_payload: JWTPayload) -> ServiceFuture<String> {
+        let refresh_timeout = self.static_context.config.tokens.refresh_timeout_s;
+        let jwt_expiration_s = self.static_context.config.tokens.jwt_expiration_s;
+        let secret = self.static_context.jwt_private_key.clone();
+
+        if old_payload.exp + (refresh_timeout as i64) < Utc::now().timestamp() {
+            Box::new(Err(Error::InvalidToken.context("Couldn't refresh jwt, it is expired.").into()).into_future())
+        } else {
+            let exp = Utc::now().timestamp() + jwt_expiration_s as i64;
+            let tokenpayload = JWTPayload::new(old_payload.user_id, exp, old_payload.provider);
+            Box::new(
+                encode(&Header::new(Algorithm::RS256), &tokenpayload, secret.as_ref())
+                    .map_err(|e| {
+                        format_err!("{}", e)
+                            .context(Error::Parse)
+                            .context(format!("Couldn't encode jwt: {:?}.", tokenpayload))
+                            .into()
+                    })
+                    .into_future()
+                    .map(move |token| {
+                        debug!("Token {} created successfully for user_id {:?}", token, old_payload.user_id);
+                        token
+                    }),
+            )
+        }
     }
 }
 

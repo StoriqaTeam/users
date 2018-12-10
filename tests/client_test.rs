@@ -53,7 +53,8 @@ fn test_request() {
             let out = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}", message_str.len(), message_str);
             inc.write_all(out.as_ref()).unwrap();
             let _ = tx.send(());
-        }).unwrap();
+        })
+        .unwrap();
 
     let config = Config::new().unwrap();
     let client = stq_http::client::Client::new(&config.to_http_config(), &handle);
