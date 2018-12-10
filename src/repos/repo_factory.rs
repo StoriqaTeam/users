@@ -251,6 +251,11 @@ pub mod tests {
             let user = create_user(UserId(1), MOCK_EMAIL.to_string());
             Ok(user)
         }
+
+        fn delete(&self, user_id_arg: UserId) -> RepoResult<()> {
+            Ok(())
+        }
+
         fn search(&self, from: Option<UserId>, skip: i64, count: i64, _term: UsersSearchTerms) -> RepoResult<UserSearchResults> {
             let mut users = vec![];
             let from_id = from.unwrap_or(UserId(1));

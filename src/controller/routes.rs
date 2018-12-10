@@ -7,6 +7,7 @@ pub enum Route {
     Healthcheck,
     Users,
     User(UserId),
+    UserDelete(UserId),
     UserBlock(UserId),
     UserUnblock(UserId),
     UserBySagaId(String),
@@ -41,6 +42,13 @@ pub fn create_route_parser() -> RouteParser<Route> {
 
     // Users Routes
     router.add_route(r"^/users/current$", || Route::Current);
+
+    router.add_route_with_params(r"^/users/(\d+)/delete$", |params| {
+        params
+            .get(0)
+            .and_then(|string_id| string_id.parse::<UserId>().ok())
+            .map(Route::UserDelete)
+    });
 
     // JWT email route
     router.add_route(r"^/jwt/email$", || Route::JWTEmail);
