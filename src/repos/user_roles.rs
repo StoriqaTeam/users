@@ -93,12 +93,14 @@ where
                         .map(|user_role| user_role.name)
                         .collect::<Vec<UsersRole>>();
                     Ok(roles)
-                }).and_then(|roles| {
+                })
+                .and_then(|roles| {
                     if !roles.is_empty() {
                         self.cached_roles.set(user_id_value, roles.clone());
                     }
                     Ok(roles)
-                }).map_err(|e: FailureError| {
+                })
+                .map_err(|e: FailureError| {
                     e.context(format!("List user roles for user {} error occured.", user_id_value))
                         .into()
                 })
@@ -115,7 +117,8 @@ where
             .and_then(|user_role_arg: UserRole| {
                 acl::check(&*self.acl, Resource::UserRoles, Action::Create, self, Some(&user_role_arg))?;
                 Ok(user_role_arg)
-            }).map_err(|e: FailureError| e.context(format!("Create a new user role {:?} error occured", payload)).into())
+            })
+            .map_err(|e: FailureError| e.context(format!("Create a new user role {:?} error occured", payload)).into())
     }
 
     /// Delete role of a user
@@ -128,10 +131,12 @@ where
             .and_then(|user_role_arg: UserRole| {
                 acl::check(&*self.acl, Resource::UserRoles, Action::Delete, self, Some(&user_role_arg))?;
                 Ok(user_role_arg)
-            }).map(|user_role: UserRole| {
+            })
+            .map(|user_role: UserRole| {
                 self.cached_roles.remove(user_role.user_id);
                 user_role
-            }).map_err(|e: FailureError| e.context(format!("Delete user role {:?} error occured", id_arg)).into())
+            })
+            .map_err(|e: FailureError| e.context(format!("Delete user role {:?} error occured", id_arg)).into())
     }
 
     /// Delete user roles by user id
@@ -147,7 +152,8 @@ where
                     acl::check(&*self.acl, Resource::UserRoles, Action::Delete, self, Some(&user_role_arg))?;
                 }
                 Ok(user_roles_arg)
-            }).map_err(|e: FailureError| e.context(format!("Delete user {} roles error occured", user_id_arg)).into())
+            })
+            .map_err(|e: FailureError| e.context(format!("Delete user {} roles error occured", user_id_arg)).into())
     }
 
     /// Delete user roles by user id and name
@@ -161,7 +167,8 @@ where
             .and_then(|user_role_arg| {
                 acl::check(&*self.acl, Resource::UserRoles, Action::Delete, self, Some(&user_role_arg))?;
                 Ok(user_role_arg)
-            }).map_err(|e: FailureError| {
+            })
+            .map_err(|e: FailureError| {
                 e.context(format!("Delete user {} role {:?} error occured", user_id_arg, name_arg))
                     .into()
             })

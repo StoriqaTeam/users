@@ -231,7 +231,8 @@ impl<
                 } else {
                     Err(Error::Validate(validation_errors!({"email": ["email" => "Email already exists"]})).into())
                 }
-            }).map_err(|e: FailureError| e.context("Service users, create endpoint error occured.").into())
+            })
+            .map_err(|e: FailureError| e.context("Service users, create endpoint error occured.").into())
         })
     }
 
@@ -254,7 +255,8 @@ impl<
                 if token_duration < email_sending_timeout {
                     return Err(Error::Validate(
                         validation_errors!({"email": ["email_timeout" => "can not send email more often then 30 seconds"]}),
-                    ).into());
+                    )
+                    .into());
                 }
             }
 
@@ -313,8 +315,10 @@ impl<
                     }?;
 
                     Ok(user)
-                }.map_err(|e: FailureError| e.context("Service users, verify_email endpoint error occured.").into())
-            }).and_then(move |user| {
+                }
+                .map_err(|e: FailureError| e.context("Service users, verify_email endpoint error occured.").into())
+            })
+            .and_then(move |user| {
                 let provider = Provider::Email;
                 let exp = Utc::now().timestamp() + jwt_expiration_s as i64;
                 service
@@ -375,8 +379,10 @@ impl<
                                 error!("No password in db for user with Email provider, user_id: {}", &ident_clone.user_id);
                                 Err(Error::Validate(validation_errors!({"password": ["password" => "Wrong password"]})).into())
                             }
-                        }).map_err(|e: FailureError| e.context("Service users, change_password endpoint error occured.").into())
-                    }).and_then(move |identity| service.revoke_tokens(identity.user_id, Provider::Email)),
+                        })
+                        .map_err(|e: FailureError| e.context("Service users, change_password endpoint error occured.").into())
+                    })
+                    .and_then(move |identity| service.revoke_tokens(identity.user_id, Provider::Email)),
                 )
             }
             None => Box::new(future::err(
@@ -416,7 +422,8 @@ impl<
                     if token_duration < email_sending_timeout {
                         return Err(Error::Validate(
                             validation_errors!({"email": ["email_timeout" => "can not send email more often then 30 seconds"]}),
-                        ).into());
+                        )
+                        .into());
                     }
                 }
 
@@ -424,7 +431,8 @@ impl<
                     .upsert(ident.email.clone(), TokenType::PasswordReset, Some(uuid))
                     .map_err(|e| e.context("Cannot create reset token"))?;
                 Ok(t.token)
-            }.map_err(|e: FailureError| e.context("Service users, password_reset_request endpoint error occured.").into())
+            }
+            .map_err(|e: FailureError| e.context("Service users, password_reset_request endpoint error occured.").into())
         })
     }
 
@@ -464,8 +472,10 @@ impl<
                     }?;
 
                     Ok(identity)
-                }.map_err(|e: FailureError| e.context("Service users, password_reset_apply endpoint error occured.").into())
-            }).and_then(move |identity| {
+                }
+                .map_err(|e: FailureError| e.context("Service users, password_reset_apply endpoint error occured.").into())
+            })
+            .and_then(move |identity| {
                 service.revoke_tokens(identity.user_id, identity.provider).and_then(move |token| {
                     Ok(ResetApplyToken {
                         token,
@@ -543,7 +553,8 @@ impl<
                 users_repo
                     .revoke_tokens(user_id, revoke_before)
                     .map_err(|e: FailureError| e.context("Service users, revoke_tokens endpoint error occured.").into())
-            }).and_then(move |_| {
+            })
+            .and_then(move |_| {
                 let exp = Utc::now().timestamp() + jwt_expiration_s as i64;
                 let tokenpayload = JWTPayload::new(user_id, exp, provider);
                 encode(&Header::new(Algorithm::RS256), &tokenpayload, secret.as_ref())
@@ -552,7 +563,8 @@ impl<
                             .context(Error::Parse)
                             .context(format!("Couldn't encode jwt: {:?}.", tokenpayload))
                             .into()
-                    }).into_future()
+                    })
+                    .into_future()
                     .map(move |token| {
                         debug!("Token {} created successfully for user_id {:?}", token, user_id);
                         token

@@ -105,7 +105,8 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                     acl::check(&*self.acl, Resource::Users, Action::Read, self, Some(user))?;
                 };
                 Ok(user)
-            }).map_err(|e: FailureError| e.context(format!("Find specific user {} error occured", user_id_arg)).into())
+            })
+            .map_err(|e: FailureError| e.context(format!("Find specific user {} error occured", user_id_arg)).into())
     }
 
     /// Check that user with specified email already exists
@@ -135,7 +136,8 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                     acl::check(&*self.acl, Resource::Users, Action::Read, self, Some(user))?;
                 };
                 Ok(user)
-            }).map_err(|e: FailureError| {
+            })
+            .map_err(|e: FailureError| {
                 e.context(format!("Find specific user by email {:?} error occured", email_arg))
                     .into()
             })
@@ -159,7 +161,8 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                 }
 
                 Ok(users_res)
-            }).map_err(|e: FailureError| {
+            })
+            .map_err(|e: FailureError| {
                 e.context(format!("list of users, limited by {} and {} error occured", from, count))
                     .into()
             })
@@ -187,7 +190,8 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
 
                 let query = diesel::update(filter).set(&payload);
                 query.get_result::<User>(self.db_conn).map_err(From::from)
-            }).map_err(|e: FailureError| {
+            })
+            .map_err(|e: FailureError| {
                 e.context(format!("update user {} with {:?} error occured", user_id_arg, payload))
                     .into()
             })
@@ -206,7 +210,8 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                 let query = diesel::update(filter).set(is_active.eq(false));
 
                 query.get_result(self.db_conn).map_err(From::from)
-            }).map_err(|e: FailureError| e.context(format!("Deactivates user {:?} error occured", user_id_arg)).into())
+            })
+            .map_err(|e: FailureError| e.context(format!("Deactivates user {:?} error occured", user_id_arg)).into())
     }
 
     /// Set block status of specific user
@@ -222,7 +227,8 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                 let query = diesel::update(filter).set(is_blocked.eq(is_blocked_arg));
 
                 query.get_result(self.db_conn).map_err(From::from)
-            }).map_err(|e: FailureError| {
+            })
+            .map_err(|e: FailureError| {
                 e.context(format!("Set Block status for user {:?} error occured", user_id_arg))
                     .into()
             })
@@ -282,12 +288,15 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                     .map(move |total_count| UserSearchResults {
                         total_count: total_count as u32,
                         users: users_res,
-                    }).map_err(From::from)
-            }).map_err(|e: FailureError| {
+                    })
+                    .map_err(From::from)
+            })
+            .map_err(|e: FailureError| {
                 e.context(format!(
                     "search for users error occured (from id: {:?}, skip: {}, count: {})",
                     from, skip, count
-                )).into()
+                ))
+                .into()
             })
     }
 
@@ -303,7 +312,8 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                 }
 
                 Ok(users_res)
-            }).map_err(|e: FailureError| e.context(format!("fuzzy search for users by email error occured")).into())
+            })
+            .map_err(|e: FailureError| e.context(format!("fuzzy search for users by email error occured")).into())
     }
     /// Revoke all tokens for user
     fn revoke_tokens(&self, user_id_arg: UserId, revoke_before_: SystemTime) -> RepoResult<()> {
@@ -318,7 +328,8 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                 let query = diesel::update(filter).set(revoke_before.eq(revoke_before_));
 
                 query.get_result(self.db_conn).map_err(From::from).map(|_: User| ())
-            }).map_err(|e: FailureError| {
+            })
+            .map_err(|e: FailureError| {
                 e.context(format!("Set revoke before for user {:?} error occured", user_id_arg))
                     .into()
             })

@@ -149,7 +149,8 @@ pub fn start_server(config: Config) {
             let app = Application::<Error>::new(controller);
 
             Ok(app)
-        }).unwrap_or_else(|why| {
+        })
+        .unwrap_or_else(|why| {
             error!("Http Server Initialization Error: {}", why);
             process::exit(1);
         });
@@ -160,7 +161,8 @@ pub fn start_server(config: Config) {
             .for_each(move |conn| {
                 handle_arc2.spawn(conn.map(|_| ()).map_err(|why| error!("Server Error: {:?}", why)));
                 Ok(())
-            }).map_err(|_| ()),
+            })
+            .map_err(|_| ()),
     );
 
     info!("Listening on http://{}, threads: {}", address, thread_count);
@@ -168,5 +170,6 @@ pub fn start_server(config: Config) {
     core.run(tokio_signal::ctrl_c().flatten_stream().take(1u64).for_each(|()| {
         info!("Ctrl+C received. Exit");
         Ok(())
-    })).unwrap();
+    }))
+    .unwrap();
 }

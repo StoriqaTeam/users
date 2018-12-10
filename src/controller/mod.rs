@@ -147,7 +147,8 @@ impl<
                         e.context("Parsing body failed, target: SagaCreateProfile")
                             .context(Error::Parse)
                             .into()
-                    }).and_then(move |payload| {
+                    })
+                    .and_then(move |payload| {
                         payload
                             .identity
                             .validate()
@@ -155,10 +156,12 @@ impl<
                                 format_err!("Validation failed, target: SagaCreateProfile")
                                     .context(Error::Validate(e))
                                     .into()
-                            }).into_future()
+                            })
+                            .into_future()
                             .inspect(|_| {
                                 debug!("Validation success");
-                            }).and_then(move |_| {
+                            })
+                            .and_then(move |_| {
                                 let checked_new_ident = models::identity::NewIdentity {
                                     email: payload.identity.email.to_lowercase(),
                                     password: payload.identity.password,
@@ -187,10 +190,12 @@ impl<
                                 format_err!("Validation failed, target: UpdateUser")
                                     .context(Error::Validate(e))
                                     .into()
-                            }).into_future()
+                            })
+                            .into_future()
                             .inspect(|_| {
                                 debug!("Validation success");
-                            }).and_then(move |_| service.update(user_id, update_user))
+                            })
+                            .and_then(move |_| service.update(user_id, update_user))
                     }),
             ),
 
@@ -220,10 +225,12 @@ impl<
                                 format_err!("Validation failed, target: EmailIdentity")
                                     .context(Error::Validate(e))
                                     .into()
-                            }).into_future()
+                            })
+                            .into_future()
                             .inspect(|_| {
                                 debug!("Validation success");
-                            }).and_then(move |_| {
+                            })
+                            .and_then(move |_| {
                                 let checked_ident = models::identity::EmailIdentity {
                                     email: ident.email.to_lowercase(),
                                     password: ident.password,
@@ -239,7 +246,8 @@ impl<
                     .map_err(|e| e.context("Parsing body failed, target: ProviderOauth").context(Error::Parse).into())
                     .inspect(|payload| {
                         debug!("Received request to authenticate with Google token: {:?}", &payload);
-                    }).and_then(move |oauth| service.create_token_google(oauth, token_expiration)),
+                    })
+                    .and_then(move |oauth| service.create_token_google(oauth, token_expiration)),
             ),
 
             // POST /jwt/refresh
@@ -248,7 +256,8 @@ impl<
                     .map_err(|e| e.context("Parsing body failed, target: JWTPayload").context(Error::Parse).into())
                     .inspect(|payload| {
                         debug!("Received request to refresh jwt token for: {:?}", &payload);
-                    }).and_then(move |oauth| service.refresh_token(oauth)),
+                    })
+                    .and_then(move |oauth| service.refresh_token(oauth)),
             ),
 
             // POST /jwt/revoke
@@ -257,7 +266,8 @@ impl<
                     .map_err(|e| e.context("Parsing body failed, target: JWTPayload").context(Error::Parse).into())
                     .inspect(|payload| {
                         debug!("Received request to revoke all tokens for: {:?}", &payload);
-                    }).and_then(move |oauth| service.revoke_tokens(oauth.user_id, oauth.provider)),
+                    })
+                    .and_then(move |oauth| service.revoke_tokens(oauth.user_id, oauth.provider)),
             ),
 
             // POST /jwt/facebook
@@ -266,7 +276,8 @@ impl<
                     .map_err(|e| e.context("Parsing body failed, target: ProviderOauth").context(Error::Parse).into())
                     .inspect(|payload| {
                         debug!("Received request to authenticate with Facebook token: {:?}", &payload);
-                    }).and_then(move |oauth| service.create_token_facebook(oauth, token_expiration)),
+                    })
+                    .and_then(move |oauth| service.create_token_facebook(oauth, token_expiration)),
             ),
 
             (Get, Some(Route::RolesByUserId { user_id })) => serialize_future({ service.get_roles(user_id) }),
@@ -296,14 +307,16 @@ impl<
                         e.context("Parsing body failed, target: ChangeIdentityPassword")
                             .context(Error::Parse)
                             .into()
-                    }).and_then(move |change_req| {
+                    })
+                    .and_then(move |change_req| {
                         change_req
                             .validate()
                             .map_err(|e| {
                                 format_err!("Validation failed, target: ChangeIdentityPassword")
                                     .context(Error::Validate(e))
                                     .into()
-                            }).into_future()
+                            })
+                            .into_future()
                             .and_then(move |_| service.change_password(change_req))
                     }),
             ),
@@ -319,7 +332,8 @@ impl<
                                 format_err!("Validation failed, target: ResetRequest")
                                     .context(Error::Validate(e))
                                     .into()
-                            }).into_future()
+                            })
+                            .into_future()
                             .and_then(move |_| service.get_password_reset_token(reset_req.email.to_lowercase(), reset_req.uuid))
                     }),
             ),
@@ -331,14 +345,16 @@ impl<
                         e.context("Parsing body failed, target: ResetApply failed!")
                             .context(Error::Parse)
                             .into()
-                    }).and_then(move |reset_apply| {
+                    })
+                    .and_then(move |reset_apply| {
                         reset_apply
                             .validate()
                             .map_err(|e| {
                                 format_err!("Validation failed, target: ResetApply")
                                     .context(Error::Validate(e))
                                     .into()
-                            }).into_future()
+                            })
+                            .into_future()
                             .and_then(move |_| service.password_reset_apply(reset_apply.token, reset_apply.password))
                     }),
             ),
@@ -354,7 +370,8 @@ impl<
                                 format_err!("Validation failed, target: VerifyRequest")
                                     .context(Error::Validate(e))
                                     .into()
-                            }).into_future()
+                            })
+                            .into_future()
                             .and_then(move |_| service.get_email_verification_token(reset_req.email.to_lowercase()))
                     }),
             ),
@@ -388,7 +405,8 @@ impl<
                             e.context("Parsing body failed, target: UsersSearchTerms")
                                 .context(Error::Parse)
                                 .into()
-                        }).and_then(move |payload| service.search(offset, skip, count, payload)),
+                        })
+                        .and_then(move |payload| service.search(offset, skip, count, payload)),
                 )
             }
 
@@ -398,7 +416,8 @@ impl<
                     .context(Error::NotFound)
                     .into(),
             )),
-        }.map_err(|err| {
+        }
+        .map_err(|err| {
             let wrapper = ErrorMessageWrapper::<Error>::from(&err);
             if wrapper.inner.code == 500 {
                 log_and_capture_error(&err);

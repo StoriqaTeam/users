@@ -252,7 +252,7 @@ pub mod tests {
             Ok(user)
         }
 
-        fn delete(&self, user_id_arg: UserId) -> RepoResult<()> {
+        fn delete(&self, _user_id_arg: UserId) -> RepoResult<()> {
             Ok(())
         }
 
