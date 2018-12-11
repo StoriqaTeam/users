@@ -23,6 +23,7 @@ use super::util::{password_create, password_verify};
 use errors::Error;
 use models::*;
 use repos::repo_factory::ReposFactory;
+use repos::UsersRepo;
 use services::jwt::JWTService;
 use services::Service;
 
@@ -218,7 +219,8 @@ impl<
             conn.transaction::<User, FailureError, _>(move || {
                 let exists = ident_repo.email_exists(payload.email.to_string())?;
                 if !exists {
-                    let new_user = user_payload.unwrap_or(NewUser::from(payload.clone()));
+                    let mut new_user = user_payload.unwrap_or(NewUser::from(payload.clone()));
+                    check_referal(&*users_repo, &mut new_user)?;
                     let user = users_repo.create(new_user)?;
                     ident_repo.create(
                         payload.email,
@@ -572,6 +574,15 @@ impl<
             }),
         )
     }
+}
+
+fn check_referal(users_repo: &UsersRepo, new_user: &mut NewUser) -> Result<(), FailureError> {
+    if let Some(referal) = new_user.referal {
+        if users_repo.find(referal)?.is_none() {
+            new_user.referal = None;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
