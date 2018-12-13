@@ -27,6 +27,8 @@ pub enum Route {
     PasswordChange,
     UserPasswordResetToken,
     UserEmailVerifyToken,
+    GetUserEmalVerifyToken { user_id: UserId },
+    GetUserPasswordResetToken { user_id: UserId },
 }
 
 pub fn create_route_parser() -> RouteParser<Route> {
@@ -121,8 +123,24 @@ pub fn create_route_parser() -> RouteParser<Route> {
     // /users/password_reset_token route
     router.add_route(r"^/users/password_reset_token$", || Route::UserPasswordResetToken);
 
+    // Get user password reset token route
+    router.add_route_with_params(r"^/users/(\d+)/password_reset_token$", |params| {
+        params
+            .get(0)
+            .and_then(|string_id| string_id.parse().ok())
+            .map(|user_id| Route::GetUserPasswordResetToken { user_id })
+    });
+
     // User email verification route
     router.add_route(r"^/users/email_verify_token$", || Route::UserEmailVerifyToken);
+
+    // Get user email verification token route
+    router.add_route_with_params(r"^/users/(\d+)/email_verify_token$", |params| {
+        params
+            .get(0)
+            .and_then(|string_id| string_id.parse().ok())
+            .map(|user_id| Route::GetUserEmalVerifyToken { user_id })
+    });
 
     // Search users
     router.add_route(r"^/users/search$", || Route::UsersSearch);

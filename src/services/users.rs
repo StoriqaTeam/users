@@ -44,6 +44,8 @@ pub trait UsersService {
     fn delete(self, user_id: UserId) -> ServiceFuture<()>;
     /// Creates new user
     fn create(&self, payload: NewIdentity, user_payload: Option<NewUser>) -> ServiceFuture<User>;
+    /// Get existing reset token
+    fn get_existing_reset_token(&self, user: UserId, token_type: TokenType) -> ServiceFuture<ResetToken>;
     /// Get email verification token
     fn get_email_verification_token(&self, email: String) -> ServiceFuture<String>;
     /// Verifies email
@@ -268,6 +270,32 @@ impl<
                 .map_err(|e| e.context("Can not create reset token").into())
                 .map_err(|e: FailureError| e.context("Service users, resend_verification_link endpoint error occured.").into())
         })
+    }
+
+    /// Get existing email verification token
+    fn get_existing_reset_token(&self, user_id: UserId, token_type: TokenType) -> ServiceFuture<ResetToken> {
+        if !self.dynamic_context.is_super_admin() {
+            // can only super admin with id = 1
+            return Box::new(future::err(
+                Error::Forbidden.context("Cannot get existing email verification token").into(),
+            ));
+        }
+
+        let repo_factory = self.static_context.repo_factory.clone();
+
+        let res = self
+            .spawn_on_pool(move |conn| {
+                let users_repo = repo_factory.create_users_repo_with_sys_acl(&conn);
+                let reset_repo = repo_factory.create_reset_token_repo(&conn);
+                let user = users_repo.find(user_id)?.ok_or(Error::NotFound.context("User not found"))?;
+                let token = reset_repo
+                    .find_by_email(user.email, token_type)?
+                    .ok_or(Error::NotFound.context("Token not found not found"))?;
+                Ok(token)
+            })
+            .map_err(|e: FailureError| e.context("Service users, get_existing_reset_token endpoint error occurred.").into());
+
+        Box::new(res)
     }
 
     /// Verifies email
