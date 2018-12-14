@@ -290,7 +290,7 @@ impl<
                 let user = users_repo.find(user_id)?.ok_or(Error::NotFound.context("User not found"))?;
                 let token = reset_repo
                     .find_by_email(user.email, token_type)?
-                    .ok_or(Error::NotFound.context("Token not found not found"))?;
+                    .ok_or(Error::NotFound.context("Token not found"))?;
                 Ok(token)
             })
             .map_err(|e: FailureError| e.context("Service users, get_existing_reset_token endpoint error occurred.").into());
