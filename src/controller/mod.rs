@@ -24,7 +24,7 @@ use stq_http::{
     errors::ErrorMessageWrapper,
     request_util::{self, parse_body, serialize_future, RequestTimeout as RequestTimeoutHeader},
 };
-
+use stq_static_resources::TokenType;
 use stq_types::UserId;
 
 use self::context::{DynamicContext, StaticContext};
@@ -321,6 +321,11 @@ impl<
                     }),
             ),
 
+            // POST /users/<user_id>/password_reset_token
+            (&Get, Some(Route::GetUserPasswordResetToken { user_id })) => {
+                serialize_future(service.get_existing_reset_token(user_id, TokenType::PasswordReset))
+            }
+
             // Post /users/password_reset_token
             (&Post, Some(Route::UserPasswordResetToken)) => serialize_future(
                 parse_body::<models::ResetRequest>(req.body())
@@ -358,6 +363,11 @@ impl<
                             .and_then(move |_| service.password_reset_apply(reset_apply.token, reset_apply.password))
                     }),
             ),
+
+            // POST /users/<user_id>/email_verify_token
+            (&Get, Some(Route::GetUserEmalVerifyToken { user_id })) => {
+                serialize_future(service.get_existing_reset_token(user_id, TokenType::EmailVerify))
+            }
 
             // Post /users/email_verify_token
             (&Post, Some(Route::UserEmailVerifyToken)) => serialize_future(
