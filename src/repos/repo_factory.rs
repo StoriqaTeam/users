@@ -336,6 +336,17 @@ pub mod tests {
             let ident = create_identity(ident.email, update.password, UserId(1), ident.provider, ident.saga_id);
             Ok(ident)
         }
+
+        fn get_by_email(&self, email_arg: String) -> RepoResult<Option<Identity>> {
+            let ident = create_identity(
+                email_arg,
+                Some(password_create(MOCK_PASSWORD.to_string())),
+                UserId(1),
+                provider_arg,
+                MOCK_SAGA_ID.to_string(),
+            );
+            Ok(ident)
+        }
     }
 
     #[derive(Clone, Default)]

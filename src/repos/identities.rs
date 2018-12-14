@@ -49,6 +49,9 @@ pub trait IdentitiesRepo {
 
     /// Update identity
     fn update(&self, ident: Identity, update: UpdateIdentity) -> RepoResult<Identity>;
+
+    // Get by user email
+    fn get_by_email(&self, email_arg: String) -> RepoResult<Identity>;
 }
 
 impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static> IdentitiesRepoImpl<'a, T> {
@@ -171,6 +174,16 @@ impl<'a, T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager
                 ident, update
             ))
             .into()
+        })
+    }
+
+    // Get by user email
+    fn get_by_email(&self, email_arg: String) -> RepoResult<Identity> {
+        let query = identities.filter(email.eq(&email_arg));
+
+        query.first::<Identity>(self.db_conn).map_err(|e| {
+            e.context(format!("Find specific user by email {} error occurred.", email_arg))
+                .into()
         })
     }
 }
