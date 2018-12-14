@@ -333,7 +333,10 @@ impl<
                                                     }
                                                 }
                                                 _ => {
-                                                    error!("No password in db for user with email, user_id: {}", &identity.user_id);
+                                                    error!(
+                                                        "No password in db for user with email, user_id: {}, provider: {}",
+                                                        &identity.user_id, identity.provider
+                                                    );
                                                     Err(Error::Validate(validation_errors!({"password": ["password" => "Wrong password"]}))
                                                         .into())
                                                 }
