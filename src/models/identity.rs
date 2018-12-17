@@ -53,6 +53,7 @@ pub struct ChangeIdentityPassword {
 pub struct UpdateIdentity {
     #[validate(length(min = "8", max = "30", message = "Password should be between 8 and 30 symbols"))]
     pub password: Option<String>,
+    pub provider: Option<Provider>,
 }
 
 impl From<EmailIdentity> for NewIdentity {
