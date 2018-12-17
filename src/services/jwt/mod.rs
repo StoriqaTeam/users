@@ -420,7 +420,7 @@ impl<
         let secret = self.static_context.jwt_private_key.clone();
 
         if old_payload.exp + (refresh_timeout as i64) < Utc::now().timestamp() {
-            Box::new(Err(Error::InvalidToken.context("Couldn't refresh jwt, it is expired.").into()).into_future())
+            Box::new(Err(Error::Validate(validation_errors!({"token": ["expired" => "JWT has expired."]})).into()).into_future())
         } else {
             let exp = Utc::now().timestamp() + jwt_expiration_s as i64;
             let tokenpayload = JWTPayload::new(old_payload.user_id, exp, old_payload.provider);
