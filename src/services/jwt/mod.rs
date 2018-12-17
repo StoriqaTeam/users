@@ -302,7 +302,7 @@ impl<
 
             conn.transaction::<JWT, FailureError, _>(move || {
                 ident_repo
-                    .email_provider_exists(payload.email.to_string(), Provider::Email)
+                    .email_exists(payload.email.clone())
                     .and_then(move |exists| -> RepoResult<UserId> {
                         if !exists {
                             // email does not exist
@@ -316,14 +316,26 @@ impl<
                                         Err(Error::Validate(validation_errors!({"email": ["email" => "Email is blocked"]})).into())
                                     } else if user.email_verified {
                                         ident_repo
-                                            .find_by_email_provider(payload.email.clone(), Provider::Email)
-                                            .and_then(|identity| {
-                                                if let Some(passwd) = identity.password {
-                                                    password_verify(&passwd, payload.password.clone())
-                                                } else {
+                                            .get_by_email(payload.email.clone())
+                                            .and_then(|identity| match identity.provider {
+                                                Provider::Email => {
+                                                    if let Some(passwd) = identity.password {
+                                                        password_verify(&passwd, payload.password.clone())
+                                                    } else {
+                                                        error!(
+                                                            "No password in db for user with Email provider, user_id: {}",
+                                                            &identity.user_id
+                                                        );
+                                                        Err(Error::Validate(
+                                                            validation_errors!({"password": ["password" => "Wrong password"]}),
+                                                        )
+                                                        .into())
+                                                    }
+                                                }
+                                                _ => {
                                                     error!(
-                                                        "No password in db for user with Email provider, user_id: {}",
-                                                        &identity.user_id
+                                                        "No password in db for user with email, user_id: {}, provider: {}",
+                                                        &identity.user_id, identity.provider
                                                     );
                                                     Err(Error::Validate(validation_errors!({"password": ["password" => "Wrong password"]}))
                                                         .into())

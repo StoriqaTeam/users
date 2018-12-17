@@ -217,6 +217,7 @@ impl<
         self.spawn_on_pool(move |conn| {
             let users_repo = repo_factory.create_users_repo(&conn, current_uid);
             let ident_repo = repo_factory.create_identities_repo(&conn);
+            let users_repo_with_sys_acl = repo_factory.create_users_repo_with_sys_acl(&conn);
 
             conn.transaction::<User, FailureError, _>(move || {
                 let exists = ident_repo.email_exists(payload.email.to_string())?;
@@ -231,7 +232,9 @@ impl<
                         user.id,
                         payload.saga_id,
                     )?;
-                    Ok(user)
+
+                    let update_user = set_email_verified_social(&*users_repo_with_sys_acl, user.id, payload.provider)?;
+                    Ok(update_user.unwrap_or(user))
                 } else {
                     Err(Error::Validate(validation_errors!({"email": ["email" => "Email already exists"]})).into())
                 }
@@ -402,6 +405,7 @@ impl<
                                     debug!("Changing password for identity {:?}", &identity);
                                     let update = UpdateIdentity {
                                         password: Some(password_create(new_password)),
+                                        provider: None,
                                     };
                                     ident_repo.update(identity, update)
                                 }
@@ -437,7 +441,7 @@ impl<
                 Err(Error::Validate(validation_errors!({"email": ["not_verified" => "Email not verified"]})).into())
             } else {
                 let ident = ident_repo
-                    .find_by_email_provider(email.clone(), Provider::Email)
+                    .get_by_email(email.clone())
                     .map_err(|e| e.context("Identity by email search failure").context(Error::InvalidToken))?;
                 debug!("Found identity {:?}, generating reset token.", &ident);
                 let token = reset_repo
@@ -487,10 +491,18 @@ impl<
                     let identity = match SystemTime::now().duration_since(reset_token.updated_at) {
                         Ok(elapsed) => {
                             if elapsed.as_secs() < reset_expiration_s {
-                                let ident = ident_repo.find_by_email_provider(reset_token.email.clone(), Provider::Email)?;
+                                let ident = ident_repo.get_by_email(reset_token.email.clone())?;
                                 debug!("Token check successful, resetting password for identity {:?}", &ident);
-                                let update = UpdateIdentity {
-                                    password: Some(password_create(new_pass)),
+
+                                let update = match ident.provider {
+                                    Provider::Email => UpdateIdentity {
+                                        password: Some(password_create(new_pass)),
+                                        provider: None,
+                                    },
+                                    _ => UpdateIdentity {
+                                        password: Some(password_create(new_pass)),
+                                        provider: Some(Provider::Email),
+                                    },
                                 };
 
                                 ident_repo.update(ident, update)
@@ -611,6 +623,23 @@ fn check_referal(users_repo: &UsersRepo, new_user: &mut NewUser) -> Result<(), F
         }
     }
     Ok(())
+}
+
+fn set_email_verified_social(users_repo: &UsersRepo, user_id: UserId, provider: Provider) -> Result<Option<User>, FailureError> {
+    match provider {
+        Provider::Facebook | Provider::Google => {
+            let update = UpdateUser {
+                email_verified: Some(true),
+                ..Default::default()
+            };
+
+            users_repo
+                .update(user_id, update)
+                .map_err(|e| e.context("Service users, set_email_verified_social endpoint error occured.").into())
+                .map(Some)
+        }
+        _ => Ok(None),
+    }
 }
 
 #[cfg(test)]
