@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile.users
     container_name: users
     working_dir: /app
-    command: ["sh", "-c", "/utils/wait_for_it.sh users-pg:5432 ; diesel migration run ; cargo run"]
+    command: ["sh", "-c", "/utils/wait_for_it.sh users-pg:5432 ; diesel migration run ; cargo run --locked"]
     volumes:
       - ..:/app
       - stq_cargo_cache:/usr/local/cargo

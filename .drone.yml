@@ -48,7 +48,7 @@ pipeline:
     - wget -q https://s3.eu-central-1.amazonaws.com/dumpster.stq/diesel -O /usr/local/cargo/bin/diesel
     - chmod +x /usr/local/cargo/bin/diesel
     - diesel migration run
-    - cargo test
+    - cargo test --locked
     when:
       event: pull_request
 
