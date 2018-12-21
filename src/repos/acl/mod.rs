@@ -206,7 +206,7 @@ mod tests {
         );
         assert_eq!(
             acl.allows(Resource::Users, Action::Update, &s, Some(&resource)).unwrap(),
-            false,
+            true,
             "ACL allows update actions on user for superuser."
         );
         assert_eq!(
