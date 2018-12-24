@@ -2,6 +2,7 @@
 //! validation, authorization, etc.
 
 pub mod jwt;
+pub mod mocks;
 pub mod types;
 pub mod user_roles;
 pub mod users;

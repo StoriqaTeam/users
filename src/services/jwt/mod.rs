@@ -19,7 +19,7 @@ use serde;
 use serde_json;
 use uuid::Uuid;
 
-use stq_http::client::HttpClient;
+use stq_http::client::{ClientHandle, HttpClient, TimeLimitedHttpClient};
 use stq_static_resources::Provider;
 use stq_types::UserId;
 
@@ -63,11 +63,48 @@ pub trait JWTService {
     fn refresh_token(&self, old_payload: JWTPayload) -> ServiceFuture<String>;
 }
 
-/// Profile service trait, presents standard scheme for receiving profile information from providers
+pub trait JWTProviderService<P>: Send + Sync
+where
+    P: Email + Clone + Send + 'static,
+    NewUser: From<P>,
+    P: for<'a> serde::Deserialize<'a>,
+    P: IntoUser,
+{
+    fn get_profile(&self, url: String, headers: Option<Headers>) -> ServiceFuture<serde_json::Value>;
+}
 
+#[derive(Clone)]
+pub struct JWTProviderServiceImpl {
+    pub http_client: TimeLimitedHttpClient<ClientHandle>,
+}
+
+impl JWTProviderService<GoogleProfile> for JWTProviderServiceImpl {
+    fn get_profile(&self, url: String, headers: Option<Headers>) -> ServiceFuture<serde_json::Value> {
+        self.get_profile_request(url, headers)
+    }
+}
+
+impl JWTProviderService<FacebookProfile> for JWTProviderServiceImpl {
+    fn get_profile(&self, url: String, headers: Option<Headers>) -> ServiceFuture<serde_json::Value> {
+        self.get_profile_request(url, headers)
+    }
+}
+
+impl JWTProviderServiceImpl {
+    fn get_profile_request(&self, url: String, headers: Option<Headers>) -> ServiceFuture<serde_json::Value> {
+        let res = self
+            .http_client
+            .request_json::<serde_json::Value>(Method::Get, url, None, headers)
+            .map_err(|e| e.context(Error::HttpClient).context(format!("Couldn't get_profile_request")).into());
+        Box::new(res)
+    }
+}
+
+/// Profile service trait, presents standard scheme for receiving profile information from providers
 trait ProfileService<T: Connection<Backend = Pg, TransactionManager = AnsiTransactionManager> + 'static, P: Email> {
     fn create_token(
         self,
+        provider_service: &JWTProviderService<P>,
         provider: Provider,
         info_url: String,
         headers: Option<Headers>,
@@ -75,7 +112,7 @@ trait ProfileService<T: Connection<Backend = Pg, TransactionManager = AnsiTransa
         exp: i64,
     ) -> ServiceFuture<JWT>;
 
-    fn get_profile(&self, url: String, headers: Option<Headers>) -> ServiceFuture<P>;
+    fn get_profile(&self, provider: &JWTProviderService<P>, url: String, headers: Option<Headers>) -> ServiceFuture<P>;
 
     fn profile_status(&self, profile: P, provider: Provider) -> ServiceFuture<ProfileStatus>;
 
@@ -100,6 +137,7 @@ where
 {
     fn create_token(
         self,
+        provider_service: &JWTProviderService<P>,
         provider: Provider,
         info_url: String,
         headers: Option<Headers>,
@@ -111,7 +149,7 @@ where
         let provider_clone = provider.clone();
 
         let future = service
-            .get_profile(info_url, headers)
+            .get_profile(provider_service, info_url, headers)
             .and_then({
                 let provider = provider.clone();
                 let s = service.clone();
@@ -163,11 +201,10 @@ where
         Box::new(future)
     }
 
-    fn get_profile(&self, url: String, headers: Option<Headers>) -> ServiceFuture<P> {
+    fn get_profile(&self, provider_service: &JWTProviderService<P>, url: String, headers: Option<Headers>) -> ServiceFuture<P> {
         Box::new(
-            self.dynamic_context
-                .http_client
-                .request_json::<serde_json::Value>(Method::Get, url, None, headers)
+            provider_service
+                .get_profile(url, headers)
                 .map_err(|e| {
                     e.context("Failed to receive user info from provider. {}")
                         .context(Error::Forbidden)
@@ -392,8 +429,10 @@ impl<
         let mut headers = Headers::new();
         headers.set(Authorization(Bearer { token: oauth.token }));
         let additional_data = oauth.additional_data;
+        let google_provider_service = &self.dynamic_context.google_provider_service.clone();
         <Service<T, M, F> as ProfileService<T, GoogleProfile>>::create_token(
             self,
+            &**google_provider_service,
             Provider::Google,
             url,
             Some(headers),
@@ -411,7 +450,16 @@ impl<
             info_url, oauth.token
         );
         let additional_data = oauth.additional_data;
-        <Service<T, M, F> as ProfileService<T, FacebookProfile>>::create_token(self, Provider::Facebook, url, None, additional_data, exp)
+        let facebook_provider_service = &self.dynamic_context.facebook_provider_service.clone();
+        <Service<T, M, F> as ProfileService<T, FacebookProfile>>::create_token(
+            self,
+            &**facebook_provider_service,
+            Provider::Facebook,
+            url,
+            None,
+            additional_data,
+            exp,
+        )
     }
 
     fn refresh_token(&self, old_payload: JWTPayload) -> ServiceFuture<String> {

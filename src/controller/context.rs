@@ -12,8 +12,11 @@ use stq_router::RouteParser;
 use stq_types::UserId;
 
 use super::routes::*;
-use config::Config;
+use config::{ApiMode, Config};
 use repos::repo_factory::*;
+use services::jwt::profile::{FacebookProfile, GoogleProfile};
+use services::jwt::{JWTProviderService, JWTProviderServiceImpl};
+use services::mocks::jwt::JWTProviderServiceMock;
 
 /// Static context for all app
 pub struct StaticContext<T, M, F>
@@ -57,6 +60,37 @@ impl<
             jwt_private_key,
         }
     }
+
+    /// Creates dynamic context services
+    pub fn dynamic_context_services(&self, time_limited_http_client: TimeLimitedHttpClient<ClientHandle>) -> DynamicContextServices {
+        let google_provider_service: Arc<JWTProviderService<GoogleProfile>> =
+            if self.config.testmode.as_ref().and_then(|t| t.get("jwt")) == Some(&ApiMode::Mock) {
+                Arc::new(JWTProviderServiceMock)
+            } else {
+                Arc::new(JWTProviderServiceImpl {
+                    http_client: time_limited_http_client.clone(),
+                })
+            };
+
+        let facebook_provider_service: Arc<JWTProviderService<FacebookProfile>> =
+            if self.config.testmode.as_ref().and_then(|t| t.get("jwt")) == Some(&ApiMode::Mock) {
+                Arc::new(JWTProviderServiceMock)
+            } else {
+                Arc::new(JWTProviderServiceImpl {
+                    http_client: time_limited_http_client,
+                })
+            };
+
+        DynamicContextServices {
+            google_provider_service,
+            facebook_provider_service,
+        }
+    }
+}
+
+pub struct DynamicContextServices {
+    pub google_provider_service: Arc<JWTProviderService<GoogleProfile>>,
+    pub facebook_provider_service: Arc<JWTProviderService<FacebookProfile>>,
 }
 
 impl<
@@ -84,15 +118,25 @@ pub struct DynamicContext {
     pub user_id: Option<UserId>,
     pub correlation_token: String,
     pub http_client: TimeLimitedHttpClient<ClientHandle>,
+    pub google_provider_service: Arc<JWTProviderService<GoogleProfile>>,
+    pub facebook_provider_service: Arc<JWTProviderService<FacebookProfile>>,
 }
 
 impl DynamicContext {
     /// Create a new dynamic context for each request
-    pub fn new(user_id: Option<UserId>, correlation_token: String, http_client: TimeLimitedHttpClient<ClientHandle>) -> Self {
+    pub fn new(
+        user_id: Option<UserId>,
+        correlation_token: String,
+        http_client: TimeLimitedHttpClient<ClientHandle>,
+        google_provider_service: Arc<JWTProviderService<GoogleProfile>>,
+        facebook_provider_service: Arc<JWTProviderService<FacebookProfile>>,
+    ) -> Self {
         Self {
             user_id,
             correlation_token,
             http_client,
+            google_provider_service,
+            facebook_provider_service,
         }
     }
 
