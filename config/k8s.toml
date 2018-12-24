@@ -20,3 +20,6 @@ reset_expiration_s = 86400 # 1 day
 jwt_expiration_s = 86400 # 1 day
 email_sending_timeout_s = 30
 refresh_timeout_s = 604800 # 7 days
+
+[testmode]
+jwt = "mock"

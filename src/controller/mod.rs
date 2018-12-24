@@ -27,7 +27,7 @@ use stq_http::{
 use stq_static_resources::TokenType;
 use stq_types::UserId;
 
-use self::context::{DynamicContext, StaticContext};
+use self::context::{DynamicContext, DynamicContextServices, StaticContext};
 use self::routes::Route;
 use errors::Error;
 use models;
@@ -88,7 +88,19 @@ impl<
 
         let time_limited_http_client = TimeLimitedHttpClient::new(self.static_context.client_handle.clone(), request_timeout);
 
-        let dynamic_context = DynamicContext::new(user_id, correlation_token, time_limited_http_client);
+        let DynamicContextServices {
+            google_provider_service,
+            facebook_provider_service,
+        } = self.static_context.dynamic_context_services(time_limited_http_client.clone());
+
+        let dynamic_context = DynamicContext::new(
+            user_id,
+            correlation_token,
+            time_limited_http_client,
+            google_provider_service,
+            facebook_provider_service,
+        );
+
         let service = Service::new(self.static_context.clone(), dynamic_context);
 
         let token_expiration = self.get_jwt_token_expiration();

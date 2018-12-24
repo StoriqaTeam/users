@@ -169,6 +169,9 @@ pub mod tests {
     use repos::types::RepoResult;
     use repos::user_roles::UserRolesRepo;
     use repos::users::UsersRepo;
+    use services::jwt::profile::{FacebookProfile, GoogleProfile};
+    use services::jwt::JWTProviderService;
+    use services::mocks::jwt::JWTProviderServiceMock;
     use services::Service;
 
     #[derive(Default, Copy, Clone)]
@@ -459,6 +462,8 @@ pub mod tests {
         let mut f = File::open(config.jwt.secret_key_path.clone()).unwrap();
         let mut jwt_private_key: Vec<u8> = Vec::new();
         f.read_to_end(&mut jwt_private_key).unwrap();
+        let google_provider_service: Arc<JWTProviderService<GoogleProfile>> = Arc::new(JWTProviderServiceMock);
+        let facebook_provider_service: Arc<JWTProviderService<FacebookProfile>> = Arc::new(JWTProviderServiceMock);
         let static_context = StaticContext::new(
             db_pool,
             cpu_pool,
@@ -468,7 +473,13 @@ pub mod tests {
             jwt_private_key,
         );
         let time_limited_http_client = TimeLimitedHttpClient::new(client_handle, Duration::new(1, 0));
-        let dynamic_context = DynamicContext::new(user_id, String::default(), time_limited_http_client);
+        let dynamic_context = DynamicContext::new(
+            user_id,
+            String::default(),
+            time_limited_http_client,
+            google_provider_service,
+            facebook_provider_service,
+        );
 
         Service::new(static_context, dynamic_context)
     }
