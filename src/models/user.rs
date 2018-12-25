@@ -61,7 +61,7 @@ pub struct User {
 #[derive(Debug, Serialize, Deserialize, Insertable, Validate, Clone)]
 #[table_name = "users"]
 pub struct NewUser {
-    #[validate(email(message = "Invalid email format"))]
+    #[validate(email(code = "not_valid", message = "Invalid email format"))]
     pub email: String,
     #[validate(custom = "validate_phone")]
     pub phone: Option<String>,
