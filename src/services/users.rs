@@ -236,7 +236,7 @@ impl<
                     let update_user = set_email_verified_social(&*users_repo_with_sys_acl, user.id, payload.provider)?;
                     Ok(update_user.unwrap_or(user))
                 } else {
-                    Err(Error::Validate(validation_errors!({"email": ["email" => "Email already exists"]})).into())
+                    Err(Error::Validate(validation_errors!({"email": ["exists" => "Email already exists"]})).into())
                 }
             })
             .map_err(|e: FailureError| e.context("Service users, create endpoint error occured.").into())
@@ -435,7 +435,7 @@ impl<
             let ident_repo = repo_factory.create_identities_repo(&conn);
             let users_repo = repo_factory.create_users_repo_with_sys_acl(&conn);
             let user = users_repo.find_by_email(email.clone())?;
-            let user = user.ok_or_else(|| Error::Validate(validation_errors!({"email": ["email" => "Email does not exists"]})))?;
+            let user = user.ok_or_else(|| Error::Validate(validation_errors!({"email": ["not_exists" => "Email does not exists"]})))?;
             if !user.email_verified {
                 //email not verified
                 Err(Error::Validate(validation_errors!({"email": ["not_verified" => "Email not verified"]})).into())
