@@ -39,14 +39,14 @@ impl ResetToken {
 
 #[derive(Serialize, Deserialize, Validate, Debug)]
 pub struct ResetRequest {
-    #[validate(email(message = "Invalid email format"))]
+    #[validate(email(code = "not_valid", message = "Invalid email format"))]
     pub email: String,
     pub uuid: Uuid,
 }
 
 #[derive(Serialize, Deserialize, Validate, Debug)]
 pub struct VerifyRequest {
-    #[validate(email(message = "Invalid email format"))]
+    #[validate(email(code = "not_valid", message = "Invalid email format"))]
     pub email: String,
 }
 

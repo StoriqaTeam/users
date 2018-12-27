@@ -14,7 +14,7 @@ use schema::identities;
 #[table_name = "identities"]
 pub struct Identity {
     pub user_id: UserId,
-    #[validate(email(message = "Invalid email format"))]
+    #[validate(email(code = "not_valid", message = "Invalid email format"))]
     pub email: String,
     #[validate(length(min = "8", max = "30", message = "Password should be between 8 and 30 symbols"))]
     pub password: Option<String>,
@@ -25,7 +25,7 @@ pub struct Identity {
 /// Payload for creating users
 #[derive(Clone, Debug, Serialize, Deserialize, Validate)]
 pub struct NewIdentity {
-    #[validate(email(message = "Invalid email format"))]
+    #[validate(email(code = "not_valid", message = "Invalid email format"))]
     pub email: String,
     #[validate(length(min = "8", max = "30", message = "Password should be between 8 and 30 symbols"))]
     pub password: Option<String>,
@@ -35,7 +35,7 @@ pub struct NewIdentity {
 
 #[derive(Clone, Debug, Serialize, Deserialize, Validate)]
 pub struct EmailIdentity {
-    #[validate(email(message = "Invalid email format"))]
+    #[validate(email(code = "not_valid", message = "Invalid email format"))]
     pub email: String,
     pub password: String,
 }

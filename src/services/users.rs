@@ -435,7 +435,7 @@ impl<
             let ident_repo = repo_factory.create_identities_repo(&conn);
             let users_repo = repo_factory.create_users_repo_with_sys_acl(&conn);
             let user = users_repo.find_by_email(email.clone())?;
-            let user = user.ok_or_else(|| Error::Validate(validation_errors!({"email": ["not_exists" => "Email does not exists"]})))?;
+            let user = user.ok_or_else(|| Error::Validate(validation_errors!({"email": ["not_exists" => "Email does not exist"]})))?;
             if !user.email_verified {
                 //email not verified
                 Err(Error::Validate(validation_errors!({"email": ["not_verified" => "Email not verified"]})).into())
@@ -455,7 +455,7 @@ impl<
                         .as_secs();
                     if token_duration < email_sending_timeout {
                         return Err(Error::Validate(
-                            validation_errors!({"email": ["email_timeout" => "can not send email more often then 30 seconds"]}),
+                            validation_errors!({"email": ["email_timeout" => "Can not send email more often then 30 seconds"]}),
                         )
                         .into());
                     }
@@ -463,7 +463,7 @@ impl<
 
                 let t = reset_repo
                     .upsert(ident.email.clone(), TokenType::PasswordReset, Some(uuid))
-                    .map_err(|e| e.context("Cannot create reset token"))?;
+                    .map_err(|e| e.context("Can not create reset token"))?;
                 Ok(t.token)
             }
             .map_err(|e: FailureError| e.context("Service users, password_reset_request endpoint error occured.").into())
