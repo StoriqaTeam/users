@@ -212,7 +212,10 @@ where
                 })
                 .and_then(|val| {
                     if val["email"].is_null() {
-                        Err(Error::Validate(validation_errors!({"email": ["email" => "Email required but not provided"]})).into())
+                        Err(Error::Validate(
+                            validation_errors!({"email": ["not_provided" => "Email does not exists in your social network profile."]}),
+                        )
+                        .into())
                     } else {
                         serde_json::from_value::<P>(val.clone()).map_err(|e| e.context(format!("Can not parse profile: {}", val)).into())
                     }
@@ -290,7 +293,7 @@ where
                 if let Some(user) = user {
                     if user.is_blocked {
                         error!("User {} is blocked.", user.id);
-                        return Err(Error::Validate(validation_errors!({"email": ["email" => "Email is blocked"]})).into());
+                        return Err(Error::Validate(validation_errors!({"email": ["blocked" => "Email is blocked"]})).into());
                     }
 
                     let update_user = profile.merge_into_user(user.clone());
@@ -343,14 +346,14 @@ impl<
                     .and_then(move |exists| -> RepoResult<UserId> {
                         if !exists {
                             // email does not exist
-                            Err(Error::Validate(validation_errors!({"email": ["email" => "Email not found"]})).into())
+                            Err(Error::Validate(validation_errors!({"email": ["not_exists" => "Email not found"]})).into())
                         } else {
                             // email exists, checking password
                             users_repo.find_by_email(payload.email.clone()).and_then(move |user| {
                                 if let Some(user) = user {
                                     if user.is_blocked {
                                         error!("User {} is blocked.", user.id);
-                                        Err(Error::Validate(validation_errors!({"email": ["email" => "Email is blocked"]})).into())
+                                        Err(Error::Validate(validation_errors!({"email": ["blocked" => "Email is blocked"]})).into())
                                     } else if user.email_verified {
                                         ident_repo
                                             .get_by_email(payload.email.clone())
