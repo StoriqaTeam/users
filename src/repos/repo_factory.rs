@@ -150,6 +150,7 @@ pub mod tests {
     use diesel::ConnectionResult;
     use diesel::QueryResult;
     use diesel::Queryable;
+    use futures::Stream;
     use futures_cpupool::CpuPool;
     use r2d2::ManageConnection;
     use sha3::{Digest, Sha3_256};
@@ -459,6 +460,8 @@ pub mod tests {
         let config = Config::new().unwrap();
         let client = stq_http::client::Client::new(&config.to_http_config(), &handle);
         let client_handle = client.handle();
+        let client_stream = client.stream();
+        handle.spawn(client_stream.for_each(|_| Ok(())));
         let mut f = File::open(config.jwt.secret_key_path.clone()).unwrap();
         let mut jwt_private_key: Vec<u8> = Vec::new();
         f.read_to_end(&mut jwt_private_key).unwrap();
