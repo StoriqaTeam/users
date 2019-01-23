@@ -1,10 +1,3 @@
-extern crate futures;
-extern crate hyper;
-extern crate serde_json;
-extern crate stq_http;
-extern crate tokio_core;
-extern crate users_lib;
-
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::str::from_utf8;
