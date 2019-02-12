@@ -61,4 +61,9 @@ table! {
 joinable!(identities -> users (user_id));
 joinable!(user_roles -> users (user_id));
 
-allow_tables_to_appear_in_same_query!(identities, reset_tokens, user_roles, users,);
+allow_tables_to_appear_in_same_query!(
+    identities,
+    reset_tokens,
+    user_roles,
+    users,
+);
